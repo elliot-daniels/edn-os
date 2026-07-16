@@ -24,6 +24,7 @@ EDN OS is the operating system for EDN Systems. It captures organisational knowl
 | **Modular architecture** | Components are small, typed, testable, and composable. New sources plug in without rewriting core logic. |
 | **Everything connected** | Records retain provenance to their origin so any extracted item can be traced back to its source. |
 | **Foundation discipline** | Shared infrastructure belongs in Foundation (MOD-000) only when at least two durable modules require it, or when it is essential platform governance. Foundation must remain small and must not become a miscellaneous utilities layer. |
+| **Module map discipline** | Module maps express ownership and dependency direction. Candidate modules do not authorise implementation and may be revised as evidence accumulates. |
 
 ---
 
@@ -76,7 +77,8 @@ Short implementation sprints deliver work against module specifications. Sprints
 - schedule, prioritise, and track implementation tasks;
 - do **not** define software architecture, module boundaries, or security controls.
 
-Architecture is defined only in `CONSTITUTION.md`, `ARCHITECTURE.md`, `SECURITY.md`, and `MODULE-NNN-*.md` documents.
+Architecture is defined only in `CONSTITUTION.md`, `ARCHITECTURE.md`, `SECURITY.md`,
+`MODULE-MAP.md`, and `MODULE-NNN-*.md` documents.
 
 ---
 
@@ -100,6 +102,7 @@ These integrations are not designed or built until a future module specification
 |----------|------|
 | `CONSTITUTION.md` | Immutable principles (this file) |
 | `ARCHITECTURE.md` | System structure and component contracts |
+| `MODULE-MAP.md` | Module catalogue, ownership, and dependency direction |
 | `SECURITY.md` | Threat model, controls, and data-handling rules |
 | `MODULE-000-FOUNDATION.md` | Platform foundation specification |
 | `MODULE-NNN-*.md` | Durable feature module specifications |

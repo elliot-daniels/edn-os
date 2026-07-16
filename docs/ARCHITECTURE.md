@@ -1,6 +1,7 @@
 # EDN OS Architecture
 
-Implementation-oriented system structure for EDN OS.
+Implementation-oriented system structure for EDN OS. The full module catalogue,
+ownership map, and dependency rules are in `MODULE-MAP.md`.
 
 | Module | ID | Specification |
 |--------|-----|---------------|

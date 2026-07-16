@@ -47,6 +47,17 @@ Development sprints may be used to schedule work, but modules define the durable
 
 ---
 
+## Architecture
+
+EDN OS is organised as numbered durable modules (MOD-000 through MOD-012).
+Approved modules have specifications; candidate modules guide long-term ownership
+only.
+
+See [Module Map](docs/MODULE-MAP.md) for the full catalogue, ownership definitions,
+and dependency rules.
+
+---
+
 ## Design Principles
 
 - Local-first
