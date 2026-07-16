@@ -17,7 +17,7 @@ Development sprints deliver implementation work. They do not define architecture
 ┌─────────────────────────────────────────────────────────────────┐
 │                    MOD-000 — Foundation                         │
 │  configuration · logging · platform errors · versioning       │
-│  shared types · data-root policy · fingerprint_file · Connector │
+│  shared types · data-root policy · sha256_file · Connector │
 └────────────────────────────┬────────────────────────────────────┘
                              │ depended on by
               ┌──────────────┼──────────────┐
@@ -45,7 +45,7 @@ Development sprints deliver implementation work. They do not define architecture
 | Version metadata | Application version, module/schema version conventions |
 | Shared types | `RecordId`, timestamps, `ResultStatus`, `SensitivityStatus` |
 | Data-root policy | Approved encrypted data root; `E:\EDN OS` production default |
-| File fingerprinting | `fingerprint_file(path) -> SHA-256 hex` |
+| File fingerprinting | `sha256_file(path) -> SHA-256 hex` |
 | Extension concept | Minimal `Connector` protocol — no registry or DI framework |
 
 ### Memory (MOD-001) owns
@@ -132,7 +132,7 @@ Keyword queries via `QueryRepository`. Search does not import ingest or extract 
 ImportService.run(source_path) -> ImportRunReport
 ```
 
-Uses Foundation logging and `fingerprint_file` for archive registration.
+Uses Foundation logging and `sha256_file` for archive registration.
 
 ### 6. Provenance
 

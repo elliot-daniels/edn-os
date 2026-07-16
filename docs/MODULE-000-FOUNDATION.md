@@ -85,8 +85,8 @@ If a concern is used by only one module, it stays in that module.
 ### Configuration
 
 ```
-Settings.load(config_path) -> Settings
-Settings.validate() -> None  # raises ConfigurationError
+load_settings(config_path: Path) -> Settings
+Settings.validate() -> None  # via resolve_runtime_paths(settings)
 Settings.data_root -> Path
 ```
 
@@ -96,7 +96,8 @@ Settings.data_root -> Path
 ### Logging
 
 ```
-get_logger(name: str) -> Logger
+configure_logging(log_root: Path, level: int = logging.INFO) -> None
+get_logger(name: str) -> logging.Logger
 ```
 
 Modules call `get_logger(__name__)`. Foundation configures handlers, format, and log directory once at startup.
@@ -125,7 +126,7 @@ No plugin registry, dynamic loading, or service locator in Module 000.
 ### File fingerprinting
 
 ```
-fingerprint_file(path: Path) -> str  # SHA-256 hex
+sha256_file(path: Path, chunk_size: int = 1048576) -> str  # lowercase SHA-256 hex
 ```
 
 ---
@@ -197,7 +198,7 @@ Do not invent database migrations before a module defines a schema. Memory schem
 | 3 | Platform error hierarchy |
 | 4 | Logger factory and setup |
 | 5 | Settings loader with validation |
-| 6 | `fingerprint_file` utility |
+| 6 | `sha256_file` utility |
 | 7 | Shared platform types |
 | 8 | Version metadata (`__version__`, conventions documented) |
 | 9 | Tests under `tests/foundation/` |
@@ -214,7 +215,7 @@ Do not invent database migrations before a module defines a schema. Memory schem
 - [ ] Application and module version conventions documented in code
 - [ ] `SensitivityStatus` and shared types available
 - [ ] Data-root policy enforced via configuration validation
-- [ ] `fingerprint_file` utility tested
+- [ ] `sha256_file` utility tested
 - [ ] Minimal `Connector` protocol defined (no registry)
 - [ ] Unit tests pass in CI with temporary directories
 - [ ] Foundation imports no feature module
