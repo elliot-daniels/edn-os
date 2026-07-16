@@ -28,9 +28,11 @@ EDN OS is the operating system for EDN Systems. It captures organisational knowl
 
 ## Data Sovereignty
 
-- Raw source data, extracted content, databases, indexes, and logs reside on the **encrypted E: drive**.
-- The Git repository contains **code and documentation only**.
-- The following must **never** be committed: PST files, extracted attachments, SQLite databases, search indexes, runtime logs, credentials, and secrets.
+- Runtime data resides under an **approved encrypted data root**. `E:\EDN OS` is the Module 001 production default.
+- A path beginning with `E:\` is **not** proof of encryption. Operators are responsible for encryption at the volume level. Encryption verification is not required in the initial implementation.
+- Synthetic unit tests may use temporary local directories outside the production data root.
+- The Git repository contains **code and documentation only**. Code remains outside the data root.
+- The following must **never** be committed: PST files, extracted attachments, SQLite databases, search indexes, runtime logs, credentials, secrets, and import reports.
 
 ---
 
@@ -38,9 +40,10 @@ EDN OS is the operating system for EDN Systems. It captures organisational knowl
 
 - Original archives (e.g. Outlook PST files) are opened **read-only** and **never modified**.
 - Every extracted record must retain provenance linking it to:
-  - source archive path and fingerprint,
-  - folder path within the archive,
-  - message identifier within the archive.
+  - a registered `source_archive` (path and fingerprint),
+  - the `import_run` that processed it,
+  - an adapter-generated `source_record_key` unique within the archive,
+  - folder path within the archive.
 
 ---
 
@@ -60,6 +63,7 @@ EDN OS is the operating system for EDN Systems. It captures organisational knowl
 - Do not duplicate functionality across modules.
 - Build the **smallest useful working version** first; expand only when a module specification explicitly requires it.
 - Architectural decisions outside documented module scope require **human approval** before implementation.
+- Components depend on **domain contracts**, not one another's concrete implementations.
 
 ---
 

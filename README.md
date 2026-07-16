@@ -30,14 +30,14 @@ Architecture and security documentation are complete.
 
 Initial implementation objectives:
 
-- [ ] Verify the source PST fingerprint
-- [ ] Complete PST extractor proof of concept
-- [ ] Select the ingestion adapter
-- [ ] Import message metadata and bodies
-- [ ] Extract and catalogue attachments
-- [ ] Store records in SQLite
-- [ ] Implement SQLite FTS5 keyword search
-- [ ] Preserve source provenance for every result
+- [ ] Register source archive and verify PST fingerprint
+- [ ] Complete PST extractor proof of concept (libpff vs readpst)
+- [ ] Select the ingestion adapter (validate Python version compatibility)
+- [ ] Import message metadata, participants, and bodies
+- [ ] Extract and catalogue attachments with full metadata
+- [ ] Store records in SQLite under `E:\EDN OS`
+- [ ] Implement SQLite FTS5 keyword search with resolved provenance
+- [ ] Handle partial failures and produce machine-readable import reports
 
 Development sprints may be used to schedule work, but modules define the durable product architecture.
 

@@ -8,12 +8,25 @@ Security requirements and controls for EDN OS. Applies platform-wide. Module 001
 
 | Threat | Impact | Control |
 |--------|--------|---------|
-| Source archive tampering | Loss of trust in provenance | Read-only PST access; fingerprint at import **(M001)** |
+| Source archive tampering | Loss of trust in provenance | Read-only PST access; fingerprint at registration **(M001)** |
 | Data exfiltration to cloud AI | Confidential email disclosure | No source content sent to cloud AI in the initial implementation **(M001)** |
-| Secrets in Git | Credential leak | Repository contains code and docs only; secrets on E: **(M001)** |
-| Unencrypted data at rest | Exposure if device lost | All runtime data on encrypted E: drive **(M001)** |
-| Duplicate/orphan records | Incorrect search results | Provenance required on every record; idempotent import **(M001)** |
+| Secrets in Git | Credential leak | Repository contains code and docs only; secrets under data root **(M001)** |
+| Unencrypted data at rest | Exposure if device lost | Approved encrypted data root policy; `E:\EDN OS` production default **(M001)** |
+| Duplicate/orphan records | Incorrect search results | Provenance via `source_archives` + `source_record_key`; idempotent import **(M001)** |
 | Unauthorized write-back | Unintended external action | Read-only by default; human approval gate for future actions **(M001)** |
+| Unreviewed sensitive content | Inappropriate reuse of former-employer data | `sensitivity_status` defaults to `unreviewed`; no automated classification **(M001)** |
+
+---
+
+## Data Root Policy
+
+| Rule | Detail |
+|------|--------|
+| Production default | `E:\EDN OS` |
+| Encryption expectation | Operators must use an encrypted volume. EDN OS does not verify encryption in the initial implementation |
+| Path is not proof | A path beginning with `E:\` does not demonstrate encryption |
+| Test exception | Synthetic unit tests may use temporary local directories |
+| Code separation | Application code remains in the Git repository, outside the data root |
 
 ---
 
@@ -21,11 +34,12 @@ Security requirements and controls for EDN OS. Applies platform-wide. Module 001
 
 | Class | Examples | Storage | Git |
 |-------|----------|---------|-----|
-| **Source** | PST archives | E: drive (operator-managed) | Never |
-| **Derived** | Extracted bodies, attachments | E: drive under `data/` | Never |
-| **Index** | SQLite DB, FTS5 tables | E: drive | Never |
-| **Operational** | Import logs | E: drive under `logs/` | Never |
-| **Secret** | API keys, passwords, tokens | E: drive or OS credential store | Never |
+| **Source** | PST archives | `E:\EDN OS\Source\PST\` | Never |
+| **Derived** | Extracted bodies, attachments | `E:\EDN OS\Data\` | Never |
+| **Index** | SQLite DB, FTS5 tables | `E:\EDN OS\Data\Databases\` | Never |
+| **Operational** | Import logs, import reports | `E:\EDN OS\Logs\`, `E:\EDN OS\Exports\` | Never |
+| **Configuration** | Local settings | `E:\EDN OS\Configuration\` | Never |
+| **Secret** | API keys, passwords, tokens | `Configuration\` or OS credential store | Never |
 | **Code** | Python modules, tests | Git repository | Yes |
 | **Documentation** | Architecture and module docs | Git repository | Yes |
 
@@ -33,9 +47,9 @@ Security requirements and controls for EDN OS. Applies platform-wide. Module 001
 
 ## Storage Rules
 
-1. **Encrypted E: drive** is the sole location for source PST files, extracted content, databases, indexes, and logs.
-2. EDN OS must refuse to start import or store operations if the configured data root is not on the E: drive (path validation at startup).
-3. Attachment files are written with restrictive permissions (owner read/write only where the OS supports it).
+1. Runtime data resides under the configured encrypted data root (`E:\EDN OS` in production).
+2. Attachment files are written with restrictive permissions (owner read/write only where the OS supports it).
+3. Configuration and secrets are never committed to Git.
 
 ---
 
@@ -45,8 +59,19 @@ Security requirements and controls for EDN OS. Applies platform-wide. Module 001
 |------|--------|
 | Read-only access | PST files opened in read-only mode; no create, update, or delete on source |
 | No relocation | EDN OS does not move or rename operator PST files |
-| Fingerprinting | SHA-256 hash computed at import; stored as `source_fingerprint` |
-| Provenance | Every record stores `source_path`, `folder_path`, and `message_id` |
+| Fingerprinting | SHA-256 hash computed at registration; stored on `source_archives` |
+| Provenance | Messages reference `source_archive_id` and `import_run_id`; search resolves full provenance |
+
+---
+
+## Sensitivity (Module 001)
+
+| Rule | Detail |
+|------|--------|
+| Default status | All imported former-employer content: `unreviewed` |
+| Allowed values | `unreviewed`, `private_reference`, `potentially_reusable`, `restricted`, `quarantined` |
+| Classification | No automated sensitivity classification in Module 001 |
+| Quarantine | Records marked `quarantined` are excluded from routine search (implementation detail) |
 
 ---
 
@@ -62,7 +87,7 @@ Security requirements and controls for EDN OS. Applies platform-wide. Module 001
 
 ## Human Approval Gate (Future)
 
-Any action that transmits data outside the local E: drive boundary requires:
+Any action that transmits data outside the local data root boundary requires:
 
 1. Explicit operator initiation.
 2. Display of what will be sent and to which service.
@@ -82,9 +107,9 @@ The Git repository must contain **code and documentation only**.
 - Extracted attachment files
 - SQLite databases (`*.db`, `*.sqlite`, `*.sqlite3`)
 - Search index files
-- Runtime logs
+- Runtime logs and import reports
 - `.env`, credentials, API keys, tokens
-- Operator data directories (`data/`, `logs/`, `sources/`)
+- Contents of `E:\EDN OS\` (Source, Data, Configuration, Logs, Exports, Backups)
 
 A `.gitignore` must enforce these patterns before the first application commit.
 
@@ -93,8 +118,8 @@ A `.gitignore` must enforce these patterns before the first application commit.
 ## Secrets Management
 
 - No secrets in source code, tests, or documentation.
-- Local configuration (data root path, optional future API keys) lives in a settings file on the E: drive.
-- Settings file is excluded from Git.
+- Local configuration lives in `E:\EDN OS\Configuration\`.
+- Settings files are excluded from Git.
 
 ---
 
@@ -102,8 +127,9 @@ A `.gitignore` must enforce these patterns before the first application commit.
 
 | Rule | Detail |
 |------|--------|
-| Location | `E:\edn-os\logs\` only |
-| Content | Operational events (import start/end, counts, errors); no full message bodies in logs |
+| Location | `E:\EDN OS\Logs\` |
+| Content | Operational events (import start/end, counts, error summaries); **no message bodies** |
+| Import reports | Machine-readable JSON; separate from human-readable logs |
 | Retention | Operator-managed; not committed to Git |
 
 ---
@@ -113,17 +139,19 @@ A `.gitignore` must enforce these patterns before the first application commit.
 - Source paths must be validated (exist, readable, `.pst` extension for Module 001 PST ingest).
 - Search queries are parameterised through SQLite — no string-concatenated SQL.
 - Attachment filenames are sanitised before writing to disk (path traversal prevention).
+- `storage_filename` must differ from `original_filename` when sanitisation alters the name.
 
 ---
 
 ## Module 001 Security Checklist
 
 - [ ] PST opened read-only only
-- [ ] Data root restricted to encrypted E: drive
+- [ ] Production data root set to `E:\EDN OS` (or approved encrypted equivalent)
 - [ ] No network calls during import, store, or search
-- [ ] Provenance on every stored record
+- [ ] Provenance resolved for every search result
+- [ ] All imported content defaults to `sensitivity_status = unreviewed`
 - [ ] `.gitignore` blocks data, secrets, and archives
-- [ ] Logs exclude message body content
+- [ ] Logs and reports exclude message body content
 - [ ] Attachment paths sanitised
 
 ---

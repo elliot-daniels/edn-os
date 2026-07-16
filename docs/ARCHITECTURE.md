@@ -8,32 +8,60 @@ Development sprints deliver implementation work. They do not define architecture
 
 ## System Overview
 
-EDN OS is a modular platform of **source adapters**, a **canonical record model**, a **local store**, and a **search layer**. Each durable module extends the platform without rewriting prior work.
+EDN OS is a modular platform of **source adapters**, a **domain model**, a **local store**, and a **search layer**. An **application service** orchestrates ingest workflows. Components communicate through domain contracts.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     EDN OS Platform                         │
-├─────────────┬──────────────┬──────────────┬─────────────────┤
-│   Ingest    │   Extract    │    Store     │     Search      │
-│  (adapters) │  (parsers)   │  (SQLite)    │    (FTS5)       │
-└──────┬──────┴──────┬───────┴──────┬───────┴────────┬────────┘
-       │             │              │                │
-       ▼             ▼              ▼                ▼
-   Source         Canonical      E: drive         Keyword
-   (read-only)    Records +      encrypted        queries
-                  Provenance     local files
+┌──────────────────────────────────────────────────────────────────┐
+│                        EDN OS Platform                           │
+├──────────────────────────────────────────────────────────────────┤
+│  Application Service  ──orchestrates──▶  ingest → extract      │
+│                                                    │             │
+│                                                    ▼             │
+│                                              store (SQLite)      │
+├──────────────────────────────────────────────────────────────────┤
+│  Search  ──queries via──▶  QueryRepository (domain contract)     │
+└──────────────────────────────────────────────────────────────────┘
+         │                              │
+         ▼                              ▼
+    Source (read-only)            E:\EDN OS data root
 ```
 
 ---
 
 ## Design Goals
 
-1. **Adapter pattern for sources** — PST is the first adapter. Future adapters (M365, SharePoint, etc.) implement the same ingest contract.
-2. **Provenance on every record** — no orphan data.
-3. **Local-first storage** — SQLite database and attachment files on the encrypted E: drive.
+1. **Adapter pattern for sources** — PST is the first adapter. Future adapters implement the same ingest contract.
+2. **Provenance on every record** — resolved through `source_archives` and `import_runs`; no orphan data.
+3. **Local-first storage** — SQLite database, attachments, and indexes under the approved encrypted data root.
 4. **Keyword search in the initial implementation** — SQLite FTS5; no embeddings, vector databases, or knowledge graphs in Module 001.
 5. **No GUI in Module 001** — CLI and programmatic interfaces only.
-6. **Smallest useful version** — one PST, one database, basic search.
+6. **Smallest useful version** — one PST per import run, one database, basic search.
+7. **Partial-failure tolerance** — import continues after record-level errors; every skipped or failed record is accounted for.
+
+---
+
+## Data Root Layout
+
+All runtime data lives outside the Git repository. `E:\EDN OS` is the Module 001 production default.
+
+```
+E:\EDN OS\
+├── Source\
+│   └── PST\                         # Operator-managed archives; read-only to EDN OS
+├── Data\
+│   ├── Databases\
+│   │   └── professional_memory.db   # SQLite + FTS5
+│   ├── Attachments\
+│   │   └── {message_id}\
+│   │       └── {storage_filename}
+│   └── Indexes\                     # Reserved for non-SQLite indexes in future modules
+├── Configuration\                   # Local settings; not committed to Git
+├── Logs\
+├── Exports\
+└── Backups\
+```
+
+Paths are configurable via `Configuration\` (not committed to Git). Synthetic unit tests may use temporary local directories.
 
 ---
 
@@ -45,11 +73,11 @@ Opens a source archive read-only and yields raw message references.
 
 | Responsibility | Detail |
 |----------------|--------|
-| Input | Absolute path to a PST file on the E: drive |
-| Output | Iterable of opaque message handles with folder context |
-| Constraint | PST file is never opened for write; no in-place changes |
+| Input | Absolute path to a PST file |
+| Output | Iterable of opaque message handles with folder context and `source_record_key` |
+| Constraint | PST file is never opened for write |
 
-**Interface contract (conceptual):**
+**Contract:**
 
 ```
 IngestAdapter.open(source_path) -> IngestSession
@@ -57,18 +85,21 @@ IngestSession.iter_messages() -> Iterator[RawMessageRef]
 IngestSession.close()
 ```
 
+Each `RawMessageRef` carries an adapter-generated `source_record_key` (see below).
+
 ### 2. Extract
 
-Transforms raw message references into canonical records.
+Transforms raw message references into domain records.
 
 | Responsibility | Detail |
 |----------------|--------|
-| Metadata | Subject, sender, recipients, dates, folder path, message ID |
+| Metadata | Subject, participants, dates, folder path |
 | Body | Plain-text and/or HTML body stored as derived content |
-| Attachments | Written to E: drive; database holds path + checksum |
-| Provenance | Every record links to PST path, folder, and message identifier |
+| Attachments | Written to `Data\Attachments\`; metadata recorded in domain model |
+| Sensitivity | All imported records default to `unreviewed` |
+| Errors | Record-level failures raise domain errors; do not halt the import run |
 
-**Interface contract (conceptual):**
+**Contract:**
 
 ```
 Extractor.extract(ref: RawMessageRef) -> MessageRecord
@@ -77,150 +108,239 @@ Extractor.extract_attachments(ref) -> list[AttachmentRecord]
 
 ### 3. Store
 
-Persists canonical records and manages attachment files.
+Persists domain records and manages attachment files. Implements storage contracts defined in the domain layer.
 
 | Responsibility | Detail |
 |----------------|--------|
-| Database | SQLite on E: drive (`professional_memory.db`) |
+| Database | SQLite at `Data\Databases\professional_memory.db` |
 | Full-text | FTS5 virtual table synced with message content |
-| Attachments | Files under `E:\edn-os\data\attachments\` (path configurable) |
-| Idempotency | Re-import of the same message updates nothing or records a skip — never duplicates silently |
+| Idempotency | Unique on (`source_archive_id`, `source_record_key`); re-import skips or updates — never duplicates silently |
+| Deduplication | SHA-256 identifies duplicate attachment content; physical deduplication is deferred |
 
-**Interface contract (conceptual):**
+**Contract:**
 
 ```
-Store.upsert_message(record: MessageRecord) -> RecordId
-Store.upsert_attachment(record: AttachmentRecord) -> AttachmentId
-Store.get_message(record_id) -> MessageRecord | None
+MessageStore.upsert_message(record: MessageRecord) -> RecordId
+MessageStore.upsert_attachment(record: AttachmentRecord) -> AttachmentId
+QueryRepository.get_message(record_id) -> MessageRecord | None
+QueryRepository.search(keywords: str, limit: int) -> list[SearchResult]
 ```
 
 ### 4. Search
 
-Keyword queries against FTS5 index.
+Keyword queries via the `QueryRepository` contract. Search does not import ingest or extract implementations.
 
 | Responsibility | Detail |
 |----------------|--------|
 | Query type | Keyword / phrase match (initial implementation) |
-| Scope | Message subject, body text, attachment filenames |
-| Output | Ranked list of record IDs with provenance metadata |
+| Scope | Subject, body text, participant addresses, attachment `original_filename` values |
+| Output | Ranked `SearchResult` list with **fully resolved provenance** |
 
-**Interface contract (conceptual):**
+### 5. Application Service
+
+Orchestrates a single import run.
 
 ```
-Search.query(keywords: str, limit: int) -> list[SearchResult]
+ImportService.run(source_path) -> ImportRunReport
 ```
 
-### 5. Provenance
+Responsibilities: register or match `source_archive`, create `import_run`, iterate ingest → extract → store, handle partial failures, write machine-readable import report, set final run status.
 
-Cross-cutting concern embedded in every stored record.
+### 6. Provenance
 
-| Field | Purpose |
-|-------|---------|
-| `source_type` | e.g. `outlook_pst` |
-| `source_path` | Absolute path to the PST at import time |
-| `source_fingerprint` | SHA-256 of PST file (detect moved/renamed archives) |
-| `folder_path` | Folder hierarchy within the PST |
-| `message_id` | Stable identifier from the PST adapter |
+Provenance is normalised — not duplicated on every message row.
+
+| Entity | Role |
+|--------|------|
+| `source_archives` | Registered PST path and fingerprint |
+| `import_runs` | One execution of import against an archive |
+| `messages.source_archive_id` | FK to archive |
+| `messages.import_run_id` | FK to the run that created or last updated the record |
+| `messages.source_record_key` | Adapter-stable identity within the archive |
+| `messages.folder_path` | Folder hierarchy within the PST |
+
+**SearchResult resolved provenance** (required fields):
+
+- `source_path`, `source_fingerprint` (from `source_archives`)
+- `import_run_id`
+- `folder_path`, `source_record_key`
+- `message_id` (internal UUID)
 
 ---
 
-## Data Layout (E: Drive)
+## Source Record Key
 
-All runtime data lives outside the Git repository.
+The ingest adapter generates a `source_record_key` for each message. Uniqueness is enforced on (`source_archive_id`, `source_record_key`).
+
+Do **not** assume the PST-native message ID is always present or globally stable.
+
+**Deterministic fallback** when no stable native ID is available:
 
 ```
-E:\edn-os\
-├── data\
-│   ├── professional_memory.db      # SQLite + FTS5
-│   └── attachments\
-│       └── {record_id}\
-│           └── {filename}
-├── logs\
-│   └── professional_memory.log
-└── sources\                        # Operator-managed; not created by EDN OS
-    └── *.pst                       # Read-only; never modified by EDN OS
+source_record_key = SHA-256(
+    folder_path + "\0" +
+    normalized_subject + "\0" +
+    ISO8601(sent_at or received_at or "") + "\0" +
+    primary_sender_email + "\0" +
+    str(body_byte_length) + "\0" +
+    str(attachment_count)
+)
 ```
 
-Paths are configurable via a local settings file on E: (not committed to Git).
+When a stable native ID **is** available, the adapter may use it directly as `source_record_key`. The adapter must document which strategy applies per message.
 
 ---
 
 ## Canonical Record Schema (Logical)
 
-### MessageRecord
+### source_archives
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `id` | UUID | Internal primary key |
+| `id` | UUID | PK |
 | `source_type` | str | `outlook_pst` |
-| `source_path` | str | PST absolute path |
-| `source_fingerprint` | str | SHA-256 hex |
+| `source_path` | str | Absolute path at registration |
+| `source_fingerprint` | str | SHA-256 hex of archive file |
+| `registered_at` | datetime | |
+
+### import_runs
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | UUID | PK |
+| `source_archive_id` | UUID | FK |
+| `started_at` | datetime | |
+| `completed_at` | datetime \| None | |
+| `status` | str | `success`, `warnings`, `failed` |
+| `report_path` | str | Machine-readable report on data root |
+| `enumerated_count` | int | Messages seen by adapter |
+| `imported_count` | int | Successfully stored |
+| `skipped_count` | int | Already present; not re-imported |
+| `failed_count` | int | Extraction or store failures |
+
+### messages
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | UUID | PK |
+| `source_archive_id` | UUID | FK |
+| `import_run_id` | UUID | FK |
+| `source_record_key` | str | Adapter-generated; unique per archive |
 | `folder_path` | str | e.g. `Inbox/Projects/Bridge` |
-| `message_id` | str | Adapter-native stable ID |
 | `subject` | str | |
-| `sender` | str | |
-| `recipients_to` | str | Serialized in the initial implementation |
-| `recipients_cc` | str | Serialized in the initial implementation |
 | `sent_at` | datetime \| None | |
 | `received_at` | datetime \| None | |
 | `body_text` | str \| None | |
 | `body_html` | str \| None | |
+| `sensitivity_status` | str | See sensitivity values below |
 | `imported_at` | datetime | |
 
-### AttachmentRecord
+**Unique constraint:** (`source_archive_id`, `source_record_key`)
+
+### addresses
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `id` | UUID | |
-| `message_id` | UUID | FK to MessageRecord |
-| `filename` | str | Original name |
+| `id` | UUID | PK |
+| `email_address` | str | Normalised lowercase |
+| `display_name` | str \| None | Default display name if known |
+
+### message_participants
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `message_id` | UUID | FK |
+| `role` | str | `sender`, `to`, `cc`, `bcc` |
+| `display_name` | str \| None | Per-message display name |
+| `email_address` | str | |
+
+### attachments
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | UUID | PK |
+| `message_id` | UUID | FK |
+| `original_filename` | str | Name from source |
+| `storage_filename` | str | Sanitised name on disk |
+| `attachment_index` | int | Zero-based position in source message |
+| `extraction_status` | str | `pending`, `extracted`, `failed`, `skipped` |
+| `extraction_error` | str \| None | Error detail when failed |
+| `sha256` | str | Content hash; identifies duplicates |
+| `size_bytes` | int \| None | |
 | `content_type` | str \| None | MIME type if available |
-| `size_bytes` | int | |
-| `sha256` | str | Content hash |
-| `storage_path` | str | Path on E: drive |
+| `storage_path` | str \| None | Path under `Data\Attachments\` |
+| `sensitivity_status` | str | Same values as messages |
 
-### FTS5 Index
+### sensitivity_status values
 
-Indexed columns: `subject`, `body_text`, `sender`, attachment `filename` values linked to the message.
+| Value | Meaning |
+|-------|---------|
+| `unreviewed` | Default for all imported former-employer content |
+| `private_reference` | Operator-marked; reference only |
+| `potentially_reusable` | Operator-marked; may be reusable |
+| `restricted` | Operator-marked; restricted use |
+| `quarantined` | Operator-marked; excluded from routine search |
+
+No automated sensitivity classification in Module 001.
+
+### FTS5 Index (`messages_fts`)
+
+Indexed columns: `subject`, `body_text`, participant `email_address` values, attachment `original_filename` values linked to the message.
 
 ---
 
-## PST Extraction — Options and Recommendation
+## Partial-Failure Behaviour
 
-The PST binary format is proprietary. The adapter choice affects metadata fidelity, attachment handling, licensing, and platform support. **Do not commit to a library until a proof-of-concept validates against a representative PST.**
+| Rule | Detail |
+|------|--------|
+| Continue on error | Record-level extraction or store failures do not abort the import run |
+| Account for all | Every failed or skipped source record appears in the import report |
+| No bodies in logs | Logs record counts, paths, and error summaries only |
+| Import report | Machine-readable JSON written under `Logs\` or `Exports\` per run |
+| Retry | Failed records may be retried in a subsequent import run against the same archive |
+| Run status | `warnings` when any failures occurred but some records imported; `failed` when no records imported |
+| Completion wording | All **readable** messages imported, with every skipped or failed source record accounted for |
 
-### Option A: `libpff` / `pypff`
+---
 
-| Aspect | Assessment |
-|--------|------------|
-| Approach | Direct PST parsing via libpff Python bindings |
-| Pros | No Outlook dependency; reads PST natively; good metadata access |
-| Cons | Binding maintenance varies by platform; Windows build tooling may be needed |
-| Licence | LGPL (libpff) |
+## PST Extraction — Proof of Concept
 
-### Option B: `readpst` (libpst) → maildir
+The PST binary format is proprietary. **Do not commit to a library or build a production adapter until the PoC completes.**
 
-| Aspect | Assessment |
-|--------|------------|
-| Approach | Convert PST to maildir/mbox, then parse RFC 822 messages |
-| Pros | Mature converter; simple downstream parsing (`email` stdlib) |
-| Cons | Extra conversion step; temp disk use; potential metadata loss in conversion |
-| Licence | GPL (libpst) |
+### Candidates (PoC only)
 
-### Option C: Outlook COM (`win32com`)
+| Option | Approach | Licence |
+|--------|----------|---------|
+| **A: libpff / pypff** | Direct PST parsing via Python bindings | LGPL |
+| **B: readpst (libpst)** | Convert to maildir/mbox, parse RFC 822 | GPL |
 
-| Aspect | Assessment |
-|--------|------------|
-| Approach | Automate Outlook on Windows to export messages |
-| Pros | Highest fidelity when Outlook is installed |
-| Cons | Requires Outlook licence; not headless-friendly; Windows-only; automation fragility |
-| Licence | Depends on Outlook installation |
+Outlook COM (`win32com`) is out of scope for the PoC and Module 001.
 
-### Recommended Path
+### PoC evaluation criteria
 
-1. **Proof-of-concept** — implement thin adapters for Option A and Option B against one real PST on the E: drive.
-2. **Evaluate** — compare: message count, subject/sender/date accuracy, attachment byte-identical extraction, import speed, and dependency footprint.
-3. **Decide** — select one adapter for the initial implementation; keep the `IngestAdapter` interface so the other remains swappable.
+Compare Option A and Option B only enough to select one production adapter:
+
+- archive access
+- folder and message enumeration
+- metadata fidelity
+- body fidelity
+- attachment byte fidelity
+- Unicode handling
+- nested-folder handling
+- performance on a representative archive
+- dependency footprint
+- platform fit
+- licensing implications
+- **Python version compatibility with the currently installed interpreter**
+
+Do **not** build two production adapters before selecting one. PoC scripts are throwaway spikes.
+
+### Recommended path
+
+1. Spike Option A and Option B against one real PST under `E:\EDN OS\Source\PST\`.
+2. Record results against the criteria above, including Python version support.
+3. Select one adapter; implement a single production `IngestAdapter`.
+4. Keep the `IngestAdapter` contract so a future swap remains possible.
 
 ---
 
@@ -232,34 +352,32 @@ Code lives in the Git repository. No runtime data.
 src/
 └── edn_os/
     └── professional_memory/
-        ├── __init__.py
+        ├── domain/
+        │   ├── models.py           # Canonical typed records
+        │   ├── errors.py           # Domain exceptions
+        │   └── contracts.py        # Protocols: IngestAdapter, Extractor, MessageStore, QueryRepository
+        ├── application/
+        │   └── import_service.py   # Orchestrates ingest → extract → store
         ├── ingest/
-        │   ├── adapter.py          # IngestAdapter protocol
-        │   └── pst/                # PST-specific adapters (post-PoC)
+        │   └── pst/                # Single production adapter (post-PoC)
         ├── extract/
-        │   └── message.py          # RawMessageRef → MessageRecord
         ├── store/
-        │   ├── database.py         # SQLite connection and migrations
-        │   ├── models.py             # Typed record dataclasses
-        │   └── attachments.py      # File write + hash
+        │   ├── database.py
+        │   └── attachments.py
         ├── search/
-        │   └── fts.py              # FTS5 queries
+        │   └── fts.py              # Implements QueryRepository search
         └── provenance/
-            └── fingerprint.py      # SHA-256 source fingerprinting
+            └── fingerprint.py
 
 tests/
-└── professional_memory/
-    ├── test_extract.py
-    ├── test_store.py
-    ├── test_search.py
-    └── fixtures/                   # Synthetic/minimal test data only
+└── professional_memory/            # Uses temporary local directories
 ```
 
 ---
 
 ## Module 001 Exclusions
 
-The following are **out of scope** for Module 001 and must not appear in its implementation:
+The following are **out of scope** for Module 001:
 
 - GUI or web frontend
 - Knowledge graph
@@ -268,6 +386,9 @@ The following are **out of scope** for Module 001 and must not appear in its imp
 - Microsoft 365 / SharePoint / Home Assistant / voice / vaults adapters
 - Write-back or send actions on any source
 - Executive Dashboard
+- Automated sensitivity classification
+- Physical attachment deduplication
+- Encryption verification at runtime
 
 ---
 
@@ -275,23 +396,24 @@ The following are **out of scope** for Module 001 and must not appear in its imp
 
 | Layer | Approach |
 |-------|----------|
-| Unit | Typed functions tested with in-memory SQLite and synthetic message fixtures |
-| Integration | Import a small fixture PST on E: drive in a manual test script (not CI) |
-| Contract | Each adapter implements `IngestAdapter`; tested via shared conformance tests |
+| Unit | In-memory SQLite and synthetic fixtures in temporary local directories |
+| Integration | Manual import of a real PST under `E:\EDN OS\Source\PST\` (not CI) |
+| Contract | Adapter and repository implementations tested against domain protocols |
 
-Tests must not require real PST files in CI. Use generated RFC 822 fixtures for extract/store/search tests.
+Tests must not require real PST files in CI.
 
 ---
 
 ## Dependency Direction
 
 ```
-ingest → extract → store → search
-              ↓
-         provenance (used by extract and store)
+domain/contracts  ◀── implemented by ── ingest, extract, store, search
+domain/models     ◀── used by ── all components
+application       ──▶ ingest, extract, store (via contracts)
+search            ──▶ store.QueryRepository (via contract)
 ```
 
-Modules may not import upward (e.g. `search` must not import `ingest`). Shared types live in `store/models.py`.
+Concrete components do not import one another. The application service is the sole orchestrator of the ingest pipeline.
 
 ---
 
