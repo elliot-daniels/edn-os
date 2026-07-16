@@ -1,5 +1,6 @@
-"""Typed application settings and validation.
+"""Typed application settings and validation."""
 
-Owns configuration loading and data-root validation. Real settings live
-under the approved data root; a safe example is committed to Git.
-"""
+from edn.foundation.config.loader import load_settings
+from edn.foundation.config.settings import Settings
+
+__all__ = ["Settings", "load_settings"]

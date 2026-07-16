@@ -12,7 +12,7 @@
 
 data_root = "E:\\EDN OS"
 
-# Runtime paths (relative to data_root unless absolute)
+# Runtime paths (relative to data_root; resolved to absolute paths on load)
 configuration_root = "Configuration"
 log_root = "Logs"
 database_root = "Data\\Databases"
