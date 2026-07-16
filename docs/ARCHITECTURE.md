@@ -232,7 +232,7 @@ Do not build two production adapters. PoC scripts are throwaway spikes. Outlook 
 
 ```
 src/
-└── edn_os/
+└── edn/
     ├── foundation/                  # MOD-000
     │   ├── config.py
     │   ├── logging.py

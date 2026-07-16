@@ -192,7 +192,7 @@ Do not invent database migrations before a module defines a schema. Memory schem
 
 | # | Item |
 |---|------|
-| 1 | `src/edn_os/foundation/` package per `ARCHITECTURE.md` |
+| 1 | `src/edn/foundation/` package per `ARCHITECTURE.md` |
 | 2 | `config/settings.example.toml` (safe example; committed) |
 | 3 | Platform error hierarchy |
 | 4 | Logger factory and setup |

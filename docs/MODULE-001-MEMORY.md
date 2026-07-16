@@ -155,7 +155,7 @@ Memory may later extend to documents, photos, contacts, calendar entries, notes,
 |---|------|-----------|
 | 1 | Architecture artefacts | `CONSTITUTION.md`, `ARCHITECTURE.md`, `SECURITY.md`, `MODULE-000-FOUNDATION.md`, this file |
 | 2 | PST extraction PoC | Throwaway spikes for libpff and readpst; selection report in `docs/` |
-| 3 | Python package | `src/edn_os/memory/` per `ARCHITECTURE.md` |
+| 3 | Python package | `src/edn/memory/` per `ARCHITECTURE.md` |
 | 4 | SQLite schema | `source_archives`, `import_runs`, `messages`, `addresses`, `message_participants`, `attachments`, FTS5 |
 | 5 | CLI | `import` and `search` commands |
 | 6 | Tests | `tests/memory/` with synthetic fixtures in temp directories |

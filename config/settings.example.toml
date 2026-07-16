@@ -1,0 +1,22 @@
+# EDN OS — example configuration (safe to commit)
+#
+# This file contains example values only. Copy to your approved data root
+# and customise for local use:
+#
+#   E:\EDN OS\Configuration\settings.toml
+#
+# Real local settings must NOT be committed to Git.
+#
+# A path beginning with E:\ does not prove the volume is encrypted.
+# Operators are responsible for encryption at the volume level.
+
+data_root = "E:\\EDN OS"
+
+# Runtime paths (relative to data_root unless absolute)
+configuration_root = "Configuration"
+log_root = "Logs"
+database_root = "Data\\Databases"
+attachment_root = "Data\\Attachments"
+source_pst_root = "Source\\PST"
+export_root = "Exports"
+backup_root = "Backups"
