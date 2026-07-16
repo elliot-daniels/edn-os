@@ -23,16 +23,17 @@ EDN OS is the operating system for EDN Systems. It captures organisational knowl
 | **Security by design** | Data classification, encryption, and access boundaries are defined before features ship — not retrofitted. |
 | **Modular architecture** | Components are small, typed, testable, and composable. New sources plug in without rewriting core logic. |
 | **Everything connected** | Records retain provenance to their origin so any extracted item can be traced back to its source. |
+| **Foundation discipline** | Shared infrastructure belongs in Foundation (MOD-000) only when at least two durable modules require it, or when it is essential platform governance. Foundation must remain small and must not become a miscellaneous utilities layer. |
 
 ---
 
 ## Data Sovereignty
 
-- Runtime data resides under an **approved encrypted data root**. `E:\EDN OS` is the Module 001 production default.
+- Runtime data resides under an **approved encrypted data root**. `E:\EDN OS` is the production default (defined by Foundation).
 - A path beginning with `E:\` is **not** proof of encryption. Operators are responsible for encryption at the volume level. Encryption verification is not required in the initial implementation.
 - Synthetic unit tests may use temporary local directories outside the production data root.
 - The Git repository contains **code and documentation only**. Code remains outside the data root.
-- The following must **never** be committed: PST files, extracted attachments, SQLite databases, search indexes, runtime logs, credentials, secrets, and import reports.
+- The following must **never** be committed: PST files, extracted attachments, SQLite databases, search indexes, runtime logs, credentials, secrets, import reports, and local configuration.
 
 ---
 
@@ -49,7 +50,7 @@ EDN OS is the operating system for EDN Systems. It captures organisational knowl
 
 ## AI Boundaries
 
-- Module 001 (initial implementation): **no source email content** (body, headers, attachments, or derived text) may be sent to cloud AI services.
+- Memory (MOD-001, initial implementation): **no source email content** (body, headers, attachments, or derived text) may be sent to cloud AI services.
 - Future AI integration requires explicit human approval before any external action (upload, API call, or sync).
 - Derived AI outputs, when introduced, must reference source record IDs — not replace them.
 
@@ -64,6 +65,7 @@ EDN OS is the operating system for EDN Systems. It captures organisational knowl
 - Build the **smallest useful working version** first; expand only when a module specification explicitly requires it.
 - Architectural decisions outside documented module scope require **human approval** before implementation.
 - Components depend on **domain contracts**, not one another's concrete implementations.
+- Feature modules depend on Foundation; Foundation must never depend on feature modules.
 
 ---
 
@@ -78,7 +80,7 @@ Architecture is defined only in `CONSTITUTION.md`, `ARCHITECTURE.md`, `SECURITY.
 
 ---
 
-## Extensibility (Future Modules, Not Module 001)
+## Extensibility (Future Modules)
 
 Architecture must remain modular enough to later support:
 
@@ -99,7 +101,8 @@ These integrations are not designed or built until a future module specification
 | `CONSTITUTION.md` | Immutable principles (this file) |
 | `ARCHITECTURE.md` | System structure and component contracts |
 | `SECURITY.md` | Threat model, controls, and data-handling rules |
-| `MODULE-NNN-*.md` | Durable module specifications: scope, acceptance criteria, and contracts |
+| `MODULE-000-FOUNDATION.md` | Platform foundation specification |
+| `MODULE-NNN-*.md` | Durable feature module specifications |
 
 When documents conflict, the Constitution takes precedence.
 

@@ -24,11 +24,15 @@ It captures knowledge, automates administration, improves decision making and he
 
 ## Current Status
 
-### Module 001 — Professional Memory
+### Module 000 — Foundation
 
-Architecture and security documentation are complete.
+Architecture definition in progress.
 
-Initial implementation objectives:
+### Module 001 — Memory
+
+Architecture approved; implementation follows Foundation.
+
+Initial implementation objectives (Outlook PST archives):
 
 - [ ] Register source archive and verify PST fingerprint
 - [ ] Complete PST extractor proof of concept (libpff vs readpst)

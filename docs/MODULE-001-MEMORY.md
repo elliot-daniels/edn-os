@@ -1,10 +1,12 @@
-# Module 001 — Professional Memory
+# Module 001 — Memory
 
 > **Knowledge Compounds.**
 
-Professional Memory is a **durable EDN OS module**. It captures historical correspondence locally, preserves provenance, and makes it searchable. This document defines the module's permanent scope, contracts, and acceptance criteria.
+**MOD-001** · Memory is a **durable EDN OS module** for capturing, storing, and searching personal and professional knowledge records locally with full provenance.
 
-Implementation is delivered through short development sprints. Sprints schedule and track work; they do not define software architecture. Architecture lives in `CONSTITUTION.md`, `ARCHITECTURE.md`, `SECURITY.md`, and module specifications such as this file.
+Outlook PST email archives are the **first data domain** implemented within Memory — not the permanent boundary of the module.
+
+Implementation depends on **Module 000 — Foundation** and is delivered through short development sprints. Sprints schedule work; they do not define architecture.
 
 ---
 
@@ -12,11 +14,17 @@ Implementation is delivered through short development sprints. Sprints schedule 
 
 Provide a local-first, read-only capability that:
 
-1. Ingests an Outlook PST archive.
+1. Ingests source archives (Outlook PST in the initial implementation).
 2. Preserves source provenance.
-3. Extracts message metadata and attachments.
+3. Extracts record metadata and attachments.
 4. Stores structured records locally.
 5. Supports basic keyword search.
+
+---
+
+## Future Data Domains (Not Authorised)
+
+Memory may later extend to documents, photos, contacts, calendar entries, notes, and voice records. **None of these are authorised for implementation yet.** The initial implementation scope remains Outlook PST archives only.
 
 ---
 
@@ -24,9 +32,9 @@ Provide a local-first, read-only capability that:
 
 | Mission | Module Contribution |
 |---------|---------------------|
-| Capture knowledge once | Import PST into a canonical local store with provenance |
+| Capture knowledge once | Import archives into a canonical local store with provenance |
 | Search everything instantly | Keyword search via SQLite FTS5 |
-| Build systems that compound | Adapter-based ingest enables future sources without rework |
+| Build systems that compound | Adapter-based ingest enables future data domains without rework |
 
 ---
 
@@ -36,11 +44,11 @@ Provide a local-first, read-only capability that:
 |------------|-------------|
 | PST proof-of-concept | Compare libpff/pypff and readpst per `ARCHITECTURE.md`; select one adapter |
 | PST import engine | Read-only ingest of one PST per import run |
-| Knowledge database | SQLite with typed schema and FTS5 index |
+| Memory database | SQLite with typed schema and FTS5 index |
 | Keyword search | Query messages by keyword across subject, body, participants, attachment names |
 | Provenance tracking | Normalised via `source_archives` and `import_runs`; fully resolved in search results |
 | Partial-failure handling | Continue on record errors; machine-readable import report; retry support |
-| Sensitivity defaults | All imported content starts as `unreviewed` |
+| Sensitivity defaults | All imported content starts as `unreviewed` (via Foundation `SensitivityStatus`) |
 | Automated tests | Unit tests in temporary local directories; no real PST in CI |
 | CLI entry point | Commands to import a PST and search (no GUI) |
 
@@ -60,6 +68,7 @@ Provide a local-first, read-only capability that:
 - Physical attachment deduplication
 - Encryption verification at runtime
 - Outlook COM (`win32com`) adapter
+- Documents, photos, contacts, calendar, notes, voice records
 
 ---
 
@@ -73,7 +82,7 @@ Provide a local-first, read-only capability that:
 | AI boundary | No source email content sent to cloud AI |
 | Source of truth | Stored records with provenance — not AI output |
 | Access model | Read-only by default |
-| Future external actions | Require human approval (not built in the initial implementation) |
+| Foundation dependency | Uses Foundation configuration, logging, errors, types, and fingerprinting |
 | Scope discipline | Smallest useful working version |
 
 ---
@@ -83,7 +92,7 @@ Provide a local-first, read-only capability that:
 ### US-1: Import PST
 
 **As** an operator,
-**I want** to import a PST archive into Professional Memory,
+**I want** to import a PST archive into Memory,
 **So that** historical email knowledge is captured locally with full provenance.
 
 **Acceptance criteria:**
@@ -93,12 +102,12 @@ Provide a local-first, read-only capability that:
 - Metadata extracted: subject, participants (sender, to, cc, bcc), sent/received dates.
 - Body text (and HTML if available) stored as derived content.
 - Attachments saved under `E:\EDN OS\Data\Attachments\` with full attachment metadata.
-- `source_archive` registered with path and SHA-256 fingerprint.
+- `source_archive` registered with path and SHA-256 fingerprint (via Foundation utility).
 - Each message references `source_archive_id`, `import_run_id`, and `source_record_key`.
 - Re-running import on the same archive does not create duplicate messages.
 - Import completes with `warnings` status when partial failures occur.
 - Machine-readable import report produced per run.
-- Logs record counts and error summaries; no message bodies in logs.
+- Logs (via Foundation) record counts and error summaries; no message bodies.
 - All imported messages and attachments have `sensitivity_status = unreviewed`.
 
 ### US-2: Search Messages
@@ -144,19 +153,19 @@ Provide a local-first, read-only capability that:
 
 | # | Item | Reference |
 |---|------|-----------|
-| 1 | Architecture artefacts | `CONSTITUTION.md`, `ARCHITECTURE.md`, `SECURITY.md`, this file |
+| 1 | Architecture artefacts | `CONSTITUTION.md`, `ARCHITECTURE.md`, `SECURITY.md`, `MODULE-000-FOUNDATION.md`, this file |
 | 2 | PST extraction PoC | Throwaway spikes for libpff and readpst; selection report in `docs/` |
-| 3 | Python package | `src/edn_os/professional_memory/` per `ARCHITECTURE.md` |
+| 3 | Python package | `src/edn_os/memory/` per `ARCHITECTURE.md` |
 | 4 | SQLite schema | `source_archives`, `import_runs`, `messages`, `addresses`, `message_participants`, `attachments`, FTS5 |
 | 5 | CLI | `import` and `search` commands |
-| 6 | Tests | `tests/professional_memory/` with synthetic fixtures in temp directories |
+| 6 | Tests | `tests/memory/` with synthetic fixtures in temp directories |
 | 7 | `.gitignore` | Enforces no data/secrets in Git per `SECURITY.md` |
 
 ---
 
 ## Data Model Summary
 
-See `ARCHITECTURE.md` for full logical schema.
+See `ARCHITECTURE.md` for full logical schema (Memory-owned).
 
 **Tables:** `source_archives`, `import_runs`, `messages`, `addresses`, `message_participants`, `attachments`, `messages_fts`
 
@@ -175,6 +184,7 @@ Exact command names may be adjusted during implementation; behaviour must match 
 
 ## Initial Implementation Complete
 
+- [ ] Foundation (MOD-000) initial implementation complete
 - [ ] PST PoC completed; adapter selected and documented (including Python version compatibility)
 - [ ] Import processes a real PST without modifying it
 - [ ] All readable messages imported; every skipped or failed record accounted for
@@ -183,7 +193,6 @@ Exact command names may be adjusted during implementation; behaviour must match 
 - [ ] Partial-failure and retry behaviour verified
 - [ ] Unit tests pass in CI without real PST files
 - [ ] No source content leaves the local machine
-- [ ] `.gitignore` prevents data and secrets from being committed
 - [ ] Code uses type annotations throughout
 
 ---
@@ -202,22 +211,11 @@ Exact command names may be adjusted during implementation; behaviour must match 
 
 ## Dependencies
 
+- Module 000 — Foundation (configuration, logging, errors, types, fingerprinting)
 - Python (exact version compatibility validated during PoC)
 - SQLite 3 with FTS5 enabled
 - PST extraction library (selected after PoC)
 - Approved encrypted data root with write access (`E:\EDN OS` production default)
-
----
-
-## Later Modules (Not Specified Here)
-
-- Additional source adapters (M365, SharePoint)
-- Executive Dashboard
-- Semantic / vector search
-- Controlled AI summarisation with human approval
-- Automated sensitivity classification
-- Physical attachment deduplication
-- GUI
 
 ---
 
