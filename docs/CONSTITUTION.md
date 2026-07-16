@@ -1,0 +1,104 @@
+# EDN OS Constitution
+
+> **Knowledge Compounds.**
+
+This document defines the non-negotiable principles governing EDN OS design and implementation. Development sprints may schedule work, but they do not define architecture. These rules do not.
+
+---
+
+## Purpose
+
+EDN OS is the operating system for EDN Systems. It captures organisational knowledge once, makes it searchable, reduces administration, and improves decision quality — building systems that compound over time.
+
+---
+
+## Core Principles
+
+| Principle | Meaning |
+|-----------|---------|
+| **Knowledge Compounds** | Every captured record increases the value of the whole. Favour durable structure, provenance, and reuse over one-off scripts. |
+| **Local-first** | Primary data and indexes live on the operator's machine. Network and cloud services are optional extensions, never prerequisites. |
+| **Read-only by default** | Source systems and archives are never modified. Writes are limited to local derived stores under EDN OS control. |
+| **AI assists, humans decide** | AI may summarise, suggest, or rank — but is never the source of truth. Authoritative answers come from stored records with provenance. |
+| **Security by design** | Data classification, encryption, and access boundaries are defined before features ship — not retrofitted. |
+| **Modular architecture** | Components are small, typed, testable, and composable. New sources plug in without rewriting core logic. |
+| **Everything connected** | Records retain provenance to their origin so any extracted item can be traced back to its source. |
+
+---
+
+## Data Sovereignty
+
+- Raw source data, extracted content, databases, indexes, and logs reside on the **encrypted E: drive**.
+- The Git repository contains **code and documentation only**.
+- The following must **never** be committed: PST files, extracted attachments, SQLite databases, search indexes, runtime logs, credentials, and secrets.
+
+---
+
+## Source Integrity
+
+- Original archives (e.g. Outlook PST files) are opened **read-only** and **never modified**.
+- Every extracted record must retain provenance linking it to:
+  - source archive path and fingerprint,
+  - folder path within the archive,
+  - message identifier within the archive.
+
+---
+
+## AI Boundaries
+
+- Module 001 (initial implementation): **no source email content** (body, headers, attachments, or derived text) may be sent to cloud AI services.
+- Future AI integration requires explicit human approval before any external action (upload, API call, or sync).
+- Derived AI outputs, when introduced, must reference source record IDs — not replace them.
+
+---
+
+## Engineering Standards
+
+- Python modules use **type annotations** throughout.
+- Every module must be **unit-testable** without live source data.
+- Prefer **composition over inheritance**.
+- Do not duplicate functionality across modules.
+- Build the **smallest useful working version** first; expand only when a module specification explicitly requires it.
+- Architectural decisions outside documented module scope require **human approval** before implementation.
+
+---
+
+## Development Sprints
+
+Short implementation sprints deliver work against module specifications. Sprints:
+
+- schedule, prioritise, and track implementation tasks;
+- do **not** define software architecture, module boundaries, or security controls.
+
+Architecture is defined only in `CONSTITUTION.md`, `ARCHITECTURE.md`, `SECURITY.md`, and `MODULE-NNN-*.md` documents.
+
+---
+
+## Extensibility (Future Modules, Not Module 001)
+
+Architecture must remain modular enough to later support:
+
+- Microsoft 365
+- SharePoint
+- Home Assistant
+- Voice interfaces
+- Personal data vaults
+
+These integrations are not designed or built until a future module specification authorises them.
+
+---
+
+## Document Hierarchy
+
+| Document | Role |
+|----------|------|
+| `CONSTITUTION.md` | Immutable principles (this file) |
+| `ARCHITECTURE.md` | System structure and component contracts |
+| `SECURITY.md` | Threat model, controls, and data-handling rules |
+| `MODULE-NNN-*.md` | Durable module specifications: scope, acceptance criteria, and contracts |
+
+When documents conflict, the Constitution takes precedence.
+
+---
+
+© EDN Systems

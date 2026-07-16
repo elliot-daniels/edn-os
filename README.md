@@ -24,16 +24,22 @@ It captures knowledge, automates administration, improves decision making and he
 
 ## Current Status
 
-### Sprint 1 – Foundation
+### Module 001 — Professional Memory
 
-- [x] Vision
-- [x] Product Requirements Document
-- [x] Architecture Planning
-- [x] Security Model
-- [ ] PST Import Engine
-- [ ] Knowledge Database
-- [ ] Universal Search
-- [ ] Executive Dashboard
+Architecture and security documentation are complete.
+
+Initial implementation objectives:
+
+- [ ] Verify the source PST fingerprint
+- [ ] Complete PST extractor proof of concept
+- [ ] Select the ingestion adapter
+- [ ] Import message metadata and bodies
+- [ ] Extract and catalogue attachments
+- [ ] Store records in SQLite
+- [ ] Implement SQLite FTS5 keyword search
+- [ ] Preserve source provenance for every result
+
+Development sprints may be used to schedule work, but modules define the durable product architecture.
 
 ---
 
