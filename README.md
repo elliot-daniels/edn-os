@@ -101,6 +101,20 @@ streamlit run src/edn/ui/app.py \
 
 ---
 
+## Ask EDN
+
+The browser UI also includes grounded email question answering. Ask EDN safely
+converts natural-language questions into local FTS5 retrieval, produces a local
+extractive answer, and validates every numbered source citation. No cloud AI or
+external API is used.
+
+Set `EDN_LLM_PROVIDER=extractive` (the default) to enable local answers, or set
+`EDN_LLM_PROVIDER=disabled` to disable answer generation entirely.
+
+See [Module 002.3 — Ask EDN](docs/MODULE-002-ASK-EDN.md) for retrieval,
+citation, privacy, configuration and limitation details.
+
+---
 ## Design Principles
 
 - Local-first
