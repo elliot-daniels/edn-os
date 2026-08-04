@@ -58,6 +58,49 @@ and dependency rules.
 
 ---
 
+
+## Local Email Search Interface
+
+The first EDN OS browser interface searches an existing email-memory database
+entirely on the local machine. It is read-only and does not create a database
+when the configured path is missing.
+
+While a production import is actively writing, wait for it to finish before
+launching the interface against that database.
+
+```bash
+source /home/elliot/.venvs/edn-os/bin/activate
+cd /home/elliot/projects/edn-os
+
+export EDN_MEMORY_DB="/mnt/f/EDN OS/Database/edn-memory.db"
+
+streamlit run src/edn/ui/app.py \
+  --server.address 127.0.0.1 \
+  --browser.gatherUsageStats false
+```
+
+Open [http://localhost:8501](http://localhost:8501) if the browser does not
+open automatically.
+
+`EDN_MEMORY_DB` is required and must identify an existing, initialized EDN
+email-memory SQLite database. The application binds only to localhost. The
+`--browser.gatherUsageStats false` option disables Streamlit usage statistics.
+Email bodies are rendered only as plain text and remain collapsed by default.
+
+For local development, create a synthetic database rather than copying
+production email data into the repository:
+
+```bash
+python -m edn.memory.cli init /tmp/edn-memory-dev.db
+export EDN_MEMORY_DB=/tmp/edn-memory-dev.db
+
+streamlit run src/edn/ui/app.py \
+  --server.address 127.0.0.1 \
+  --browser.gatherUsageStats false
+```
+
+---
+
 ## Design Principles
 
 - Local-first

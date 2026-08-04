@@ -39,21 +39,31 @@ END;
 class SQLiteEmailStore:
     """Persist and search email records in SQLite."""
 
-    def __init__(self, database_path: str | Path) -> None:
+    def __init__(
+        self, database_path: str | Path, *, read_only: bool = False
+    ) -> None:
         self._database_path = Path(database_path)
+        self._read_only = read_only
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
-        connection = sqlite3.connect(self._database_path)
+        if self._read_only:
+            database_uri = self._database_path.resolve().as_uri() + "?mode=ro"
+            connection = sqlite3.connect(database_uri, uri=True)
+        else:
+            connection = sqlite3.connect(self._database_path)
         connection.row_factory = sqlite3.Row
         try:
             yield connection
-            connection.commit()
+            if not self._read_only:
+                connection.commit()
         finally:
             connection.close()
 
     def initialise(self) -> None:
         """Create the database schema."""
+        if self._read_only:
+            raise sqlite3.OperationalError("store is read-only")
         self._database_path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as connection:
             connection.executescript(_SCHEMA)
