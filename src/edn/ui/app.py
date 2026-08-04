@@ -11,15 +11,18 @@ from edn.knowledge.answering import (
     resolve_answer_provider,
 )
 from edn.knowledge.models import EmailEvidence
-from edn.knowledge.retrieval import (
+from edn.memory.models import EmailRecord
+from edn.retrieval import (
     DEFAULT_EVIDENCE_LIMIT,
     MAX_EVIDENCE_LIMIT,
+    RetrievalEngine,
+    RetrievalError,
 )
-from edn.memory.models import EmailRecord
 from edn.ui.service import (
     DEFAULT_RESULT_LIMIT,
     MAX_RESULT_LIMIT,
     DatabaseConfigurationError,
+    DatabaseTemporarilyBusyError,
     DatabaseUnavailableError,
     SearchQueryError,
     format_result,
@@ -84,6 +87,7 @@ try:
     database_path = resolve_database_path()
     store = open_read_only_store(database_path)
     indexed_email_count = store.count()
+    retrieval_engine = RetrievalEngine.from_store(store)
     answer_provider = resolve_answer_provider()
 except (
     AnswerConfigurationError,
@@ -119,6 +123,8 @@ with search_tab:
             try:
                 with st.spinner("Searching local email memory…"):
                     records = search_emails(store, query, limit=int(result_limit))
+            except DatabaseTemporarilyBusyError as error:
+                st.warning(str(error))
             except SearchQueryError as error:
                 st.warning(str(error))
             else:
@@ -126,8 +132,7 @@ with search_tab:
                     st.info("No matching emails found.")
                 else:
                     st.subheader(
-                        f"{len(records)} result"
-                        f"{'s' if len(records) != 1 else ''}"
+                        f"{len(records)} result{'s' if len(records) != 1 else ''}"
                     )
                     for record in records:
                         _render_email_result(record)
@@ -160,11 +165,11 @@ with ask_tab:
                 with st.spinner("Retrieving evidence and grounding the answer…"):
                     answered = answer_question(
                         question,
-                        store,
+                        retrieval_engine,
                         answer_provider,
                         retrieval_limit=int(evidence_limit),
                     )
-            except AnswerGenerationError as error:
+            except (AnswerGenerationError, RetrievalError) as error:
                 st.error(str(error))
             else:
                 st.subheader("Grounded answer")

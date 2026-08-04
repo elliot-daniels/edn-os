@@ -21,6 +21,7 @@ from edn.knowledge.answering import (
 from edn.knowledge.models import EmailEvidence, GroundedAnswer
 from edn.memory.models import EmailRecord
 from edn.memory.storage import SQLiteEmailStore
+from edn.retrieval import RetrievalEngine
 
 
 def _evidence(
@@ -88,9 +89,7 @@ class FailingProvider:
 
 
 def test_build_bounded_context_caps_content_and_numbers_sources() -> None:
-    evidence = tuple(
-        _evidence(index, excerpt="x" * 1_200) for index in range(1, 6)
-    )
+    evidence = tuple(_evidence(index, excerpt="x" * 1_200) for index in range(1, 6))
 
     context = build_bounded_context(evidence, max_characters=500)
 
@@ -140,6 +139,7 @@ def test_validate_grounded_answer_rejects_undeclared_text_citation() -> None:
     with pytest.raises(CitationValidationError, match="text citations"):
         validate_grounded_answer(answer, (_evidence(1),))
 
+
 def test_validate_grounded_answer_rejects_invalid_citation() -> None:
     answer = GroundedAnswer("Unsupported [2]", (2,))
 
@@ -156,7 +156,9 @@ def test_answer_question_validates_fake_provider_citations(tmp_path: Path) -> No
     store = _store_with_pimba_email(tmp_path)
     provider = FakeProvider(GroundedAnswer("Restored [1]", (1,)))
 
-    result = answer_question("What happened at Pimba?", store, provider)
+    result = answer_question(
+        "What happened at Pimba?", RetrievalEngine.from_store(store), provider
+    )
 
     assert provider.calls == 1
     assert result.answer.text == "Restored [1]"
@@ -167,7 +169,7 @@ def test_answer_question_skips_provider_without_evidence(tmp_path: Path) -> None
     store = _store_with_pimba_email(tmp_path)
     provider = FakeProvider(GroundedAnswer("Should not run", (1,)))
 
-    result = answer_question("?!", store, provider)
+    result = answer_question("?!", RetrievalEngine.from_store(store), provider)
 
     assert provider.calls == 0
     assert result.answer.insufficient_evidence
@@ -177,7 +179,7 @@ def test_answer_question_hides_provider_failure_details(tmp_path: Path) -> None:
     store = _store_with_pimba_email(tmp_path)
 
     with pytest.raises(AnswerGenerationError, match="could not generate") as error:
-        answer_question("Pimba", store, FailingProvider())
+        answer_question("Pimba", RetrievalEngine.from_store(store), FailingProvider())
 
     assert "sensitive provider detail" not in str(error.value)
 

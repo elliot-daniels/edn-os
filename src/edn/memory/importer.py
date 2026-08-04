@@ -5,13 +5,33 @@ from __future__ import annotations
 import hashlib
 import json
 import mailbox
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from email.message import Message
 from pathlib import Path
+from typing import Literal
 
 from edn.memory.models import EmailRecord
 from edn.memory.parser import parse_message
 from edn.memory.storage import SQLiteEmailStore
+
+DEFAULT_IMPORT_BATCH_SIZE = 250
+ProgressStatus = Literal["running", "completed", "failed", "interrupted"]
+
+
+@dataclass(frozen=True, slots=True)
+class ImportProgress:
+    """Body-free progress data emitted only at transaction boundaries."""
+
+    folder_path: str
+    processed: int
+    imported: int
+    skipped: int
+    batches_committed: int
+    status: ProgressStatus
+
+
+ProgressCallback = Callable[[ImportProgress], None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,6 +40,8 @@ class ImportResult:
 
     imported: int
     skipped: int
+    processed: int
+    batches_committed: int
 
 
 def _fallback_record_key(record: EmailRecord) -> str:
@@ -73,27 +95,72 @@ def import_mbox(
     store: SQLiteEmailStore,
     *,
     folder_path: str = "Inbox",
+    batch_size: int = DEFAULT_IMPORT_BATCH_SIZE,
+    progress: ProgressCallback | None = None,
 ) -> ImportResult:
-    """Import all messages from an MBOX file into an email store."""
+    """Import an MBOX in duplicate-safe, resumable transaction batches."""
     path = Path(mbox_path)
     if not path.is_file():
         raise FileNotFoundError(path)
+    if batch_size < 1:
+        raise ValueError("batch_size must be at least 1")
 
     imported = 0
     skipped = 0
+    processed = 0
+    batches_committed = 0
+    pending: list[EmailRecord] = []
     source = mailbox.mbox(path, create=False)
+
+    def emit(status: ProgressStatus) -> None:
+        if progress is not None:
+            progress(
+                ImportProgress(
+                    folder_path=folder_path,
+                    processed=processed,
+                    imported=imported,
+                    skipped=skipped,
+                    batches_committed=batches_committed,
+                    status=status,
+                )
+            )
+
+    def commit_pending() -> None:
+        nonlocal imported, skipped, batches_committed
+        if not pending:
+            return
+        batch_result = store.add_many(pending)
+        imported += batch_result.imported
+        skipped += batch_result.skipped
+        batches_committed += 1
+        pending.clear()
+        emit("running")
 
     try:
         for message in source:
-            record = _parse_mbox_message(
-                message,
-                folder_path=folder_path,
+            pending.append(
+                _parse_mbox_message(
+                    message,
+                    folder_path=folder_path,
+                )
             )
-            if store.add(record):
-                imported += 1
-            else:
-                skipped += 1
+            processed += 1
+            if len(pending) >= batch_size:
+                commit_pending()
+        commit_pending()
+    except KeyboardInterrupt:
+        emit("interrupted")
+        raise
+    except Exception:
+        emit("failed")
+        raise
     finally:
         source.close()
 
-    return ImportResult(imported=imported, skipped=skipped)
+    emit("completed")
+    return ImportResult(
+        imported=imported,
+        skipped=skipped,
+        processed=processed,
+        batches_committed=batches_committed,
+    )

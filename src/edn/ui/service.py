@@ -10,12 +10,13 @@ from datetime import datetime
 from pathlib import Path
 
 from edn.memory.models import EmailRecord
-from edn.memory.storage import SQLiteEmailStore
+from edn.memory.storage import DatabaseBusyError, SQLiteEmailStore
 
 DATABASE_ENVIRONMENT_VARIABLE = "EDN_MEMORY_DB"
 DEFAULT_RESULT_LIMIT = 20
 MAX_RESULT_LIMIT = 100
 DEFAULT_PREVIEW_LENGTH = 240
+BUSY_MESSAGE = "The local email database is temporarily busy. Try again shortly."
 
 
 class DatabaseConfigurationError(ValueError):
@@ -24,6 +25,10 @@ class DatabaseConfigurationError(ValueError):
 
 class DatabaseUnavailableError(RuntimeError):
     """Raised when the configured database cannot be read."""
+
+
+class DatabaseTemporarilyBusyError(DatabaseUnavailableError):
+    """Raised when a read cannot complete during a writer transaction."""
 
 
 class SearchQueryError(ValueError):
@@ -62,10 +67,11 @@ def open_read_only_store(database_path: Path) -> SQLiteEmailStore:
         raise DatabaseUnavailableError(
             "The configured EDN memory database does not exist or is not a file."
         )
-
     store = SQLiteEmailStore(database_path, read_only=True)
     try:
         store.count()
+    except DatabaseBusyError as error:
+        raise DatabaseTemporarilyBusyError(BUSY_MESSAGE) from error
     except sqlite3.Error as error:
         raise DatabaseUnavailableError(
             "The configured file is not a readable initialized EDN memory database."
@@ -79,15 +85,16 @@ def search_emails(
     *,
     limit: int = DEFAULT_RESULT_LIMIT,
 ) -> list[EmailRecord]:
-    """Search email memory and translate SQLite query errors for the UI."""
+    """Search email memory and translate SQLite errors for the UI."""
     normalized_query = query.strip()
     if not normalized_query:
         return []
     if not 1 <= limit <= MAX_RESULT_LIMIT:
         raise ValueError(f"limit must be between 1 and {MAX_RESULT_LIMIT}")
-
     try:
         return store.search(normalized_query, limit=limit)
+    except DatabaseBusyError as error:
+        raise DatabaseTemporarilyBusyError(BUSY_MESSAGE) from error
     except sqlite3.OperationalError as error:
         raise SearchQueryError(
             "That search could not be understood. "
@@ -103,7 +110,6 @@ def body_preview(
     """Return a compact plain-text preview without loading additional records."""
     if max_characters < 2:
         raise ValueError("max_characters must be at least 2")
-
     normalized = " ".join(body_text.split())
     if not normalized:
         return "(No plain-text body)"

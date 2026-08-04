@@ -8,8 +8,7 @@ from collections.abc import Mapping, Sequence
 from typing import Protocol
 
 from edn.knowledge.models import AnsweredQuestion, EmailEvidence, GroundedAnswer
-from edn.knowledge.retrieval import DEFAULT_EVIDENCE_LIMIT, retrieve_email_evidence
-from edn.memory.storage import SQLiteEmailStore
+from edn.retrieval.engine import DEFAULT_EVIDENCE_LIMIT, RetrievalEngine
 
 PROVIDER_ENVIRONMENT_VARIABLE = "EDN_LLM_PROVIDER"
 MAX_CONTEXT_CHARACTERS = 8_000
@@ -178,13 +177,13 @@ def validate_grounded_answer(
 
 def answer_question(
     question: str,
-    store: SQLiteEmailStore,
+    retrieval_engine: RetrievalEngine,
     provider: AnswerProvider,
     *,
     retrieval_limit: int = DEFAULT_EVIDENCE_LIMIT,
 ) -> AnsweredQuestion:
     """Retrieve evidence, generate an answer, and validate all citations."""
-    evidence = retrieve_email_evidence(question, store, limit=retrieval_limit)
+    evidence = retrieval_engine.retrieve(question, limit=retrieval_limit)
     if not evidence:
         return AnsweredQuestion(
             answer=GroundedAnswer(

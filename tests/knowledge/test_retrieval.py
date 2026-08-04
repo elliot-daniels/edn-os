@@ -62,9 +62,7 @@ def test_question_to_search_terms_is_unique_and_bounded() -> None:
 
 
 def test_build_fts_query_accepts_only_tokenized_terms() -> None:
-    assert build_fts_query(("pimba", 'bad" OR *', "mx304")) == (
-        '"pimba" OR "mx304"'
-    )
+    assert build_fts_query(("pimba", 'bad" OR *', "mx304")) == ('"pimba" OR "mx304"')
 
 
 def test_retrieve_email_evidence_preserves_relevance_order(tmp_path: Path) -> None:

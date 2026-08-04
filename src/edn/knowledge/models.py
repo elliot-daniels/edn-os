@@ -3,22 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 
+from edn.retrieval.models import RetrievalEvidence
 
-@dataclass(frozen=True, slots=True)
-class EmailEvidence:
-    """One ranked email supplied as evidence to an answer provider."""
-
-    evidence_id: int
-    source_record_key: str
-    subject: str
-    sender: str
-    sent_at: datetime | None
-    folder_path: str
-    message_id: str | None
-    body_excerpt: str
-    body_text: str
+EmailEvidence = RetrievalEvidence
 
 
 @dataclass(frozen=True, slots=True)

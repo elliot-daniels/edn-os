@@ -1,5 +1,56 @@
 # Module 002.3 — Ask EDN
 
+## Module 002.4 retrieval architecture
+
+All question-answering consumers call `RetrievalEngine.retrieve(question)` and
+receive ranked `RetrievalEvidence`. Ask EDN no longer knows which persistence or
+search backend supplies candidates.
+
+```text
+question
+  -> deterministic query normalization
+  -> bounded SQLite FTS5 candidate retrieval
+  -> configurable deterministic reranking
+  -> attributed evidence with scores and explanations
+  -> grounded answer provider and citation validation
+```
+
+The query normalizer removes conversational stop words and unsafe FTS syntax,
+applies conservative plural normalization, and preserves quoted phrases,
+acronyms, ticket IDs, and hostnames. It constructs an OR-only FTS query; raw
+questions are never passed to SQLite MATCH.
+
+FTS5 retrieves at most 20 candidates by default, including the raw BM25 score
+and original rank. The reranker only inspects this bounded set, so retrieval does
+not scan or load the full email archive. Its default signals are keyword rank,
+subject, sender, folder, capped body frequency, exact phrases, acronyms,
+identifiers, and recency relative to the newest candidate. `RerankWeights`
+centralizes every weight and permits individual signals to be disabled or tuned.
+Stable ties use original FTS rank and then the source record key.
+
+Each evidence result retains the total score, raw keyword score, original FTS
+rank, rerank contribution, optional future semantic score, source metadata,
+excerpt, full body reference, and human-readable explanations. The UI currently
+uses only grounded source fields; explanations remain available to future
+diagnostics and evaluation tooling.
+
+### Semantic insertion point
+
+`CandidateRetriever` is the backend protocol. A future local semantic retriever
+can produce the same `RetrievalCandidate` model with `semantic_score` populated.
+The engine can then merge bounded keyword and semantic candidate sets by source
+key before the existing reranker. This requires no UI, Ask EDN, provider, or
+citation-model change. Embeddings and vector databases are intentionally absent
+from Module 002.4.
+
+### Extension and configuration
+
+Compose the production service with `RetrievalEngine.from_store(read_only_store)`.
+For tests or future sources, inject another `CandidateRetriever`. Configure the
+candidate bound and excerpt size on `RetrievalEngine`; configure scoring via a
+`DeterministicReranker(RerankWeights(...))`. New signals belong in the reranker,
+not the UI or answer provider, and must add a concise explanation when applied.
+
 Ask EDN adds grounded, read-only question answering over the local email-memory
 database. Keyword Search remains available as a separate interface mode.
 
