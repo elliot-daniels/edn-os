@@ -21,8 +21,10 @@ class DirectoryImportResult:
 def _folder_path(root: Path, mbox_path: Path) -> str:
     """Derive the stored mailbox folder path from an MBOX file path."""
     relative_path = mbox_path.relative_to(root)
-    without_suffix = relative_path.with_suffix("")
-    return without_suffix.as_posix()
+    if relative_path.name.lower() == "mbox":
+        return relative_path.parent.as_posix()
+
+    return relative_path.with_suffix("").as_posix()
 
 
 def find_mbox_files(root: str | Path) -> tuple[Path, ...]:
@@ -36,7 +38,11 @@ def find_mbox_files(root: str | Path) -> tuple[Path, ...]:
         sorted(
             path
             for path in root_path.rglob("*")
-            if path.is_file() and path.suffix.lower() == ".mbox"
+            if path.is_file()
+            and (
+                path.suffix.lower() == ".mbox"
+                or path.name.lower() == "mbox"
+            )
         )
     )
 

@@ -57,11 +57,17 @@ def test_find_mbox_files_is_recursive_and_sorted(tmp_path: Path) -> None:
         subject="Apex",
         message_id="<apex@example.com>",
     )
+    _write_mbox(
+        tmp_path / "Inbox" / "mbox",
+        subject="Inbox",
+        message_id="<inbox@example.com>",
+    )
     (tmp_path / "ignore.txt").write_text("not an mbox", encoding="utf-8")
 
     result = find_mbox_files(tmp_path)
 
     assert result == (
+        tmp_path / "Inbox" / "mbox",
         tmp_path / "Projects" / "Apex.mbox",
         tmp_path / "Sent.mbox",
     )
@@ -98,6 +104,30 @@ def test_import_directory_preserves_folder_paths(
     assert apex is not None
     assert inbox.folder_path == "Inbox"
     assert apex.folder_path == "Projects/Apex"
+
+
+def test_import_directory_supports_readpst_mbox_layout(
+    tmp_path: Path,
+    store: SQLiteEmailStore,
+) -> None:
+    export_root = tmp_path / "outlook-export"
+
+    _write_mbox(
+        export_root / "Inbox" / "CRQ" / "mbox",
+        subject="CRQ message",
+        message_id="<crq@example.com>",
+    )
+
+    result = import_mbox_directory(export_root, store)
+
+    assert result.files_processed == 1
+    assert result.imported == 1
+    assert result.skipped == 0
+
+    record = store.get("message-id:<crq@example.com>")
+
+    assert record is not None
+    assert record.folder_path == "Inbox/CRQ"
 
 
 def test_reimport_directory_skips_existing_messages(
