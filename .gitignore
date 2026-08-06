@@ -36,6 +36,9 @@ logs/
 attachments/
 indexes/
 exports/
+SharePointInventory/
+*.tenant-inventory.json
+*.sharepoint-inventory.json
 poc/output/
 **/probe_libpff.json
 **/probe_readpst.json
