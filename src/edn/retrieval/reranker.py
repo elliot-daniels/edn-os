@@ -21,6 +21,7 @@ class RerankWeights:
     exact_phrase: float = 4.0
     acronym: float = 1.5
     identifier: float = 3.0
+    knowledge_match: float = 3.0
     recent: float = 0.5
     recent_window_days: int = 365
 
@@ -66,9 +67,11 @@ class DeterministicReranker:
         folder = record.folder_path.casefold()
         body = record.body_text.casefold()
         terms = tuple(term.casefold() for term in query.terms)
-        explanations: list[str] = []
+        explanations = list(candidate.source_explanations)
         score = self.weights.keyword_rank / max(candidate.fts_rank, 1)
         explanations.append(f"keyword rank {candidate.fts_rank}")
+        if candidate.source_explanations:
+            score += self.weights.knowledge_match
 
         def add_signal(label: str, amount: float) -> None:
             nonlocal score

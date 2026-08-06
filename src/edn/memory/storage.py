@@ -76,6 +76,14 @@ class RankedEmailRecord:
     fts_rank: int
 
 
+@dataclass(frozen=True, slots=True)
+class StoredEmailRecord:
+    """An email paired with its monotonically increasing SQLite row id."""
+
+    email_id: int
+    record: EmailRecord
+
+
 def is_database_busy_error(error: BaseException) -> bool:
     """Return whether an exception represents SQLite lock contention."""
     message = str(error).casefold()
@@ -237,6 +245,20 @@ class SQLiteEmailStore:
             ).fetchone()
         return _row_to_record(row) if row is not None else None
 
+    def get_many(self, source_record_keys: Sequence[str]) -> tuple[EmailRecord, ...]:
+        """Retrieve a bounded set in caller order using one read connection."""
+        if not source_record_keys:
+            return ()
+        keys = tuple(dict.fromkeys(source_record_keys))
+        placeholders = ",".join("?" for _ in keys)
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"SELECT * FROM emails WHERE source_record_key IN ({placeholders})",
+                keys,
+            ).fetchall()
+        records = {str(row["source_record_key"]): _row_to_record(row) for row in rows}
+        return tuple(records[key] for key in keys if key in records)
+
     def count(self) -> int:
         """Return the number of stored records."""
         with self._connect() as connection:
@@ -255,6 +277,27 @@ class SQLiteEmailStore:
                 """
             ).fetchall()
         return tuple((str(row["folder_path"]), int(row["total"])) for row in rows)
+
+    def records_after_id(
+        self,
+        after_id: int,
+        *,
+        limit: int = 250,
+    ) -> tuple[StoredEmailRecord, ...]:
+        """Return a bounded deterministic page for incremental processors."""
+        if after_id < 0:
+            raise ValueError("after_id must not be negative")
+        if limit < 1:
+            raise ValueError("limit must be at least 1")
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM emails WHERE id > ? ORDER BY id LIMIT ?",
+                (after_id, limit),
+            ).fetchall()
+        return tuple(
+            StoredEmailRecord(email_id=int(row["id"]), record=_row_to_record(row))
+            for row in rows
+        )
 
     def search(self, query: str, *, limit: int = 20) -> list[EmailRecord]:
         """Search subject, sender and body using FTS5."""

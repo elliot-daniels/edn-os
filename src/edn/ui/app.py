@@ -11,6 +11,9 @@ from edn.knowledge.answering import (
     resolve_answer_provider,
 )
 from edn.knowledge.models import EmailEvidence
+from edn.knowledge_graph.entities import EntityType
+from edn.knowledge_graph.persistence import KnowledgeGraphStore
+from edn.knowledge_graph.retrieval import KnowledgeCandidateRetriever
 from edn.memory.models import EmailRecord
 from edn.retrieval import (
     DEFAULT_EVIDENCE_LIMIT,
@@ -87,7 +90,14 @@ try:
     database_path = resolve_database_path()
     store = open_read_only_store(database_path)
     indexed_email_count = store.count()
-    retrieval_engine = RetrievalEngine.from_store(store)
+    graph_store = KnowledgeGraphStore(database_path, read_only=True)
+    graph_available = graph_store.schema_available()
+    supplemental = (
+        (KnowledgeCandidateRetriever(graph_store, store),) if graph_available else ()
+    )
+    retrieval_engine = RetrievalEngine.from_store(
+        store, supplemental_retrievers=supplemental
+    )
     answer_provider = resolve_answer_provider()
 except (
     AnswerConfigurationError,
@@ -98,7 +108,7 @@ except (
     st.stop()
 
 st.success(f"Database ready · {indexed_email_count:,} indexed emails")
-search_tab, ask_tab = st.tabs(("Search", "Ask EDN"))
+search_tab, ask_tab, knowledge_tab = st.tabs(("Search", "Ask EDN", "Knowledge"))
 
 with search_tab:
     with st.form("email-search"):
@@ -186,3 +196,56 @@ with ask_tab:
                     for evidence_item in answered.evidence:
                         if evidence_item.evidence_id in cited_ids:
                             _render_evidence(evidence_item)
+
+with knowledge_tab:
+    st.caption("Structured entities extracted locally with deterministic rules.")
+    if not graph_available:
+        st.info("Run the local knowledge extraction pipeline to build this view.")
+    else:
+        category_labels = {
+            "Projects": EntityType.PROJECT,
+            "People": EntityType.PERSON,
+            "Technologies": EntityType.TECHNOLOGY,
+            "Equipment": EntityType.EQUIPMENT,
+            "Sites": EntityType.SITE,
+            "Clients": EntityType.CLIENT,
+            "Incidents": EntityType.INCIDENT,
+            "Skills": EntityType.SKILL,
+        }
+        selected_category = st.selectbox(
+            "Category", tuple(category_labels), key="knowledge-category"
+        )
+        entities = graph_store.list_entities(
+            category_labels[selected_category], limit=100
+        )
+        if not entities:
+            st.info("No entities have been extracted in this category.")
+        else:
+            entity_labels = {
+                f"{entity.canonical_name} ({entity.source_count} sources)": entity
+                for entity in entities
+            }
+            selected_label = st.selectbox(
+                "Entity", tuple(entity_labels), key="knowledge-entity"
+            )
+            details = graph_store.entity_details(
+                entity_labels[selected_label].entity_id
+            )
+            if details is not None:
+                st.subheader(details.entity.canonical_name)
+                st.write(details.entity.summary)
+                st.markdown("**Related entities**")
+                if not details.related_entities:
+                    st.caption("No deterministic relationships found.")
+                for related in details.related_entities:
+                    arrow = "→" if related.direction == "outgoing" else "←"
+                    st.text(
+                        f"{arrow} {related.predicate}: "
+                        f"{related.entity.canonical_name} "
+                        f"({related.source_count} sources)"
+                    )
+                st.markdown("**Supporting emails**")
+                for source_key in details.source_record_keys[:20]:
+                    supporting_record = store.get(source_key)
+                    if supporting_record is not None:
+                        _render_email_result(supporting_record)

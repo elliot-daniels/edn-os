@@ -57,6 +57,7 @@ _STOP_WORDS = frozenset(
         "who",
         "why",
         "with",
+        "work",
     }
 )
 

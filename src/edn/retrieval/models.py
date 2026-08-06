@@ -28,6 +28,7 @@ class RetrievalCandidate:
     keyword_score: float
     fts_rank: int
     semantic_score: float | None = None
+    source_explanations: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import sqlite3
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
+from dataclasses import replace
 
 from edn.memory.storage import DatabaseBusyError, SQLiteEmailStore
 from edn.retrieval.keyword import CandidateRetriever, SQLiteFTSKeywordRetriever
-from edn.retrieval.models import RetrievalEvidence, ScoredCandidate
+from edn.retrieval.models import (
+    RetrievalCandidate,
+    RetrievalEvidence,
+    ScoredCandidate,
+)
 from edn.retrieval.query import normalize_query
 from edn.retrieval.reranker import DeterministicReranker
 
@@ -57,6 +62,7 @@ class RetrievalEngine:
         reranker: DeterministicReranker | None = None,
         candidate_limit: int = DEFAULT_CANDIDATE_LIMIT,
         excerpt_characters: int = DEFAULT_EXCERPT_CHARACTERS,
+        supplemental_retrievers: Sequence[CandidateRetriever] = (),
     ) -> None:
         if candidate_limit < 1:
             raise ValueError("candidate_limit must be at least 1")
@@ -66,6 +72,7 @@ class RetrievalEngine:
         self._reranker = reranker or DeterministicReranker()
         self._candidate_limit = candidate_limit
         self._excerpt_characters = excerpt_characters
+        self._supplemental_retrievers = tuple(supplemental_retrievers)
 
     @classmethod
     def from_store(
@@ -75,6 +82,7 @@ class RetrievalEngine:
         reranker: DeterministicReranker | None = None,
         candidate_limit: int = DEFAULT_CANDIDATE_LIMIT,
         excerpt_characters: int = DEFAULT_EXCERPT_CHARACTERS,
+        supplemental_retrievers: Sequence[CandidateRetriever] = (),
     ) -> RetrievalEngine:
         """Compose the engine with the existing SQLite FTS5 backend."""
         return cls(
@@ -82,6 +90,7 @@ class RetrievalEngine:
             reranker=reranker,
             candidate_limit=candidate_limit,
             excerpt_characters=excerpt_characters,
+            supplemental_retrievers=supplemental_retrievers,
         )
 
     def retrieve(
@@ -101,6 +110,13 @@ class RetrievalEngine:
                 query,
                 limit=max(limit, self._candidate_limit),
             )
+            supplemental = tuple(
+                candidate
+                for retriever in self._supplemental_retrievers
+                for candidate in retriever.retrieve_candidates(
+                    query, limit=self._candidate_limit
+                )
+            )
         except DatabaseBusyError as error:
             raise RetrievalError(
                 "The local email database is temporarily busy. Try again shortly."
@@ -109,11 +125,33 @@ class RetrievalEngine:
             raise RetrievalError(
                 "Email evidence could not be retrieved from the local index."
             ) from error
-        ranked = self._reranker.rerank(query, candidates)[:limit]
+        ranked = self._reranker.rerank(
+            query, self._merge_candidates((*candidates, *supplemental))
+        )[:limit]
         return tuple(
             self._to_evidence(item, evidence_id, query.terms)
             for evidence_id, item in enumerate(ranked, start=1)
         )
+
+    @staticmethod
+    def _merge_candidates(
+        candidates: Iterable[RetrievalCandidate],
+    ) -> tuple[RetrievalCandidate, ...]:
+        merged: dict[str, RetrievalCandidate] = {}
+        for candidate in candidates:
+            key = candidate.record.source_record_key
+            existing = merged.get(key)
+            if existing is None:
+                merged[key] = candidate
+                continue
+            explanations = tuple(
+                dict.fromkeys(
+                    (*existing.source_explanations, *candidate.source_explanations)
+                )
+            )
+            preferred = existing if existing.keyword_score != 0 else candidate
+            merged[key] = replace(preferred, source_explanations=explanations)
+        return tuple(merged.values())
 
     def _to_evidence(
         self,

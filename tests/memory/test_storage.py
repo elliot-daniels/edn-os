@@ -15,6 +15,7 @@ def store(tmp_path: Path) -> SQLiteEmailStore:
     email_store.initialise()
     return email_store
 
+
 def _record(
     *,
     key: str = "mbox:000001",
@@ -35,11 +36,13 @@ def _record(
         body_text=body,
     )
 
+
 def test_add_and_get_round_trip(store: SQLiteEmailStore) -> None:
     original = _record()
     assert store.add(original) is True
     assert store.get(original.source_record_key) == original
     assert store.count() == 1
+
 
 def test_duplicate_source_key_is_ignored(store: SQLiteEmailStore) -> None:
     record = _record()
@@ -47,8 +50,10 @@ def test_duplicate_source_key_is_ignored(store: SQLiteEmailStore) -> None:
     assert store.add(record) is False
     assert store.count() == 1
 
+
 def test_get_missing_record_returns_none(store: SQLiteEmailStore) -> None:
     assert store.get("missing") is None
+
 
 def test_search_finds_subject_and_body_terms(store: SQLiteEmailStore) -> None:
     store.add(_record())
@@ -62,6 +67,17 @@ def test_search_finds_subject_and_body_terms(store: SQLiteEmailStore) -> None:
     assert [r.source_record_key for r in store.search("Juniper")] == ["mbox:000001"]
     assert [r.source_record_key for r in store.search("Apex")] == ["mbox:000002"]
 
+
 def test_search_rejects_invalid_limit(store: SQLiteEmailStore) -> None:
     with pytest.raises(ValueError, match="limit must be at least 1"):
         store.search("Juniper", limit=0)
+
+
+def test_get_many_preserves_requested_order_and_ignores_missing(
+    store: SQLiteEmailStore,
+) -> None:
+    first = _record(key="first")
+    second = _record(key="second")
+    store.add_many((first, second))
+
+    assert store.get_many(("second", "missing", "first")) == (second, first)
