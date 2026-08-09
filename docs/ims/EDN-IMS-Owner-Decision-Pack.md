@@ -1,6 +1,6 @@
 # EDN IMS Owner Structure Decision Pack
 
-Status: Owner review required  
+Status: Five owner policy decisions approved; structural recommendations remain design inputs
 Date: 2026-08-09  
 Decision authority: Elliot Daniels  
 Implementation authority: None
@@ -29,6 +29,17 @@ not absent. Item contents were outside discovery scope, so apparent purposes are
 inferences from object type, name, settings and architecture—not content review.
 
 ## 2. Confirmed baseline
+
+### Approved on 2026-08-09
+
+Elliot Daniels approved the asset, controlled-document, integrated risk,
+assurance/event/finding, and initial-scope decisions recorded as IMS-D025 through
+IMS-D029 in the decision log. Those decisions are authoritative inputs to
+IMS-005. Approval does not authorise SharePoint deployment.
+
+Recommendations about later consolidation, renaming, migration, permissions,
+retention and field deployment still require evidence and an implementation
+approval gate.
 
 The following recommendations stand unless later evidence materially contradicts
 them.
@@ -415,18 +426,21 @@ policy model is designed:
 
 ## 9. Owner approval block
 
+The five policy rows below were approved on 2026-08-09 and are retained as an
+audit summary. The remaining structural dispositions are recommendations until
+an implementation package is approved.
+
 The owner may approve this pack with explicit exceptions rather than responding
 to thirteen separate questions.
 
 | Decision | Owner response |
 |---|---|
 | Approve recommended dispositions IMS-SD01 through IMS-SD13, subject to recorded exceptions | |
-| Structured asset scope | |
-| Controlled-document boundary/name | |
-| Risk method and acceptance authority | |
-| Sensitive-record storage boundary | |
-| Initial IMS scope | |
+| Structured asset scope | **Approved:** existing Assets library authoritative; no separate register without demonstrated need |
+| Controlled-document boundary/name | **Approved:** use SOPs & Templates; assess rename risk before changing display terminology |
+| Risk method and acceptance authority | **Approved:** one likelihood × consequence model; human-only acceptance |
+| Sensitive-record storage boundary | **Approved:** shared typed model where practical; allow maintainable isolation; no automatic item-level security assumption |
+| Initial IMS scope | **Approved:** current Australian quality, WHS, information security, delivery, commercial/client and assurance environment; no maturity/conformity claim |
 | Exceptions or conditions | |
 | Decision: Approve / Conditional / Reject | |
 | Approver and date | |
-

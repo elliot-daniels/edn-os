@@ -42,6 +42,20 @@ No entry in this document records a live SharePoint change or certification clai
 | IMS-D023 | Deferred | Certification decision | Certification readiness is the objective; commercial value is unknown | Decide after operating evidence and readiness assessment |
 | IMS-D024 | Deferred | ISO 14001, ISO 22301 and DISP domain implementation | The shared core can support them, but no immediate trigger is evidenced | Add mappings/capabilities only after scope/business decision |
 
+## 2.1 Approved owner decisions — IMS-005
+
+The following decisions were approved by Elliot Daniels on 2026-08-09 for
+implementation design. They supersede conflicting proposals but do not authorise
+live deployment.
+
+| ID | Date | Status | Decision | Rationale | Implementation consequence | Owner/authority |
+|---|---|---|---|---|---|---|
+| IMS-D025 | 2026-08-09 | **Approved** | Keep the existing `Assets` library authoritative for now; create no separate structured asset register without a demonstrated operational need | Avoids an unused parallel register while preserving the current source | Design only minimal useful library metadata; leave `Asset Register` unused and do not migrate/delete it in IMS-005 | Elliot Daniels, Owner |
+| IMS-D026 | 2026-08-09 | **Approved** | Use `SOPs & Templates` as the controlled-document source | Native library metadata/versioning avoids a duplicate document register | Extend the existing library; retain its technical URL/internal identity unless a dependency review proves a display-name change safe | Elliot Daniels, Owner |
+| IMS-D027 | 2026-08-09 | **Approved** | Use one integrated Risks and Opportunities register with a simple likelihood × consequence method and human-only acceptance | One proportionate model prevents fragmented risk registers and automated authority | Extend the existing Risk Register; calculations may be automated, but acceptance requires a named human decision and date | Elliot Daniels, Owner |
+| IMS-D028 | 2026-08-09 | **Approved** | Use one typed Assurance, Events and Findings model where practical, with maintainable isolation for sensitive records | Shared provenance/action mechanics should not force all sensitive categories into one permission boundary | Design a common schema and a restricted companion structure when required; do not default to per-item permissions | Elliot Daniels, Owner |
+| IMS-D029 | 2026-08-09 | **Approved** | Initial IMS scope is EDN Systems' actual Australian quality, WHS, information-security, delivery, commercial/client and assurance environment; Essential Eight maturity and specific legal applicability require separate confirmation | Grounds the IMS in current operations without unsupported conformity or maturity claims | Make jurisdictions, frameworks and targets configurable; label unevidenced legal/Purview/permission facts unknown | Elliot Daniels, Owner |
+
 ## 3. Current-state findings that constrain decisions
 
 | Finding ID | Classification | Finding | Source |
