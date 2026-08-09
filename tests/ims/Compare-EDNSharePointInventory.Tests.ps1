@@ -37,6 +37,9 @@ function Write-SyntheticInventory {
         [ordered]@{ list_id = $lists[3].list_id; field_id = 'd0000000-0000-0000-0000-000000000001'; internal_name = 'Classification'; field_type = 'Choice' },
         [ordered]@{ list_id = $lists[3].list_id; field_id = 'd0000000-0000-0000-0000-000000000002'; internal_name = 'AssetOwner'; field_type = 'User' }
     )
+    $fields += @($lists | ForEach-Object {
+        [ordered]@{ list_id = $_.list_id; field_id = [guid]::NewGuid(); internal_name = '_SyntheticSystemField'; field_type = 'Text'; hidden = $true }
+    })
     $contentTypes = @(
         [ordered]@{ list_id = $lists[0].list_id; content_type_id = '0x0101'; name = 'Project' }
     )
@@ -134,6 +137,8 @@ Describe 'EDN SharePoint gap mapping behavior' {
         })
         $projectDuplicate.Count | Should Be 1
         $projectDuplicate[0].field_overlap | Should Be 1
+        @($duplicates | Where-Object { 'synthetic system field' -in $_.shared_fields }).Count |
+            Should Be 0
     }
 
     It 'classifies authoritative, extension, creation, decision, and out-of-scope cases' {

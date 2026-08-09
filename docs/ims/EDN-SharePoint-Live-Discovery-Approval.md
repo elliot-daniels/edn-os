@@ -1,6 +1,13 @@
 # EDN SharePoint Live Discovery Approval
 
-Status: Approval template — not approved
+Status: Controlled discovery and offline assessment completed; implementation review required
+
+Final window approved by Elliot Daniels in the originating IMS-003 Codex task:
+7 August 2026, 5:00–5:30 PM Australia/Adelaide (ACST). The corrected exporter
+used new no-clobber inventory and backup paths. Read-only discovery completed,
+the ten-file inventory was hash-verified and backed up, and the refined offline
+assessment completed in the separately approved report path.
+
 
 This document is the human authorization gate for a future IMS-001 live,
 read-only SharePoint metadata inventory. Completing this template does not execute
@@ -9,28 +16,29 @@ below; any change requires a new decision.
 
 ## Approval record
 
-Do not guess or pre-populate live identifiers.
+Approval recorded from the named owner in the IMS-003 Codex task. Identifiers
+below were supplied or explicitly confirmed by the approver; none were inferred.
 
 | Required field | Approved value |
 |---|---|
-| SharePoint site URL | |
-| Tenant identifier | |
-| PnP/Entra application client ID | |
-| Delegated permissions | |
-| Operator identity | |
-| Execution date and window, including timezone | |
-| Output directory | |
-| Information classification | |
-| Retention period and disposal trigger | |
-| Approved primary storage location | |
-| Approved backup location | |
-| Confirmation: no live inventory will enter Git | |
-| Confirmation: operation is metadata-only and read-only | |
-| Named approver | |
-| Approval date | |
-| Decision: Go / No-go / Conditional | |
-| Conditions or limitations | |
-| Related Approval record or evidence link | |
+| SharePoint site URL | `https://edn123.sharepoint.com/sites/EDNSystems` |
+| Tenant identifier | `aae6ab79-45eb-4829-a04f-595becdb936d` |
+| PnP/Entra application client ID | `d08166f6-2074-4590-8edf-bb8275e9eb11` |
+| Delegated permissions | SharePoint `AllSites.Read` delegated permission |
+| Operator identity | `elliot@ednsystems.com.au` |
+| Execution date and window, including timezone | 7 August 2026, 3:00–4:00 PM Australia/Adelaide (ACST) |
+| Output directory | `F:\EDN OS\Working\SharePoint Inventory\2026-08-07` |
+| Information classification | EDN Confidential |
+| Retention period and disposal trigger | 12 months; delete after IMS implementation decisions are approved, required audit/troubleshooting activities are complete, and the retention period has expired |
+| Approved primary storage location | `F:\EDN OS\Working\SharePoint Inventory\2026-08-07` |
+| Approved backup location | `F:\EDN OS\Backups\SharePoint Inventory\2026-08-07` |
+| Confirmation: no live inventory will enter Git | Confirmed; inventory and generated gap assessment will never be committed to Git |
+| Confirmation: operation is metadata-only and read-only | Confirmed; no SharePoint content, configuration, permissions, structures, automation, retention, or tenant configuration may be modified |
+| Named approver | Elliot Daniels |
+| Approval date | 7 August 2026, Australia/Adelaide (ACST) |
+| Decision: Go / No-go / Conditional | **GO** |
+| Conditions or limitations | Read-only execution; interactive MFA; approved delegated permission only; output outside Git; EDN Confidential; review before implementation; no provisioning, schema changes, or automation deployment |
+| Related Approval record or evidence link | IMS-003 owner approval recorded in the originating Codex task on 7 August 2026 |
 
 ## Scope being approved
 
@@ -77,21 +85,27 @@ Every precondition must be evidenced before a Go decision:
 
 | Check | Yes/No | Evidence or comment |
 |---|---|---|
-| Exact site boundary approved | | |
-| Tenant and client ID verified, not inferred | | |
-| Delegated permissions approved as least privilege | | |
-| Operator and MFA method approved | | |
-| Execution window approved | | |
-| Output path outside repository confirmed | | |
-| Protected primary and backup storage confirmed | | |
-| Classification and retention confirmed | | |
-| Exporter commit and schema version recorded | | |
-| Offline tests reviewed | | |
-| Output collision check completed | | |
-| No-live-inventory-in-Git confirmation recorded | | |
-| Read-only and metadata-only scope understood | | |
-| Post-run reviewer named | | |
-| Named approver recorded a Go decision | | |
+| Exact site boundary approved | Yes | Owner confirmed exact URL |
+| Tenant and client ID verified, not inferred | Yes | Both identifiers supplied and corrected by owner |
+| Delegated permissions approved as least privilege | Yes | SharePoint `AllSites.Read`; no elevation authorized |
+| Operator and MFA method approved | Yes | `elliot@ednsystems.com.au`; interactive MFA only |
+| Execution window approved | Yes | Replacement GO: 7 August 2026, 4:28:01–4:58:01 PM ACST; owner confirmed ready to authenticate |
+| Output path outside repository confirmed | Yes | Approved `F:` working path; directory absent before run |
+| Protected primary and backup storage confirmed | Yes | Approved `F:` primary and backup paths; classification applies to both |
+| Classification and retention confirmed | Yes | EDN Confidential; 12 months and approved disposal trigger |
+| Exporter commit and schema version recorded | Yes | Commit `4ae2b19`; schema `1.0.0`; SHA-256 `55c52b02306fc6e5a9031a7d006f7a02588a94a6b9379947b1a5a5d8ee02b96f` |
+| Offline tests reviewed | Yes | Exporter Pester: 11 passed, 0 failed |
+| Output collision check completed | Yes | All ten filenames absent before run |
+| No-live-inventory-in-Git confirmation recorded | Yes | Owner confirmed; `.gitignore` protection and external path verified |
+| Read-only and metadata-only scope understood | Yes | Owner confirmed detailed mutation exclusions |
+| Post-run reviewer named | Yes | Elliot Daniels |
+| Named approver recorded a Go decision | Yes | Elliot Daniels; GO on 7 August 2026 ACST |
+
+Approved protected gap-assessment output:
+`F:\EDN OS\Working\SharePoint Gap Assessment\2026-08-07`.
+
+Post-run reviewer: Elliot Daniels. The backup carries the same EDN Confidential
+classification, 12-month retention period, and disposal trigger as the primary.
 
 Any blank field, No answer, scope mismatch, unexpected permission request, script
 change, output collision, or inability to protect the inventory is a **No-go**.
@@ -104,17 +118,17 @@ values in Git; reference their approved operational record instead.
 
 | Field | Result/reference |
 |---|---|
-| Approval record reference | |
-| Exporter commit and SHA-256 | |
-| Inventory schema/script versions | |
-| Actual start/end time | |
-| Operator | |
-| Secure inventory location reference | |
-| Backup confirmation reference | |
-| Inventory file hash manifest reference | |
-| Warnings and unavailable sections reviewed | |
-| Deviations or incidents | |
-| Reviewer and review date | |
+| Approval record reference | IMS-003 owner approval recorded in the originating Codex task on 7 August 2026 |
+| Exporter commit and SHA-256 | Based on `4ae2b19` with reviewed compatibility fix; `7f4b4423c64fe5309de5d15f067f001e45ce6ae3f324e0e0e044a507b83c2f06` |
+| Inventory schema/script versions | Schema `1.0.0`; script `1.0.0`; 10 expected files produced |
+| Actual start/end time | Approximately 5:04:43–5:06:14 PM ACST on 7 August 2026 |
+| Operator | `elliot@ednsystems.com.au`; interactive delegated MFA completed |
+| Secure inventory location reference | `F:\EDN OS\Working\SharePoint Inventory\2026-08-07-rerun-1` |
+| Backup confirmation reference | `F:\EDN OS\Backups\SharePoint Inventory\2026-08-07-rerun-1`; 10 files plus manifest, zero hash mismatches |
+| Inventory file hash manifest reference | Backup `inventory-manifest.sha256`; manifest SHA-256 `9BB2FAE8BC8B6631171BF31D3A5849CE368E41FA0D0FA6F1F63F7C1A29D35220` |
+| Warnings and unavailable sections reviewed | Content types, list/site permissions, Power Apps, Power Automate definitions, external connector configuration, and Purview policy bodies unavailable; treated as unknown |
+| Deviations or incidents | Initial inventory was incomplete due unsupported PnP list include and was preserved/backed up. Corrected exporter passed 12 tests and completed. First comparator output over-reported field overlap and was preserved; refined comparator passed 12 tests and completed at `F:\EDN OS\Working\SharePoint Gap Assessment\2026-08-07-rerun-1`. No SharePoint mutation occurred. |
+| Reviewer and review date | Elliot Daniels; decision review required before any implementation or provisioning |
 
 ## Decision authority
 

@@ -125,4 +125,23 @@ Describe 'EDN SharePoint inventory static read-only safety' {
         $raw | Should Match 'Interactive'
         $raw | Should Not Match '(?i)-ClientSecret|-CertificatePath|-Thumbprint'
     }
+
+    It 'uses supported list includes and fails closed on zero list records' {
+        $tokens = $null
+        $parseErrors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+            $scriptPath, [ref]$tokens, [ref]$parseErrors
+        )
+        $listCommands = @($ast.FindAll({
+            param($node)
+            $node -is [System.Management.Automation.Language.CommandAst] -and
+            $node.GetCommandName() -eq 'Get-PnPList'
+        }, $true))
+        $listCommands.Count | Should Be 1
+        $listCommands[0].Extent.Text | Should Not Match 'CustomFormatter'
+
+        $raw = Get-Content -Raw -LiteralPath $scriptPath
+        $raw | Should Match '\$lists\.Count -eq 0'
+        $raw | Should Match 'refusing to write an incomplete inventory'
+    }
 }

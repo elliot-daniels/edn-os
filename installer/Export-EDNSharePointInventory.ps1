@@ -334,7 +334,11 @@ function Export-EdnSharePointInventory {
         EnableMinorVersions, MajorVersionLimit, MajorWithMinorVersionsLimit,
         EnableModeration, ForceCheckout, EnableAttachments, HasUniqueRoleAssignments,
         RoleAssignments, ContentTypesEnabled, IrmEnabled, DefaultSensitivityLabelForLibrary,
-        CustomFormatter, WorkflowAssociations -ErrorAction Stop)
+        WorkflowAssociations -ErrorAction Stop)
+
+    if ($lists.Count -eq 0) {
+        throw 'List and library discovery returned zero records; refusing to write an incomplete inventory.'
+    }
 
     foreach ($list in $lists) {
         $listId = ([guid]$list.Id).ToString('D').ToLowerInvariant()

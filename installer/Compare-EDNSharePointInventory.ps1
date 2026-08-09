@@ -270,6 +270,21 @@ function Build-GapDuplicates {
     param([object[]] $Lists, [object[]] $Fields)
 
     $result = [System.Collections.Generic.List[object]]::new()
+    $fieldPresence = @{}
+    foreach ($field in $Fields) {
+        $internalName = [string]$field.internal_name
+        $normalizedField = Normalize-GapName $internalName
+        if ($field.hidden -eq $true -or $field.field_type -eq 'Computed' -or
+            $internalName.StartsWith('_') -or [string]::IsNullOrWhiteSpace($normalizedField) -or
+            $normalizedField -in $script:GenericFields) {
+            continue
+        }
+        if (-not $fieldPresence.ContainsKey($normalizedField)) {
+            $fieldPresence[$normalizedField] = [System.Collections.Generic.HashSet[string]]::new()
+        }
+        [void]$fieldPresence[$normalizedField].Add([string]$field.list_id)
+    }
+    $maximumCommonLists = [math]::Max(2, [math]::Floor($Lists.Count * 0.1))
     for ($leftIndex = 0; $leftIndex -lt $Lists.Count; $leftIndex++) {
         for ($rightIndex = $leftIndex + 1; $rightIndex -lt $Lists.Count; $rightIndex++) {
             $left = $Lists[$leftIndex]
@@ -277,12 +292,28 @@ function Build-GapDuplicates {
             $leftName = Normalize-GapName ([string]$left.name)
             $rightName = Normalize-GapName ([string]$right.name)
             $nameScore = Measure-GapOverlap (Get-GapTokens $left.name) (Get-GapTokens $right.name)
-            $leftFields = @($Fields | Where-Object { $_.list_id -eq $left.list_id } |
+            $leftFields = @($Fields | Where-Object {
+                $_.list_id -eq $left.list_id -and $_.hidden -ne $true -and
+                $_.field_type -ne 'Computed' -and
+                -not ([string]$_.internal_name).StartsWith('_')
+            } |
                 ForEach-Object { Normalize-GapName $_.internal_name } |
-                Where-Object { $_ -and $_ -notin $script:GenericFields } | Sort-Object -Unique)
-            $rightFields = @($Fields | Where-Object { $_.list_id -eq $right.list_id } |
+                Where-Object {
+                    $_ -and $_ -notin $script:GenericFields -and
+                    $fieldPresence.ContainsKey($_) -and
+                    $fieldPresence[$_].Count -le $maximumCommonLists
+                } | Sort-Object -Unique)
+            $rightFields = @($Fields | Where-Object {
+                $_.list_id -eq $right.list_id -and $_.hidden -ne $true -and
+                $_.field_type -ne 'Computed' -and
+                -not ([string]$_.internal_name).StartsWith('_')
+            } |
                 ForEach-Object { Normalize-GapName $_.internal_name } |
-                Where-Object { $_ -and $_ -notin $script:GenericFields } | Sort-Object -Unique)
+                Where-Object {
+                    $_ -and $_ -notin $script:GenericFields -and
+                    $fieldPresence.ContainsKey($_) -and
+                    $fieldPresence[$_].Count -le $maximumCommonLists
+                } | Sort-Object -Unique)
             $fieldScore = Measure-GapOverlap $leftFields $rightFields
             $exact = $leftName -and $leftName -eq $rightName
             if ($exact -or $nameScore -ge 0.6 -or
