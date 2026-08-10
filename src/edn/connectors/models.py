@@ -244,6 +244,15 @@ class DiscoveryResult:
     request_id: str
     resources: tuple[ResourceCandidate, ...]
     warnings: tuple[str, ...] = ()
+    checkpoint: Checkpoint | None = None
+    processed_resources: int = 0
+    complete: bool = True
+
+    def __post_init__(self) -> None:
+        if self.processed_resources < 0:
+            raise ValueError("processed_resources must not be negative")
+        if not self.complete and self.checkpoint is None:
+            raise ValueError("incomplete discovery requires a durable checkpoint")
 
 
 @dataclass(frozen=True, slots=True)
@@ -268,6 +277,7 @@ class ConnectorPlan:
     approval_required: bool
     estimated_items: int | None = None
     estimated_storage_bytes: int | None = None
+    configuration_hash: str | None = None
     plan_hash: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -290,6 +300,10 @@ class ConnectorPlan:
             and self.estimated_storage_bytes < 0
         ):
             raise ValueError("estimated_storage_bytes must not be negative")
+        if self.configuration_hash is not None and not _is_sha256(
+            self.configuration_hash
+        ):
+            raise ValueError("configuration_hash must be a lowercase SHA-256 value")
         object.__setattr__(self, "plan_hash", self._calculate_hash())
 
     def _content_dict(self) -> dict[str, Any]:
@@ -308,6 +322,7 @@ class ConnectorPlan:
             "approval_required": self.approval_required,
             "estimated_items": self.estimated_items,
             "estimated_storage_bytes": self.estimated_storage_bytes,
+            "configuration_hash": self.configuration_hash,
         }
 
     def _calculate_hash(self) -> str:
@@ -344,6 +359,7 @@ class ConnectorPlan:
             approval_required=_strict_bool(value.get("approval_required")),
             estimated_items=_optional_int(value.get("estimated_items")),
             estimated_storage_bytes=_optional_int(value.get("estimated_storage_bytes")),
+            configuration_hash=_optional_str(value.get("configuration_hash")),
         )
         if value.get("plan_hash") != instance.plan_hash:
             raise ValueError("connector plan hash does not match content")
@@ -522,6 +538,10 @@ def _optional_int(value: object) -> int | None:
     if not isinstance(value, int) or isinstance(value, bool):
         raise ValueError("value must be an integer")
     return value
+
+
+def _optional_str(value: object) -> str | None:
+    return None if value is None else str(value)
 
 
 def _format_datetime(value: datetime | None) -> str | None:

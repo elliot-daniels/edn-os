@@ -48,6 +48,21 @@ def reauthorize_job(
             False, "connector_version_drift", "Connector version has changed."
         )
     if job.plan is not None and job.plan.approval_required:
+        if job.plan.scope != job.resource_scope:
+            return ReauthorizationResult(
+                False,
+                "plan_scope_drift",
+                "Approved plan scope does not match the job scope.",
+            )
+        if (
+            job.plan.configuration_hash is not None
+            and job.plan.configuration_hash != job.configuration_hash
+        ):
+            return ReauthorizationResult(
+                False,
+                "plan_configuration_drift",
+                "Approved plan configuration does not match the job.",
+            )
         if job.approval is None:
             return ReauthorizationResult(
                 False, "approval_required", "Exact plan approval is required."

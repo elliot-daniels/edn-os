@@ -26,7 +26,9 @@ class Connector(Protocol):
 
 @runtime_checkable
 class DiscoverableConnector(Protocol):
-    def discover(self, request: ConnectorRequest) -> DiscoveryResult: ...
+    def discover(
+        self, request: ConnectorRequest, checkpoint: Checkpoint | None = None
+    ) -> DiscoveryResult: ...
 
 
 @runtime_checkable

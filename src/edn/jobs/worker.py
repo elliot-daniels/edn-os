@@ -189,12 +189,56 @@ class LocalJobWorker:
                 len(search_result.evidence),
             )
         elif job.operation == "discover":
-            discovery_result = cast(DiscoverableConnector, connector).discover(request)
+            discovery_result = cast(DiscoverableConnector, connector).discover(
+                request, checkpoint
+            )
             result_ref = JobResultRef(
                 "resources",
                 tuple(item.resource_id for item in discovery_result.resources),
-                len(discovery_result.resources),
+                discovery_result.processed_resources,
             )
+            if not discovery_result.complete:
+                assert discovery_result.checkpoint is not None
+                require_compatible_checkpoint(
+                    discovery_result.checkpoint,
+                    connector.manifest,
+                    job.configuration_hash,
+                )
+                yielded = replace(
+                    job,
+                    status=JobStatus.READY,
+                    checkpoint_id=discovery_result.checkpoint.checkpoint_id,
+                    progress=JobProgress(
+                        "checkpointed",
+                        discovery_result.processed_resources,
+                        None,
+                        job.progress.checkpoint_count + 1,
+                    ),
+                    result=JobResultRef(
+                        "resources",
+                        item_count=discovery_result.processed_resources,
+                    ),
+                    updated_at=now,
+                )
+                self._store.save_checkpoint(
+                    yielded,
+                    discovery_result.checkpoint,
+                    event=make_event(
+                        yielded,
+                        "checkpoint_saved",
+                        now,
+                        actor_id=self._worker_id,
+                        previous_status=JobStatus.RUNNING,
+                        new_status=JobStatus.READY,
+                        metadata=(
+                            (
+                                "durable_items",
+                                discovery_result.checkpoint.durable_items,
+                            ),
+                        ),
+                    ),
+                )
+                return yielded
         elif job.operation == "inspect":
             inspection_result = cast(InspectableConnector, connector).inspect(request)
             result_ref = JobResultRef(

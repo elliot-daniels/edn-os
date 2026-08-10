@@ -1,0 +1,47 @@
+"""Approved-root Local Files connector."""
+
+from edn.connectors.local_files.catalogue import CandidateCatalogue
+from edn.connectors.local_files.config import (
+    ApprovedRoot,
+    LocalFilesConfig,
+    SymlinkPolicy,
+)
+from edn.connectors.local_files.connector import (
+    CONNECTOR_ID,
+    CONNECTOR_VERSION,
+    SUPPORTED_TEXT_EXTENSIONS,
+    LocalFilesConnector,
+    classify_extension,
+)
+from edn.connectors.local_files.fingerprint import (
+    FileFingerprint,
+    FingerprintType,
+    content_sha256,
+    metadata_fingerprint,
+)
+from edn.connectors.local_files.models import (
+    CandidateState,
+    DiscoverySummary,
+    FileCandidate,
+    UnsupportedCapabilitySignal,
+)
+
+__all__ = [
+    "CONNECTOR_ID",
+    "CONNECTOR_VERSION",
+    "SUPPORTED_TEXT_EXTENSIONS",
+    "ApprovedRoot",
+    "CandidateCatalogue",
+    "CandidateState",
+    "DiscoverySummary",
+    "FileCandidate",
+    "FileFingerprint",
+    "FingerprintType",
+    "LocalFilesConfig",
+    "LocalFilesConnector",
+    "SymlinkPolicy",
+    "UnsupportedCapabilitySignal",
+    "classify_extension",
+    "content_sha256",
+    "metadata_fingerprint",
+]
