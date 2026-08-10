@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
+import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -14,7 +16,9 @@ from edn.connectors.local_files import (
     LocalFilesConfig,
     LocalFilesConnector,
     SymlinkPolicy,
+    load_config,
 )
+from edn.connectors.local_files.cli import main as local_files_main
 from edn.core import (
     CapabilityRegistry,
     Classification,
@@ -309,19 +313,11 @@ def test_inaccessible_directory_becomes_bounded_warning(
     root.mkdir()
     connector = LocalFilesConnector(make_config(tmp_path, root))
 
-    def inaccessible_walk(
-        path: Path,
-        *,
-        topdown: bool,
-        followlinks: bool,
-        onerror,
-    ):
-        assert topdown and not followlinks
-        onerror(PermissionError("synthetic inaccessible path"))
-        return iter(())
+    def inaccessible_scandir(path: Path):
+        raise PermissionError("synthetic inaccessible path")
 
     monkeypatch.setattr(
-        "edn.connectors.local_files.connector.os.walk", inaccessible_walk
+        "edn.connectors.local_files.traversal.os.scandir", inaccessible_scandir
     )
     result = connector.discover(
         authorized_request(connector, "local-files.discover", "discover", ("root-one",))
@@ -666,3 +662,204 @@ def test_second_tenant_has_independent_root_and_domain(tmp_path: Path) -> None:
     assert len(candidates) == 1
     assert candidates[0].security_domain.tenant_id == "tenant-two"
     assert candidates[0].classification.scheme_id == "tenant-two-scheme"
+
+
+def test_durable_traversal_reconstructs_without_candidate_replay(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    for index in range(6):
+        (root / f"file-{index}.txt").write_text("x", encoding="utf-8")
+    config = make_config(tmp_path, root, discovery_batch=2)
+    connector = LocalFilesConnector(config)
+    request = authorized_request(
+        connector, "local-files.discover", "discover", ("root-one",)
+    )
+    first = connector.discover(request)
+    assert first.checkpoint is not None
+    original = LocalFilesConnector._candidate
+    visited: list[str] = []
+
+    def observed(self, path, approved_root, run_id, root_path, root_device):
+        visited.append(path.name)
+        return original(self, path, approved_root, run_id, root_path, root_device)
+
+    monkeypatch.setattr(LocalFilesConnector, "_candidate", observed)
+    second = LocalFilesConnector(config).discover(request, first.checkpoint)
+    assert visited == ["file-2.txt", "file-3.txt"]
+    assert second.processed_resources == 4
+    checkpoint = second.checkpoint
+    while checkpoint is not None:
+        result = LocalFilesConnector(config).discover(request, checkpoint)
+        checkpoint = result.checkpoint
+    candidates = connector.catalogue.candidates_for_run(request.correlation_id)
+    assert len(candidates) == 6
+    assert len({item.resource_id for item in candidates}) == 6
+
+
+def test_configuration_loader_fails_closed_and_rejects_unsafe_roots(
+    tmp_path: Path,
+) -> None:
+    root = (tmp_path / "root").resolve()
+    root.mkdir()
+    payload = {
+        "schema_version": "1.0.0",
+        "roots": [
+            {
+                "root_id": "root-one",
+                "path": str(root),
+                "security_domain": SecurityDomain(
+                    "TEST", "Test", "tenant-test"
+                ).to_dict(),
+                "classification": Classification(
+                    "scheme", "internal", "Internal"
+                ).to_dict(),
+            }
+        ],
+        "catalogue_path": str((tmp_path / "protected" / "catalogue.db").resolve()),
+        "content_store_path": str((tmp_path / "protected" / "content").resolve()),
+        "job_store_path": str((tmp_path / "protected" / "jobs.db").resolve()),
+    }
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    assert load_config(path).roots[0].root_id == "root-one"
+    payload["unknown"] = True
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="unknown fields"):
+        load_config(path)
+    payload.pop("unknown")
+    payload["roots"][0]["path"] = "relative"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="absolute"):
+        load_config(path)
+
+    payload["roots"][0]["path"] = str(root)
+    payload["catalogue_path"] = str(
+        (tmp_path / "repository" / "catalogue.db").resolve()
+    )
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="outside the repository"):
+        load_config(path, repository_root=(tmp_path / "repository").resolve())
+
+
+def test_filesystem_root_and_unsafe_symlink_mode_are_rejected(tmp_path: Path) -> None:
+    domain = SecurityDomain("TEST", "Test", "tenant-test")
+    classification = Classification("scheme", "internal", "Internal")
+    with pytest.raises(ValueError, match="too broad"):
+        ApprovedRoot("too-broad", Path("/"), domain, classification)
+    root = (tmp_path / "root").resolve()
+    root.mkdir()
+    with pytest.raises(ValueError, match="same-filesystem"):
+        LocalFilesConfig(
+            (ApprovedRoot("root-one", root, domain, classification),),
+            (tmp_path / "catalogue.db").resolve(),
+            (tmp_path / "content").resolve(),
+            symlink_policy=SymlinkPolicy.WITHIN_ROOT,
+            stay_on_filesystem=False,
+        )
+
+
+def test_overlapping_roots_are_rejected_across_domains(tmp_path: Path) -> None:
+    root = (tmp_path / "root").resolve()
+    child = root / "child"
+    child.mkdir(parents=True)
+    classification = Classification("scheme", "internal", "Internal")
+    with pytest.raises(ValueError, match="must not overlap"):
+        LocalFilesConfig(
+            (
+                ApprovedRoot(
+                    "one",
+                    root,
+                    SecurityDomain("ONE", "One", "tenant-test"),
+                    classification,
+                ),
+                ApprovedRoot(
+                    "two",
+                    child,
+                    SecurityDomain("TWO", "Two", "tenant-test"),
+                    classification,
+                ),
+            ),
+            (tmp_path / "catalogue.db").resolve(),
+            (tmp_path / "content").resolve(),
+        )
+
+
+def test_cli_discovery_cannot_bypass_denied_policy(tmp_path: Path) -> None:
+    root = (tmp_path / "root").resolve()
+    root.mkdir()
+    (root / "private.txt").write_text("must not be read", encoding="utf-8")
+    domain = SecurityDomain("TEST", "Test", "tenant-test")
+    classification = Classification("scheme", "internal", "Internal")
+    config_path = tmp_path / "config.json"
+    catalogue_path = (tmp_path / "protected" / "catalogue.db").resolve()
+    config_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0.0",
+                "roots": [
+                    {
+                        "root_id": "root-one",
+                        "path": str(root),
+                        "security_domain": domain.to_dict(),
+                        "classification": classification.to_dict(),
+                    }
+                ],
+                "catalogue_path": str(catalogue_path),
+                "content_store_path": str(
+                    (tmp_path / "protected" / "content").resolve()
+                ),
+                "job_store_path": str((tmp_path / "protected" / "jobs.db").resolve()),
+            }
+        ),
+        encoding="utf-8",
+    )
+    principal = PrincipalContext(
+        "principal-one", "tenant-test", frozenset({domain}), True
+    )
+    policy = PolicySet(
+        "deny-local-files",
+        "1.0.0",
+        (
+            PolicyRule(
+                "deny:discover",
+                PermissionOutcome.PROHIBITED,
+                "Synthetic denial.",
+                tenant_ids=frozenset({"tenant-test"}),
+                domain_ids=frozenset({"TEST"}),
+                capability_ids=frozenset({"local-files.discover"}),
+                operations=frozenset({"discover"}),
+            ),
+        ),
+    )
+    authority_path = tmp_path / "authority.json"
+    authority_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0.0",
+                "principal": principal.to_dict(),
+                "purpose": Purpose("local-files-test", "Synthetic test").to_dict(),
+                "policy_set": policy.to_dict(),
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(SystemExit) as error:
+        local_files_main(
+            [
+                "discover",
+                "--config",
+                str(config_path),
+                "--authority",
+                str(authority_path),
+                "--root-id",
+                "root-one",
+                "--run-next",
+            ]
+        )
+    assert error.value.code == 2
+    with sqlite3.connect(catalogue_path) as connection:
+        assert (
+            connection.execute("SELECT COUNT(*) FROM discovery_runs").fetchone()[0] == 0
+        )
