@@ -9,6 +9,12 @@ connector leverage through approved local-file discovery and selective ingestion
 
 Alpha is not autonomous and does not claim comprehensive understanding.
 
+IC-008 now supplies the governed retrieval/context spine: source adapters are
+invoked only after Capability Registry and permission decisions; responses label
+facts, inferences, recommendations, and unknowns; private evidence and global
+model knowledge are structurally separate; and follow-ups cannot widen authority.
+See `IC-008-INTELLIGENCE-RETRIEVAL-CONTEXT.md`.
+
 ## Sources
 
 ### Existing, retained
@@ -177,4 +183,3 @@ agent swarm or local LLM platform.
 Alpha exits only when the acceptance suite passes using synthetic data plus
 separately approved local/live validation. Production-source permissions and
 actions remain independently approved; passing Alpha does not grant them.
-
