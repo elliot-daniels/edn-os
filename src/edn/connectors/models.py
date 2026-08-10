@@ -449,6 +449,17 @@ class IngestResult:
     request_id: str
     records: tuple[UniversalRecordRef, ...]
     checkpoint: Checkpoint | None = None
+    processed_items: int = 0
+    total_items: int | None = None
+    complete: bool = True
+
+    def __post_init__(self) -> None:
+        if self.processed_items < 0:
+            raise ValueError("processed_items must not be negative")
+        if self.total_items is not None and self.total_items < self.processed_items:
+            raise ValueError("total_items must not be less than processed_items")
+        if not self.complete and self.checkpoint is None:
+            raise ValueError("incomplete ingestion requires a durable checkpoint")
 
 
 @dataclass(frozen=True, slots=True)
