@@ -61,6 +61,10 @@ class DiscoverySummary:
     already_known: int
     potentially_ingestible: int
     unsupported: int
+    excluded: int
     warnings: int
+    total_size_bytes: int
     category_counts: tuple[tuple[str, int], ...]
+    extension_counts: tuple[tuple[str, int], ...]
+    age_counts: tuple[tuple[str, int], ...]
     unsupported_capabilities: tuple[UnsupportedCapabilitySignal, ...]

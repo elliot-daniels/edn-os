@@ -19,7 +19,7 @@ from edn.connectors.local_files.models import (
 )
 from edn.core import Classification, SecurityDomain, UniversalRecordRef
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_metadata(
     component TEXT PRIMARY KEY,
@@ -28,7 +28,15 @@ CREATE TABLE IF NOT EXISTS schema_metadata(
 CREATE TABLE IF NOT EXISTS discovery_runs(
     run_id TEXT PRIMARY KEY,
     root_count INTEGER NOT NULL DEFAULT 0,
-    complete INTEGER NOT NULL DEFAULT 0
+    complete INTEGER NOT NULL DEFAULT 0,
+    excluded_count INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS traversal_cursors(
+    cursor_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    configuration_hash TEXT NOT NULL,
+    connector_version TEXT NOT NULL,
+    state_json TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS candidates(
     resource_id TEXT PRIMARY KEY,
@@ -98,6 +106,19 @@ class CandidateCatalogue:
                     "INSERT INTO schema_metadata(component, version) VALUES ('local_files', ?)",
                     (SCHEMA_VERSION,),
                 )
+            elif int(row["version"]) == 1:
+                columns = {
+                    str(item[1])
+                    for item in connection.execute("PRAGMA table_info(discovery_runs)")
+                }
+                if "excluded_count" not in columns:
+                    connection.execute(
+                        "ALTER TABLE discovery_runs ADD COLUMN excluded_count INTEGER NOT NULL DEFAULT 0"
+                    )
+                connection.execute(
+                    "UPDATE schema_metadata SET version = ? WHERE component = 'local_files'",
+                    (SCHEMA_VERSION,),
+                )
             elif int(row["version"]) != SCHEMA_VERSION:
                 raise RuntimeError("unsupported Local Files catalogue schema")
 
@@ -115,6 +136,48 @@ class CandidateCatalogue:
             connection.execute(
                 "UPDATE discovery_runs SET complete = 1 WHERE run_id = ?", (run_id,)
             )
+
+    def add_excluded(self, run_id: str, count: int) -> None:
+        if count < 0:
+            raise ValueError("excluded count must not be negative")
+        with self._connect() as connection:
+            connection.execute(
+                "UPDATE discovery_runs SET excluded_count = excluded_count + ? WHERE run_id = ?",
+                (count, run_id),
+            )
+
+    def save_traversal_cursor(
+        self,
+        cursor_id: str,
+        run_id: str,
+        configuration_hash: str,
+        connector_version: str,
+        state_json: str,
+    ) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """INSERT INTO traversal_cursors(cursor_id, run_id, configuration_hash, connector_version, state_json)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(cursor_id) DO UPDATE SET state_json=excluded.state_json""",
+                (cursor_id, run_id, configuration_hash, connector_version, state_json),
+            )
+
+    def traversal_cursor(
+        self,
+        cursor_id: str,
+        run_id: str,
+        configuration_hash: str,
+        connector_version: str,
+    ) -> str:
+        with self._connect() as connection:
+            row = connection.execute(
+                """SELECT state_json FROM traversal_cursors
+                WHERE cursor_id=? AND run_id=? AND configuration_hash=? AND connector_version=?""",
+                (cursor_id, run_id, configuration_hash, connector_version),
+            ).fetchone()
+        if row is None:
+            raise ValueError("durable traversal cursor is missing or incompatible")
+        return str(row["state_json"])
 
     def run_complete(self, run_id: str) -> bool:
         with self._connect() as connection:
@@ -232,12 +295,13 @@ class CandidateCatalogue:
     def summary(self, run_id: str) -> DiscoverySummary:
         with self._connect() as connection:
             run = connection.execute(
-                "SELECT root_count FROM discovery_runs WHERE run_id = ?", (run_id,)
+                "SELECT root_count, excluded_count FROM discovery_runs WHERE run_id = ?",
+                (run_id,),
             ).fetchone()
             if run is None:
                 raise KeyError(run_id)
             totals = connection.execute(
-                """SELECT COUNT(*) total,
+                """SELECT COUNT(*) total, COALESCE(SUM(size_bytes), 0) bytes,
                     SUM(CASE WHEN state='ingested' THEN 1 ELSE 0 END) known,
                     SUM(CASE WHEN supported_ingestion=1 THEN 1 ELSE 0 END) supported,
                     SUM(CASE WHEN supported_ingestion=0 THEN 1 ELSE 0 END) unsupported,
@@ -248,6 +312,19 @@ class CandidateCatalogue:
             categories = connection.execute(
                 """SELECT category, COUNT(*) total FROM candidates
                 WHERE run_id = ? GROUP BY category ORDER BY category""",
+                (run_id,),
+            ).fetchall()
+            extensions = connection.execute(
+                """SELECT extension, COUNT(*) total FROM candidates
+                WHERE run_id = ? GROUP BY extension ORDER BY extension""",
+                (run_id,),
+            ).fetchall()
+            ages = connection.execute(
+                """SELECT CASE
+                    WHEN modified_at >= datetime('now', '-30 day') THEN '0-30-days'
+                    WHEN modified_at >= datetime('now', '-365 day') THEN '31-365-days'
+                    ELSE 'over-365-days' END age, COUNT(*) total
+                FROM candidates WHERE run_id = ? GROUP BY age ORDER BY age""",
                 (run_id,),
             ).fetchall()
             unsupported = connection.execute(
@@ -265,8 +342,15 @@ class CandidateCatalogue:
             int(totals["known"] or 0),
             int(totals["supported"] or 0),
             int(totals["unsupported"] or 0),
+            int(run["excluded_count"] or 0),
             int(totals["warnings"] or 0),
+            int(totals["bytes"] or 0),
             tuple((str(row["category"]), int(row["total"])) for row in categories),
+            tuple(
+                (str(row["extension"] or "[none]"), int(row["total"]))
+                for row in extensions
+            ),
+            tuple((str(row["age"]), int(row["total"])) for row in ages),
             tuple(
                 UnsupportedCapabilitySignal(
                     str(row["category"]),

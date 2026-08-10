@@ -31,6 +31,11 @@ from edn.connectors.local_files.config import (
 )
 from edn.connectors.local_files.fingerprint import content_sha256, metadata_fingerprint
 from edn.connectors.local_files.models import CandidateState, FileCandidate
+from edn.connectors.local_files.traversal import (
+    DurableTraversal,
+    IncompatibleTraversalStateError,
+    TraversalAccessError,
+)
 from edn.core import (
     CapabilityManifest,
     CapabilityStatus,
@@ -154,29 +159,64 @@ class LocalFilesConnector:
                 "Requested roots do not match the active domain."
             )
         self.catalogue.begin_run(request.correlation_id, len(roots))
-        marker = "" if checkpoint is None else checkpoint.resume_marker
         durable = 0 if checkpoint is None else checkpoint.durable_items
         candidates: list[FileCandidate] = []
         warnings: list[str] = []
-        iterator = self._walk_roots(roots, request.correlation_id, warnings)
-        for candidate in iterator:
-            configured_root = self.config.root(candidate.root_id).path.resolve()
-            ordering_key = (
-                f"{candidate.root_id}:{candidate.path.relative_to(configured_root)}"
+        cursor_state = None
+        if checkpoint is not None:
+            cursor_state = self.catalogue.traversal_cursor(
+                checkpoint.resume_marker,
+                request.correlation_id,
+                self.config.configuration_hash,
+                CONNECTOR_VERSION,
             )
-            if ordering_key <= marker:
-                continue
-            candidates.append(candidate)
-            if len(candidates) > self.config.discovery_batch_size:
-                break
-        has_more = len(candidates) > self.config.discovery_batch_size
-        persisted = tuple(candidates[: self.config.discovery_batch_size])
+        try:
+            traversal = DurableTraversal(roots, state=cursor_state)
+            excluded = 0
+            while len(candidates) < self.config.discovery_batch_size:
+                try:
+                    item = traversal.next_path()
+                except TraversalAccessError as error:
+                    warnings.append(f"inaccessible:{error.error_type}")
+                    traversal.skip_inaccessible_directory()
+                    excluded += 1
+                    continue
+                if item is None:
+                    break
+                root, path, root_device, is_directory = item
+                if is_directory:
+                    root_path = root.path.resolve(strict=True)
+                    depth = len(path.relative_to(root_path).parts)
+                    if not self._allow_directory(path, root_path, root_device, depth):
+                        traversal.skip_current_directory()
+                        excluded += 1
+                    continue
+                candidate = self._candidate(
+                    path,
+                    root,
+                    request.correlation_id,
+                    root.path.resolve(strict=True),
+                    root_device,
+                )
+                if candidate is None:
+                    excluded += 1
+                else:
+                    candidates.append(candidate)
+        except IncompatibleTraversalStateError as error:
+            raise IncompatibleSourceStateError(str(error)) from error
+        persisted = tuple(candidates)
         self.catalogue.upsert_many(persisted)
+        self.catalogue.add_excluded(request.correlation_id, excluded)
         processed = durable + len(persisted)
-        if has_more:
-            last = persisted[-1]
-            relative = last.path.relative_to(
-                self.config.root(last.root_id).path.resolve()
+        if not traversal.complete:
+            cursor_seed = f"{request.correlation_id}:{processed}".encode()
+            cursor_id = f"cursor:{hashlib.sha256(cursor_seed).hexdigest()}"
+            self.catalogue.save_traversal_cursor(
+                cursor_id,
+                request.correlation_id,
+                self.config.configuration_hash,
+                CONNECTOR_VERSION,
+                traversal.to_json(),
             )
             next_checkpoint = Checkpoint(
                 f"checkpoint:{hashlib.sha256(f'{request.correlation_id}:{processed}'.encode()).hexdigest()}",
@@ -185,7 +225,7 @@ class LocalFilesConnector:
                 self.config.configuration_hash,
                 "discover",
                 root_ids,
-                f"{last.root_id}:{relative}",
+                cursor_id,
                 processed,
                 datetime.now(UTC),
             )
@@ -199,7 +239,7 @@ class LocalFilesConnector:
             tuple(warnings),
             next_checkpoint,
             processed,
-            not has_more,
+            traversal.complete,
         )
 
     def inspect(self, request: ConnectorRequest) -> InspectionResult:

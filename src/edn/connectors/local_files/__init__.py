@@ -2,9 +2,11 @@
 
 from edn.connectors.local_files.catalogue import CandidateCatalogue
 from edn.connectors.local_files.config import (
+    CONFIG_SCHEMA_VERSION,
     ApprovedRoot,
     LocalFilesConfig,
     SymlinkPolicy,
+    load_config,
 )
 from edn.connectors.local_files.connector import (
     CONNECTOR_ID,
@@ -27,6 +29,7 @@ from edn.connectors.local_files.models import (
 )
 
 __all__ = [
+    "CONFIG_SCHEMA_VERSION",
     "CONNECTOR_ID",
     "CONNECTOR_VERSION",
     "SUPPORTED_TEXT_EXTENSIONS",
@@ -43,5 +46,6 @@ __all__ = [
     "UnsupportedCapabilitySignal",
     "classify_extension",
     "content_sha256",
+    "load_config",
     "metadata_fingerprint",
 ]
