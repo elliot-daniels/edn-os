@@ -99,7 +99,7 @@ No test contacts an external service or production data.
 
 ## Current next increment
 
-`IC-011` is complete and validated. No further roadmap increment is autonomously eligible: `IC-012` declares a human-authority change and is owner-blocked. `IC-009-LIVE` remains blocked on owner-accessible authentication.
+`IC-012` is complete and validated under its exact owner-approved internal-only scope. No subsequent roadmap task is machine-defined and autonomously eligible. `IC-009-LIVE` remains blocked on owner-accessible authentication.
 
 ## Limitations
 

@@ -17,17 +17,14 @@
     "IC-009A",
     "IC-DEV-001",
     "IC-010",
-    "IC-011"
+    "IC-011",
+    "IC-012"
   ],
   "active_increment": null,
   "blocked_increments": [
     {
       "task_id": "IC-009-LIVE",
       "reason": "Owner-visible interactive Microsoft authentication is required; previous Codex-channel prompt was buffered and stopped safely."
-    },
-    {
-      "task_id": "IC-012",
-      "reason": "The declared human_authority.change action requires an owner decision before internal draft/action planning may proceed."
     }
   ],
   "deferred_increments": [
@@ -38,7 +35,8 @@
     "Calendar category classification is human-maintained.",
     "The default UI session store remains in-memory until a caller configures the durable local SQLite store.",
     "No current accounting or finance source is available.",
-    "Development agent execution uses a local/manual interface until an approved SDK adapter exists."
+    "Development agent execution uses a local/manual interface until an approved SDK adapter exists.",
+    "Internal proposals and drafts cannot execute; every external effect requires a future separately authorised capability and execution-time authority."
   ],
   "test_status": {
     "outcome": "passed",
@@ -48,9 +46,9 @@
       "python -m mypy src/edn",
       "git diff --check"
     ],
-    "passed": 241,
+    "passed": 247,
     "failed": 0,
-    "validated_at": "2026-08-11T22:05:00+09:30"
+    "validated_at": "2026-08-11T23:05:00+09:30"
   },
   "repository_status": "dirty-known-authorised",
   "expected_dirty_paths": [
@@ -58,26 +56,27 @@
     "config/intelligence-core-development-state.json",
     "config/intelligence-core-roadmap.json",
     "docs/intelligence-core/ALPHA-SPECIFICATION.md",
-    "docs/intelligence-core/IC-011-DURABLE-SESSION-REFERENCES.md",
+    "docs/intelligence-core/IC-012-INTERNAL-ACTION-PLANNING.md",
     "docs/intelligence-core/IC-DEV-001-AUTONOMOUS-DEVELOPMENT.md",
     "docs/intelligence-core/IMPLEMENTATION-ROADMAP.md",
     "src/edn/intelligence/__init__.py",
+    "src/edn/intelligence/action_models.py",
+    "src/edn/intelligence/actions.py",
+    "src/edn/intelligence/models.py",
     "src/edn/intelligence/service.py",
-    "src/edn/intelligence/session.py",
+    "src/edn/ui/app.py",
     "tests/development/test_development_orchestrator.py",
-    "tests/intelligence/test_session_store.py"
+    "tests/intelligence/test_action_planning.py"
   ],
-  "last_validated_commit": "80540a27504884bfa28ddcfbd4a04e5fffeffd26",
+  "last_validated_commit": "31145b60958160588de6938d0a748366faaa4f74",
   "next_recommended_increment": null,
   "required_owner_decisions": [
     "Provide a fresh execution window and run IC-009 live Calendar validation in an owner-visible terminal.",
-    "Approve any future new external permission, production mutation, material architecture change or human-authority change.",
-    "Decide whether to authorize IC-012 human-authority changes for internal draft/action planning."
+    "Approve any future new external permission, production mutation, material architecture change or human-authority change."
   ],
   "external_capability_blockers": [
     "IC-009-LIVE requires owner-interactive Microsoft device-code authentication.",
-    "No Codex SDK execution adapter is configured; local/manual agent execution remains the safe default.",
-    "IC-012 requires owner approval for its declared human_authority.change action."
+    "No Codex SDK execution adapter is configured; local/manual agent execution remains the safe default."
   ],
   "architecture_references": [
     "docs/intelligence-core/INTELLIGENCE-CORE-V0.1.md",
@@ -86,8 +85,9 @@
     "docs/intelligence-core/IC-DEV-001-AUTONOMOUS-DEVELOPMENT.md",
     "docs/intelligence-core/PERMISSION-AUTHORITY-MODEL.md",
     "docs/intelligence-core/CONTEXT-SECURITY-MODEL.md",
-    "docs/intelligence-core/IC-011-DURABLE-SESSION-REFERENCES.md"
+    "docs/intelligence-core/IC-011-DURABLE-SESSION-REFERENCES.md",
+    "docs/intelligence-core/IC-012-INTERNAL-ACTION-PLANNING.md"
   ],
-  "updated_at": "2026-08-11T22:05:00+09:30",
-  "provenance": "Reconciled to clean 80540a2 baseline; validated IC-011 implementation and recorded IC-012 authority boundary"
+  "updated_at": "2026-08-11T23:05:00+09:30",
+  "provenance": "Reconciled to clean 31145b6 baseline; owner-authorised and validated IC-012 internal-only action planning"
 }

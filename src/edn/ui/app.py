@@ -308,6 +308,23 @@ with intelligence_tab:
                     st.write(f"Recommended next step: {priority.recommended_next_step}")
                     for missing in priority.missing_information:
                         st.info(f"Missing information: {missing}")
+            if response.proposed_actions:
+                st.subheader("Proposed actions / drafts")
+                for proposal in response.proposed_actions:
+                    with st.container(border=True):
+                        st.markdown(f"#### {proposal.proposed_operation}")
+                        st.write(proposal.rationale)
+                        if proposal.draft_text:
+                            st.markdown("**Internal draft**")
+                            st.text(proposal.draft_text)
+                        st.caption(
+                            f"Status: {proposal.status.value} · "
+                            "Not sent or executed · Owner execution approval required"
+                        )
+                        st.caption(
+                            f"Target capability: {proposal.target_capability} · "
+                            f"Risk: {proposal.risk_level}"
+                        )
             st.subheader("Evidence")
             for item in visible_intelligence_evidence(response, request):
                 with st.expander(f"{item.source_label}: {item.title}"):

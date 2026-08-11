@@ -20,7 +20,7 @@ connector reuses. Security-domain enforcement precedes multi-source context.
 | IC-DEV-001 | **Implemented:** bounded autonomous development control, standing authority, persisted state and reconstruction skill | IC-001–009 architecture | High developer leverage | Medium |
 | IC-010 | **Implemented:** deterministic Daily Intelligence brief | IC-008–009 | **Very high daily value** | Medium |
 | IC-011 | **Implemented:** durable authority-bound session reference store | IC-008–010 | High conversational continuity | Medium |
-| IC-012 | Draft/action planning with human approval state | IC-003, IC-009–011 | High administrative value | High |
+| IC-012 | **Implemented:** internal draft/action planning with human review state | IC-003, IC-009–011 | High administrative value | High |
 | IC-013 | Controlled action execution framework | IC-012 plus separate action specs | Later high value | Very high |
 
 The roadmap moves current-email wrapping after foundational contracts but before
@@ -29,9 +29,9 @@ background scheduling is deferred; jobs can be launched manually/CLI in Alpha.
 
 Machine-readable execution status and successor selection are maintained in
 `config/intelligence-core-development-state.json` and
-`config/intelligence-core-roadmap.json`. The current next eligible routine
-no further increment is autonomously eligible; IC-011 is implemented and validated;
-IC-012 requires owner authority for its declared human-authority change; IC-009 live validation remains separately owner-blocked.
+`config/intelligence-core-roadmap.json`. IC-012 is implemented and validated under the owner's scoped development approval.
+No subsequent task is machine-defined and autonomously eligible; IC-009 live
+validation remains separately owner-blocked.
 
 ## Stage gates
 

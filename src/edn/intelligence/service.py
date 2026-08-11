@@ -6,6 +6,8 @@ from dataclasses import replace
 from datetime import datetime
 from uuid import uuid4
 
+from edn.intelligence.action_models import ActionProposal
+from edn.intelligence.actions import ActionPlanner, InMemoryActionProposalStore
 from edn.intelligence.brief import DailyIntelligenceComposer
 from edn.intelligence.context import ContextAssembler
 from edn.intelligence.models import (
@@ -24,10 +26,14 @@ class IntelligenceService:
         assembler: ContextAssembler,
         sessions: SessionStore | None = None,
         brief_composer: DailyIntelligenceComposer | None = None,
+        action_planner: ActionPlanner | None = None,
     ) -> None:
         self._assembler = assembler
         self._sessions = sessions or InMemorySessionStore()
         self._brief_composer = brief_composer or DailyIntelligenceComposer()
+        self._action_planner = action_planner or ActionPlanner(
+            InMemoryActionProposalStore()
+        )
 
     def daily_brief(
         self,
@@ -87,6 +93,27 @@ class IntelligenceService:
             )
         self._sessions.save(SessionState.from_context(actual_session_id, context))
         priorities = self._brief_composer.compose(context)
+        normalized_query = request.query.casefold()
+        action_requested = (
+            "what should i do" in normalized_query or "draft" in normalized_query
+        )
+        proposals: tuple[ActionProposal, ...] = ()
+        if action_requested:
+            proposal = self._action_planner.plan(
+                context,
+                now=now,
+                include_draft="draft" in normalized_query,
+            )
+            if proposal is not None:
+                proposals = (proposal,)
+                statements.append(
+                    IntelligenceStatement(
+                        StatementKind.PROPOSED_ACTION,
+                        "Internal proposal prepared. Nothing was executed or sent.",
+                        proposal.source_evidence_ids,
+                        confidence=proposal.confidence,
+                    )
+                )
         return IntelligenceResponse(
             tuple(statements),
             context.evidence,
@@ -94,4 +121,5 @@ class IntelligenceService:
             context.unavailable_capabilities,
             actual_session_id,
             priorities,
+            proposals,
         )

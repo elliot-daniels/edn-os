@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from edn.intelligence.action_models import ActionProposal
 
 from edn.core import (
     Classification,
@@ -18,6 +22,7 @@ class StatementKind(StrEnum):
     FACT = "fact"
     INFERENCE = "inference"
     RECOMMENDATION = "recommendation"
+    PROPOSED_ACTION = "proposed_action"
     UNKNOWN = "unknown"
 
 
@@ -127,6 +132,7 @@ class IntelligenceResponse:
     unavailable_capabilities: tuple[str, ...]
     session_id: str
     priorities: tuple[IntelligencePriority, ...] = ()
+    proposed_actions: tuple[ActionProposal, ...] = ()
 
     @property
     def source_families(self) -> tuple[str, ...]:

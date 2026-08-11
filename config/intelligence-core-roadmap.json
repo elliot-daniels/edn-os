@@ -97,7 +97,7 @@
       "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy src/edn"],
       "stop_conditions": ["Human authority boundary change without approval"],
       "dependencies": ["IC-011"],
-      "status": "blocked",
+      "status": "completed",
       "successor_tasks": []
     }
   ]

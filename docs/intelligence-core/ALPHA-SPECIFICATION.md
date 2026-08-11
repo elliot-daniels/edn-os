@@ -29,6 +29,10 @@ IC-011 adds a durable local session-reference store that binds follow-ups to the
 original authority context and tombstones references removed by later authorised
 retrieval. It persists identifiers and authority metadata, never transcripts.
 
+IC-012 adds evidence-bound internal proposals and drafts with exact-hash human
+review state. It exposes no executor; approval records never grant runtime
+permission or cause an external effect.
+
 ## Sources
 
 ### Existing, retained

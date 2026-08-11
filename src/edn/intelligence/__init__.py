@@ -1,5 +1,13 @@
 """Intelligence Retrieval & Context Alpha public API."""
 
+from edn.intelligence.action_models import ActionProposal, ActionStatus
+from edn.intelligence.actions import (
+    ActionPlanner,
+    ActionProposalStore,
+    InMemoryActionProposalStore,
+    SQLiteActionProposalStore,
+    proposal_fingerprint,
+)
 from edn.intelligence.adapters import (
     CalendarEvidenceAdapter,
     CapabilityGapAdapter,
@@ -28,6 +36,10 @@ from edn.intelligence.session import (
 )
 
 __all__ = [
+    "ActionPlanner",
+    "ActionProposal",
+    "ActionProposalStore",
+    "ActionStatus",
     "AssembledContext",
     "CalendarEvidenceAdapter",
     "CapabilityGapAdapter",
@@ -36,6 +48,7 @@ __all__ = [
     "DailyIntelligenceComposer",
     "EmailRetrievalAdapter",
     "GlobalKnowledge",
+    "InMemoryActionProposalStore",
     "InMemorySessionStore",
     "IntelligencePriority",
     "IntelligenceRequest",
@@ -43,9 +56,11 @@ __all__ = [
     "IntelligenceService",
     "IntelligenceStatement",
     "KnowledgeGraphAdapter",
+    "SQLiteActionProposalStore",
     "SQLiteSessionStore",
     "SessionState",
     "SessionStore",
     "SourceAdapter",
     "StatementKind",
+    "proposal_fingerprint",
 ]
