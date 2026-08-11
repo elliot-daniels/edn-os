@@ -23,6 +23,8 @@ from edn.connectors.local_files.fingerprint import (
 )
 from edn.connectors.local_files.models import (
     CandidateState,
+    CoverageOpportunity,
+    CoverageStatus,
     DiscoverySummary,
     FileCandidate,
     UnsupportedCapabilitySignal,
@@ -36,6 +38,8 @@ __all__ = [
     "ApprovedRoot",
     "CandidateCatalogue",
     "CandidateState",
+    "CoverageOpportunity",
+    "CoverageStatus",
     "DiscoverySummary",
     "FileCandidate",
     "FileFingerprint",

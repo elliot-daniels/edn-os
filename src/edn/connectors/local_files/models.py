@@ -53,6 +53,33 @@ class UnsupportedCapabilitySignal:
     missing_capability: str
 
 
+class CoverageStatus(StrEnum):
+    SUPPORTED_NOW = "supported_now"
+    MISSING_INGESTION_CAPABILITY = "missing_ingestion_capability"
+    INTENTIONALLY_PROHIBITED = "intentionally_prohibited"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class CoverageOpportunity:
+    category: str
+    status: CoverageStatus
+    record_count: int
+    record_percentage: float
+    total_size_bytes: int
+    byte_percentage: float
+    extension_counts: tuple[tuple[str, int], ...]
+    extension_diversity: int
+    recency_counts: tuple[tuple[str, int], ...]
+    existing_capability: str | None
+    missing_capability: str | None
+    security_domains: tuple[str, ...]
+    classifications: tuple[str, ...]
+    deterministic_confidence: str
+    limitations: tuple[str, ...]
+    coverage_rank: int | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class DiscoverySummary:
     run_id: str
@@ -68,3 +95,4 @@ class DiscoverySummary:
     extension_counts: tuple[tuple[str, int], ...]
     age_counts: tuple[tuple[str, int], ...]
     unsupported_capabilities: tuple[UnsupportedCapabilitySignal, ...]
+    coverage_opportunities: tuple[CoverageOpportunity, ...] = ()

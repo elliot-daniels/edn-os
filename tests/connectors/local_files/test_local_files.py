@@ -13,6 +13,7 @@ from edn.connectors import ConnectorRequest, check_connector
 from edn.connectors.local_files import (
     ApprovedRoot,
     CandidateState,
+    CoverageStatus,
     LocalFilesConfig,
     LocalFilesConnector,
     SymlinkPolicy,
@@ -324,6 +325,42 @@ def test_inaccessible_directory_becomes_bounded_warning(
     )
     assert result.warnings == ("inaccessible:PermissionError",)
     assert "synthetic inaccessible path" not in result.warnings[0]
+
+
+def test_coverage_opportunities_expose_dimensions_without_semantic_value(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    for index in range(3):
+        (root / f"drawing-{index}.svg").write_bytes(b"svg")
+    (root / "large.png").write_bytes(b"x" * 10_000)
+    (root / "notes.txt").write_text("supported", encoding="utf-8")
+    connector = LocalFilesConnector(make_config(tmp_path, root))
+    discover_direct(connector)
+
+    summary = connector.catalogue.summary("discovery-run-one")
+    opportunities = summary.coverage_opportunities
+    svg = next(item for item in opportunities if item.category == "unknown")
+    image = next(item for item in opportunities if item.category == "image")
+    text = next(item for item in opportunities if item.category == "text")
+
+    assert svg.coverage_rank == 1
+    assert svg.status is CoverageStatus.UNKNOWN
+    assert svg.record_count == 3
+    assert svg.record_percentage == 60.0
+    assert svg.extension_counts == ((".svg", 3),)
+    assert svg.extension_diversity == 1
+    assert svg.deterministic_confidence == "low"
+    assert image.coverage_rank == 2
+    assert image.status is CoverageStatus.MISSING_INGESTION_CAPABILITY
+    assert image.byte_percentage > svg.byte_percentage
+    assert text.coverage_rank is None
+    assert text.status is CoverageStatus.SUPPORTED_NOW
+    assert text.existing_capability == "local-files.ingest"
+    assert text.security_domains == ("TEST",)
+    assert text.classifications == ("Internal",)
+    assert all("semantic value" in item.limitations[0] for item in opportunities)
 
 
 def test_discovery_job_checkpoints_and_persists_summary(tmp_path: Path) -> None:

@@ -10,9 +10,12 @@ from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 from edn.connectors.local_files.models import (
     CandidateState,
+    CoverageOpportunity,
+    CoverageStatus,
     DiscoverySummary,
     FileCandidate,
     UnsupportedCapabilitySignal,
@@ -334,7 +337,19 @@ class CandidateCatalogue:
                 GROUP BY category, missing_capability ORDER BY category""",
                 (run_id,),
             ).fetchall()
+            coverage_rows = connection.execute(
+                """SELECT category, supported_ingestion, missing_capability,
+                    extension, size_bytes, security_domain_json,
+                    classification_json, CASE
+                    WHEN modified_at >= datetime('now', '-30 day') THEN '0-30-days'
+                    WHEN modified_at >= datetime('now', '-365 day') THEN '31-365-days'
+                    ELSE 'over-365-days' END age
+                FROM candidates WHERE run_id = ?""",
+                (run_id,),
+            ).fetchall()
         assert totals is not None
+        total_records = int(totals["total"])
+        total_bytes = int(totals["bytes"] or 0)
         return DiscoverySummary(
             run_id,
             int(run["root_count"]),
@@ -360,7 +375,129 @@ class CandidateCatalogue:
                 )
                 for row in unsupported
             ),
+            _coverage_opportunities(coverage_rows, total_records, total_bytes),
         )
+
+
+def _coverage_opportunities(
+    rows: Sequence[sqlite3.Row], total_records: int, total_bytes: int
+) -> tuple[CoverageOpportunity, ...]:
+    grouped: dict[
+        tuple[str, CoverageStatus, str | None],
+        dict[str, object],
+    ] = {}
+    for row in rows:
+        supported = bool(row["supported_ingestion"])
+        missing = (
+            None
+            if row["missing_capability"] is None
+            else str(row["missing_capability"])
+        )
+        status = _coverage_status(supported, missing)
+        key = (str(row["category"]), status, missing)
+        group = grouped.setdefault(
+            key,
+            {
+                "records": 0,
+                "bytes": 0,
+                "extensions": {},
+                "ages": {},
+                "domains": set(),
+                "classifications": set(),
+            },
+        )
+        group["records"] = cast(int, group["records"]) + 1
+        group["bytes"] = cast(int, group["bytes"]) + int(row["size_bytes"])
+        _increment(group["extensions"], str(row["extension"] or "[none]"))
+        _increment(group["ages"], str(row["age"]))
+        domain = _object(str(row["security_domain_json"]))
+        classification = _object(str(row["classification_json"]))
+        assert isinstance(group["domains"], set)
+        assert isinstance(group["classifications"], set)
+        group["domains"].add(str(domain["domain_id"]))
+        group["classifications"].add(str(classification["display_name"]))
+
+    actionable = sorted(
+        (
+            (key, value)
+            for key, value in grouped.items()
+            if key[1]
+            in {CoverageStatus.MISSING_INGESTION_CAPABILITY, CoverageStatus.UNKNOWN}
+        ),
+        key=lambda item: (
+            -cast(int, item[1]["records"]),
+            -cast(int, item[1]["bytes"]),
+            -len(cast(dict[str, int], item[1]["extensions"])),
+            item[0][0],
+        ),
+    )
+    ranks = {key: rank for rank, (key, _) in enumerate(actionable, 1)}
+    opportunities = []
+    for key, group in grouped.items():
+        category, status, missing = key
+        records = cast(int, group["records"])
+        size_bytes = cast(int, group["bytes"])
+        extensions = _counts(group["extensions"])
+        opportunities.append(
+            CoverageOpportunity(
+                category,
+                status,
+                records,
+                _percentage(records, total_records),
+                size_bytes,
+                _percentage(size_bytes, total_bytes),
+                extensions,
+                len(extensions),
+                _counts(group["ages"]),
+                "local-files.ingest"
+                if status is CoverageStatus.SUPPORTED_NOW
+                else None,
+                missing,
+                tuple(sorted(cast(set[str], group["domains"]))),
+                tuple(sorted(cast(set[str], group["classifications"]))),
+                "low" if status is CoverageStatus.UNKNOWN else "high",
+                (
+                    "metadata-only; no semantic value was assessed",
+                    "coverage reflects the configured scope and exclusions only",
+                ),
+                ranks.get(key),
+            )
+        )
+    return tuple(
+        sorted(
+            opportunities,
+            key=lambda item: (
+                item.coverage_rank is None,
+                item.coverage_rank or 0,
+                item.status.value,
+                item.category,
+            ),
+        )
+    )
+
+
+def _coverage_status(supported: bool, missing: str | None) -> CoverageStatus:
+    if supported:
+        return CoverageStatus.SUPPORTED_NOW
+    if missing == "executable.prohibited":
+        return CoverageStatus.INTENTIONALLY_PROHIBITED
+    if missing == "local-files.unsupported.ingest":
+        return CoverageStatus.UNKNOWN
+    return CoverageStatus.MISSING_INGESTION_CAPABILITY
+
+
+def _increment(value: object, key: str) -> None:
+    assert isinstance(value, dict)
+    value[key] = int(value.get(key, 0)) + 1
+
+
+def _counts(value: object) -> tuple[tuple[str, int], ...]:
+    assert isinstance(value, dict)
+    return tuple(sorted((str(key), int(count)) for key, count in value.items()))
+
+
+def _percentage(value: int, total: int) -> float:
+    return 0.0 if total == 0 else round(value * 100.0 / total, 4)
 
 
 def _candidate_values(candidate: FileCandidate) -> tuple[object, ...]:

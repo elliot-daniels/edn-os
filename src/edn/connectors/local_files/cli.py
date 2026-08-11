@@ -252,6 +252,27 @@ def _summary(connector: LocalFilesConnector, run_id: str) -> dict[str, Any]:
             }
             for item in summary.unsupported_capabilities
         ],
+        "coverage_opportunities": [
+            {
+                "coverage_rank": item.coverage_rank,
+                "category": item.category,
+                "status": item.status.value,
+                "records": item.record_count,
+                "record_percentage": item.record_percentage,
+                "bytes": item.total_size_bytes,
+                "byte_percentage": item.byte_percentage,
+                "extensions": dict(item.extension_counts),
+                "extension_diversity": item.extension_diversity,
+                "recency_distribution": dict(item.recency_counts),
+                "existing_capability": item.existing_capability,
+                "missing_capability": item.missing_capability,
+                "security_domains": list(item.security_domains),
+                "classifications": list(item.classifications),
+                "deterministic_confidence": item.deterministic_confidence,
+                "limitations": list(item.limitations),
+            }
+            for item in summary.coverage_opportunities
+        ],
     }
 
 
