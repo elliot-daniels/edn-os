@@ -3,7 +3,7 @@
   "product": "EDN Intelligence Core",
   "version": "0.1.0-alpha",
   "current_branch": "feature/intelligence-core-v0.1",
-  "current_milestone": "Owner Intelligence Beta operational foundation complete; progressive onboarding is next",
+  "current_milestone": "Progressive onboarding complete; synthetic Business OS retrieval is next",
   "completed_increments": [
     "IC-001",
     "IC-002",
@@ -21,7 +21,8 @@
     "IC-012",
     "PA-001",
     "PA-002",
-    "PA-003"
+    "PA-003",
+    "PA-004"
   ],
   "active_increment": null,
   "blocked_increments": [
@@ -34,26 +35,24 @@
   "known_limitations": [
     "Intelligence UI retrieves historical email/graph only; Calendar is a gap.",
     "Daily Intelligence is generic and cannot establish current completeness.",
-    "Registry/policy composition is manual; onboarding is absent.",
+    "Registry, policy and onboarding value-profile composition remain manual.",
     "No scheduler, health dashboard, verified backup/restore or mixed-source benchmark exists.",
     "No approved model/global provider exists.",
     "Proposals cannot execute.",
     "PDF/DOCX extraction is deliberately bounded and fails closed on unsupported PDF filters or ambiguous structures; live owner roots remain unauthorised.",
-    "Current Outlook read contracts and synthetic adapter exist, but live authentication, Graph access and mailbox data remain blocked until PA-005 authority.",
-    "Available Windows-over-WSL validation lacks tzdata for Calendar tests and interprets Path('/') with Windows semantics; mypy 2.3.0 exits with an internal tool error."
+    "Current Outlook read contracts and synthetic adapter exist, but live authentication, Graph access and mailbox data remain blocked until PA-005 authority."
   ],
   "test_status": {
-    "outcome": "passed-with-documented-environment-exclusions",
+    "outcome": "passed",
     "commands": [
-      "python -m pytest --ignore=tests/connectors/microsoft_calendar/test_calendar.py -k not test_filesystem_root_and_unsafe_symlink_mode_are_rejected",
-      "python -m py_compile changed modules",
+      "python -m pytest",
       "python -m ruff check .",
       "python -m mypy src/edn",
       "git diff --check"
     ],
-    "passed": 246,
+    "passed": 264,
     "failed": 0,
-    "validated_at": "2026-08-12T00:05:00+09:30"
+    "validated_at": "2026-08-12T08:18:42+09:30"
   },
   "repository_status": "dirty-known-authorised",
   "expected_dirty_paths": [
@@ -63,21 +62,24 @@
     "docs/intelligence-core/PA-001-OWNER-RUNTIME.md",
     "docs/intelligence-core/PA-002-DOCUMENT-INGESTION.md",
     "docs/intelligence-core/PA-003-OUTLOOK-SYNTHETIC.md",
+    "docs/intelligence-core/PA-004-PROGRESSIVE-ONBOARDING.md",
     "src/edn/connectors/local_files",
     "src/edn/connectors/microsoft_outlook",
+    "src/edn/core",
     "src/edn/intelligence",
     "src/edn/ui",
     "tests/connectors/local_files",
     "tests/connectors/microsoft_outlook",
+    "tests/core",
     "tests/development",
     "tests/intelligence",
     "tests/ui"
   ],
-  "last_validated_commit": "33237341b8a5a2980f5f2d85ff4b248deb6a03a0",
-  "next_recommended_increment": "PA-004",
+  "last_validated_commit": "f8262c3d72e361e507b778e67945cfd363732c7f",
+  "next_recommended_increment": "PA-006",
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
-    "After PA-002 through PA-004, approve exact live source scopes for PA-005.",
+    "Approve exact live source scopes for PA-005 when current evidence activation is desired.",
     "Approve future SharePoint content, model disclosure or external execution."
   ],
   "external_capability_blockers": [
@@ -94,8 +96,9 @@
     "docs/intelligence-core/CONTEXT-SECURITY-MODEL.md",
     "docs/intelligence-core/IC-011-DURABLE-SESSION-REFERENCES.md",
     "docs/intelligence-core/IC-012-INTERNAL-ACTION-PLANNING.md",
-    "docs/intelligence-core/POST-ALPHA-ARCHITECTURE-REVIEW.md"
+    "docs/intelligence-core/POST-ALPHA-ARCHITECTURE-REVIEW.md",
+    "docs/intelligence-core/PA-004-PROGRESSIVE-ONBOARDING.md"
   ],
-  "updated_at": "2026-08-12T00:05:00+09:30",
-  "provenance": "PA-001, PA-002 and PA-003 completed from clean pushed 3323734 baseline using local/synthetic data only; bounded run exhausted"
+  "updated_at": "2026-08-12T08:18:42+09:30",
+  "provenance": "PA-004 completed from clean f8262c3 baseline using declared local/synthetic capability facts only; one-task bounded run exhausted"
 }

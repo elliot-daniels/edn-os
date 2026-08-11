@@ -79,7 +79,7 @@ class MicrosoftOutlookConnector:
         if not 1 <= limit <= 25:
             raise ValueError("Outlook retrieval limit must be between 1 and 25")
         start, end = window.bounds(now)
-        raw = []
+        raw: list[dict[str, Any]] = []
         for folder_id in self.config.folder_ids:
             remaining = limit - len(raw)
             if remaining <= 0:
@@ -93,7 +93,7 @@ class MicrosoftOutlookConnector:
                     limit=remaining,
                 )
             )
-        messages = []
+        messages: list[OutlookMessage] = []
         for item in raw:
             message = self._message(item)
             if message is None or not start <= message.received_at <= end:

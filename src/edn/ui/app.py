@@ -10,10 +10,13 @@ import streamlit as st
 from edn.core import (
     AuthenticationStatus,
     CapabilityManifest,
+    CapabilityOnboardingPlanner,
     CapabilityRegistry,
     CapabilityRuntimeState,
     CapabilityStatus,
+    CapabilityValueProfile,
     Classification,
+    OnboardingRecommendation,
     PermissionEvaluator,
     PermissionOutcome,
     PolicyRule,
@@ -83,6 +86,7 @@ def _intelligence_runtime(
     SecurityDomain,
     Classification,
     tuple[tuple[str, str, str], ...],
+    tuple[OnboardingRecommendation, ...],
 ]:
     domain = SecurityDomain("EDN", "EDN Systems", tenant_id="edn-local")
     classification = Classification("edn", "confidential", "EDN Confidential", rank=2)
@@ -159,6 +163,28 @@ def _intelligence_runtime(
             registry.resolve(adapter.capability_id, adapter.operation, domain),
         )
     )
+    onboarding = CapabilityOnboardingPlanner().plan(
+        registry,
+        tuple(
+            CapabilityValueProfile(
+                adapter.capability_id,
+                adapter.operation,
+                decision_value=5 if adapter.capability_id == "calendar.search" else 4,
+                recurrence=5,
+                freshness=5 if adapter.capability_id == "calendar.search" else 3,
+                administrative_leverage=4,
+                information_density=4,
+                record_count=store.count()
+                if adapter.capability_id == "email.search"
+                else None,
+                exact_scope=("default-calendar", "window-this-week")
+                if adapter.capability_id == "calendar.search"
+                else ("local-authorised-store",),
+            )
+            for adapter in adapters
+        ),
+        domain,
+    )
     return (
         IntelligenceService(
             ContextAssembler(registry, policy, tuple(adapters)),
@@ -170,6 +196,7 @@ def _intelligence_runtime(
         domain,
         classification,
         health,
+        onboarding,
     )
 
 
@@ -256,6 +283,7 @@ if "intelligence_runtime" not in st.session_state:
     intelligence_domain,
     intelligence_classification,
     intelligence_capability_health,
+    intelligence_onboarding,
 ) = st.session_state.intelligence_runtime
 
 st.success(f"Database ready · {indexed_email_count:,} indexed emails")
@@ -271,6 +299,35 @@ with intelligence_tab:
         for capability_id, status, explanation in intelligence_capability_health:
             st.write(f"**{capability_id}** - {status}")
             st.caption(explanation)
+    with st.expander("Progressive capability onboarding"):
+        st.caption(
+            "Ranked by decision value, recurrence, freshness, information density "
+            "and administrative leverage. Counts and bytes are capacity facts only."
+        )
+        for item in intelligence_onboarding:
+            st.write(
+                f"**{item.capability_id}** - {item.readiness.value} "
+                f"(value score {item.value_score})"
+            )
+            st.caption(item.readiness_explanation)
+            if item.missing_steps:
+                st.write("Missing steps: " + ", ".join(item.missing_steps))
+            if item.capacity_record_count is not None:
+                st.caption(
+                    f"Capacity input: {item.capacity_record_count:,} indexed records"
+                )
+            if item.request is not None:
+                st.code(
+                    "Request: "
+                    f"{item.request.operation} {item.request.capability_id}; "
+                    f"scope={','.join(item.request.exact_scope) or 'none'}; "
+                    "permissions="
+                    f"{','.join(item.request.required_permissions) or 'none'}",
+                    language=None,
+                )
+                st.caption(
+                    "Exact request; owner may reject it. No authority is granted."
+                )
     if "intelligence_messages" not in st.session_state:
         st.session_state.intelligence_messages = []
     for message in st.session_state.intelligence_messages:

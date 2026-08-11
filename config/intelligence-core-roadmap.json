@@ -458,7 +458,7 @@
         "PA-002",
         "PA-003"
       ],
-      "status": "pending",
+      "status": "completed",
       "successor_tasks": [
         "PA-005",
         "PA-006"

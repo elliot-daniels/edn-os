@@ -5,6 +5,13 @@ from edn.core.capabilities import (
     CapabilityManifest,
     CapabilityStatus,
 )
+from edn.core.onboarding import (
+    CapabilityOnboardingPlanner,
+    CapabilityValueProfile,
+    OnboardingRecommendation,
+    OnboardingRequest,
+    OnboardingRequestStatus,
+)
 from edn.core.permissions import (
     PermissionDecision,
     PermissionOutcome,
@@ -39,12 +46,17 @@ __all__ = [
     "AuthenticationStatus",
     "CapabilityDecision",
     "CapabilityManifest",
+    "CapabilityOnboardingPlanner",
     "CapabilityRegistry",
     "CapabilityRuntimeState",
     "CapabilityStatus",
     "CapabilityUseDecision",
+    "CapabilityValueProfile",
     "Classification",
     "EvidenceRef",
+    "OnboardingRecommendation",
+    "OnboardingRequest",
+    "OnboardingRequestStatus",
     "PermissionDecision",
     "PermissionEvaluator",
     "PermissionOutcome",
