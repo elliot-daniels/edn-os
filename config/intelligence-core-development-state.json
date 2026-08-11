@@ -3,7 +3,7 @@
   "product": "EDN Intelligence Core",
   "version": "0.1.0-alpha",
   "current_branch": "feature/intelligence-core-v0.1",
-  "current_milestone": "Calendar-aware conversational Alpha and autonomous development control",
+  "current_milestone": "Post-Alpha planning complete; Owner Intelligence Beta is next",
   "completed_increments": [
     "IC-001",
     "IC-002",
@@ -27,56 +27,47 @@
       "reason": "Owner-visible interactive Microsoft authentication is required; previous Codex-channel prompt was buffered and stopped safely."
     }
   ],
-  "deferred_increments": [
-    "IC-013"
-  ],
+  "deferred_increments": [],
   "known_limitations": [
-    "Calendar live validation is incomplete.",
-    "Calendar category classification is human-maintained.",
-    "The default UI session store remains in-memory until a caller configures the durable local SQLite store.",
-    "No current accounting or finance source is available.",
-    "Development agent execution uses a local/manual interface until an approved SDK adapter exists.",
-    "Internal proposals and drafts cannot execute; every external effect requires a future separately authorised capability and execution-time authority."
+    "Intelligence UI retrieves historical email/graph only; Calendar is a gap.",
+    "Current Outlook, Local Files content, PDF/DOCX, SharePoint, finance and Personal OS are not operational evidence.",
+    "Default UI session/proposal stores are in-memory despite durable implementations.",
+    "Daily Intelligence is generic and cannot establish current completeness.",
+    "Registry/policy composition is manual; onboarding is absent.",
+    "No scheduler, health dashboard, verified backup/restore or mixed-source benchmark exists.",
+    "No approved model/global provider exists.",
+    "Proposals cannot execute."
   ],
   "test_status": {
-    "outcome": "passed",
+    "outcome": "environment-blocked",
     "commands": [
       "python -m pytest",
       "python -m ruff check .",
       "python -m mypy src/edn",
       "git diff --check"
     ],
-    "passed": 247,
-    "failed": 0,
-    "validated_at": "2026-08-11T23:05:00+09:30"
+    "passed": 232,
+    "failed": 14,
+    "validated_at": "2026-08-11T21:46:00+09:30"
   },
-  "repository_status": "dirty-known-authorised",
+  "repository_status": "dirty-known-authorised-review",
   "expected_dirty_paths": [
-    "config/intelligence-core-development-audit.jsonl",
     "config/intelligence-core-development-state.json",
     "config/intelligence-core-roadmap.json",
-    "docs/intelligence-core/ALPHA-SPECIFICATION.md",
-    "docs/intelligence-core/IC-012-INTERNAL-ACTION-PLANNING.md",
-    "docs/intelligence-core/IC-DEV-001-AUTONOMOUS-DEVELOPMENT.md",
-    "docs/intelligence-core/IMPLEMENTATION-ROADMAP.md",
-    "src/edn/intelligence/__init__.py",
-    "src/edn/intelligence/action_models.py",
-    "src/edn/intelligence/actions.py",
-    "src/edn/intelligence/models.py",
-    "src/edn/intelligence/service.py",
-    "src/edn/ui/app.py",
-    "tests/development/test_development_orchestrator.py",
-    "tests/intelligence/test_action_planning.py"
+    "docs/intelligence-core/POST-ALPHA-ARCHITECTURE-REVIEW.md",
+    "tests/development/test_development_orchestrator.py"
   ],
-  "last_validated_commit": "31145b60958160588de6938d0a748366faaa4f74",
-  "next_recommended_increment": null,
+  "last_validated_commit": "f2ea8f9abe82120684cad82e558a5686a0a1c72c",
+  "next_recommended_increment": "PA-001",
   "required_owner_decisions": [
-    "Provide a fresh execution window and run IC-009 live Calendar validation in an owner-visible terminal.",
-    "Approve any future new external permission, production mutation, material architecture change or human-authority change."
+    "Separately authorise IC-009-LIVE when ready.",
+    "After PA-002 through PA-004, approve exact live source scopes for PA-005.",
+    "Approve future SharePoint content, model disclosure or external execution."
   ],
   "external_capability_blockers": [
-    "IC-009-LIVE requires owner-interactive Microsoft device-code authentication.",
-    "No Codex SDK execution adapter is configured; local/manual agent execution remains the safe default."
+    "IC-009-LIVE requires owner-interactive Microsoft authentication.",
+    "Current mail, owner files and SharePoint content require separate authority.",
+    "Model intelligence requires provider/disclosure/retention approval."
   ],
   "architecture_references": [
     "docs/intelligence-core/INTELLIGENCE-CORE-V0.1.md",
@@ -86,8 +77,9 @@
     "docs/intelligence-core/PERMISSION-AUTHORITY-MODEL.md",
     "docs/intelligence-core/CONTEXT-SECURITY-MODEL.md",
     "docs/intelligence-core/IC-011-DURABLE-SESSION-REFERENCES.md",
-    "docs/intelligence-core/IC-012-INTERNAL-ACTION-PLANNING.md"
+    "docs/intelligence-core/IC-012-INTERNAL-ACTION-PLANNING.md",
+    "docs/intelligence-core/POST-ALPHA-ARCHITECTURE-REVIEW.md"
   ],
-  "updated_at": "2026-08-11T23:05:00+09:30",
-  "provenance": "Reconciled to clean 31145b6 baseline; owner-authorised and validated IC-012 internal-only action planning"
+  "updated_at": "2026-08-11T21:46:00+09:30",
+  "provenance": "Reconciled to pushed f2ea8f9 then updated by repository-only post-Alpha review; no external activity"
 }
