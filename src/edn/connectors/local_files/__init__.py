@@ -15,6 +15,12 @@ from edn.connectors.local_files.connector import (
     LocalFilesConnector,
     classify_extension,
 )
+from edn.connectors.local_files.documents import (
+    DocumentExtractionError,
+    DocumentSection,
+    ExtractedDocument,
+    extract_document,
+)
 from edn.connectors.local_files.fingerprint import (
     FileFingerprint,
     FingerprintType,
@@ -41,6 +47,9 @@ __all__ = [
     "CoverageOpportunity",
     "CoverageStatus",
     "DiscoverySummary",
+    "DocumentExtractionError",
+    "DocumentSection",
+    "ExtractedDocument",
     "FileCandidate",
     "FileFingerprint",
     "FingerprintType",
@@ -50,6 +59,7 @@ __all__ = [
     "UnsupportedCapabilitySignal",
     "classify_extension",
     "content_sha256",
+    "extract_document",
     "load_config",
     "metadata_fingerprint",
 ]

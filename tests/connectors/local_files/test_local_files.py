@@ -252,8 +252,9 @@ def test_connector_conforms_and_capabilities_register(tmp_path: Path) -> None:
         "local-files.plan",
         "local-files.ingest",
         "local-files.verify",
+        "local-files.search",
     }
-    assert len(registry(connector).list()) == 5
+    assert len(registry(connector).list()) == 6
 
 
 def test_path_traversal_symlink_escape_and_exclusion_are_rejected(
@@ -283,7 +284,7 @@ def test_discovery_is_metadata_only_and_classifies_missing_capabilities(
     root = tmp_path / "root"
     root.mkdir()
     (root / "notes.txt").write_text("do not read during discovery", encoding="utf-8")
-    (root / "report.docx").write_bytes(b"synthetic docx bytes")
+    (root / "report.doc").write_bytes(b"synthetic doc bytes")
     (root / "run.exe").write_bytes(b"must never execute")
     executable = root / "do-not-run.sh"
     marker = tmp_path / "execution-marker"

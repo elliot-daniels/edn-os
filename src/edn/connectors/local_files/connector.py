@@ -19,6 +19,7 @@ from edn.connectors import (
     IngestResult,
     InspectionResult,
     ResourceCandidate,
+    SearchResult,
     SourceUnavailableError,
     VerificationResult,
     VerificationStatus,
@@ -28,6 +29,10 @@ from edn.connectors.local_files.config import (
     ApprovedRoot,
     LocalFilesConfig,
     SymlinkPolicy,
+)
+from edn.connectors.local_files.documents import (
+    DocumentExtractionError,
+    extract_document,
 )
 from edn.connectors.local_files.fingerprint import content_sha256, metadata_fingerprint
 from edn.connectors.local_files.models import CandidateState, FileCandidate
@@ -48,6 +53,7 @@ from edn.core.registry import AuthenticationStatus, CapabilityRuntimeState
 CONNECTOR_ID = "local-files"
 CONNECTOR_VERSION = "1.0.0"
 SUPPORTED_TEXT_EXTENSIONS = frozenset({".txt", ".md", ".json", ".csv"})
+SUPPORTED_DOCUMENT_EXTENSIONS = frozenset({".pdf", ".docx"})
 
 _CATEGORY_EXTENSIONS = {
     "document": frozenset({".doc", ".docx", ".odt", ".rtf"}),
@@ -114,6 +120,7 @@ class LocalFilesConnector:
                 ("local-files.plan", "plan", "filesystem.metadata.read", "draft"),
                 ("local-files.ingest", "ingest", "filesystem.content.read", "ingest"),
                 ("local-files.verify", "verify", "filesystem.content.read", "read"),
+                ("local-files.search", "search", "filesystem.content.read", "read"),
             )
         )
         self._manifest = ConnectorManifest(
@@ -124,7 +131,7 @@ class LocalFilesConnector:
             "Approved-root metadata discovery and controlled text ingestion.",
             "filesystem",
             capabilities,
-            frozenset({"discover", "inspect", "plan", "ingest", "verify"}),
+            frozenset({"discover", "inspect", "plan", "ingest", "verify", "search"}),
             "urn:edn:schema:local-files-config:1",
             "1.0.0",
         )
@@ -324,11 +331,12 @@ class LocalFilesConnector:
                 )
             fingerprint = content_sha256(path)
             try:
-                content = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeError) as error:
+                extracted = extract_document(path)
+            except DocumentExtractionError as error:
                 raise SourceUnavailableError(
-                    "An approved text file could not be read safely."
+                    "An approved document could not be extracted safely."
                 ) from error
+            content = extracted.text
             self._store_content(fingerprint.value, content)
             source = SourceRef(
                 f"local-files.{candidate.root_id}",
@@ -341,7 +349,7 @@ class LocalFilesConnector:
                 candidate.resource_id,
                 candidate.security_domain,
                 candidate.classification,
-                "file.text",
+                extracted.record_type,
                 candidate.path.as_uri(),
                 fingerprint.value,
             )
@@ -374,6 +382,12 @@ class LocalFilesConnector:
             len(candidates),
             complete,
         )
+
+    def search(self, request: ConnectorRequest) -> SearchResult:
+        """Return references only for exact-scope previously ingested content."""
+        for resource_id in request.scope:
+            self.extracted_content(request, resource_id)
+        return SearchResult(request.request_id, self.evidence(request.scope))
 
     def verify(self, request: ConnectorRequest) -> VerificationResult:
         if request.operation == "discover":
@@ -423,8 +437,20 @@ class LocalFilesConnector:
                     EvidenceRef(
                         f"evidence:{candidate.resource_id.removeprefix('file:')}",
                         candidate.record,
-                        locator="full-text",
-                        transformation_id="local-files.text",
+                        locator=(
+                            "pages"
+                            if candidate.extension == ".pdf"
+                            else "document-structure"
+                            if candidate.extension == ".docx"
+                            else "full-text"
+                        ),
+                        transformation_id=(
+                            "local-files.pdf"
+                            if candidate.extension == ".pdf"
+                            else "local-files.docx"
+                            if candidate.extension == ".docx"
+                            else "local-files.text"
+                        ),
                         transformation_version=CONNECTOR_VERSION,
                         content_hash=candidate.content_hash,
                     )
@@ -518,7 +544,7 @@ class LocalFilesConnector:
             return None
         category = classify_extension(extension)
         supported = (
-            extension in SUPPORTED_TEXT_EXTENSIONS
+            extension in SUPPORTED_TEXT_EXTENSIONS | SUPPORTED_DOCUMENT_EXTENSIONS
             and stat.st_size <= self.config.max_file_size_bytes
         )
         missing = (
@@ -552,6 +578,26 @@ class LocalFilesConnector:
             missing,
             state,
         )
+
+    def extracted_content(
+        self, request: ConnectorRequest, resource_id: str
+    ) -> tuple[FileCandidate, str]:
+        """Read previously extracted content within the exact request boundary."""
+        candidate = self._authorized_candidate(resource_id, request)
+        if candidate.state is not CandidateState.INGESTED or not candidate.content_hash:
+            raise SourceUnavailableError("Candidate has no verified extracted content.")
+        target = (
+            self.config.content_store_path
+            / candidate.content_hash[:2]
+            / f"{candidate.content_hash}.txt"
+        )
+        try:
+            content = target.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as error:
+            raise SourceUnavailableError(
+                "Extracted content is unavailable or invalid."
+            ) from error
+        return candidate, content
 
     def _authorized_candidate(
         self, resource_id: str, request: ConnectorRequest
