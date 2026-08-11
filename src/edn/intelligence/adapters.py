@@ -7,7 +7,9 @@ from datetime import datetime
 from typing import Protocol
 
 from edn.connectors import ConnectorRequest
+from edn.connectors.local_files import LocalFilesConnector
 from edn.connectors.microsoft_calendar import CalendarWindow, MicrosoftCalendarConnector
+from edn.connectors.microsoft_outlook import MailWindow, MicrosoftOutlookConnector
 from edn.core import CapabilityUseDecision, EvidenceRef, SourceRef, UniversalRecordRef
 from edn.intelligence.models import ContextEvidence, IntelligenceRequest
 from edn.knowledge_graph.persistence import KnowledgeGraphStore
@@ -149,6 +151,119 @@ class KnowledgeGraphAdapter:
                 )
             )
         return tuple(items)
+
+
+@dataclass(slots=True)
+class LocalFilesEvidenceAdapter:
+    connector: LocalFilesConnector
+    resource_scope: tuple[str, ...]
+    capability_id: str = "local-files.search"
+    operation: str = "search"
+
+    def retrieve(
+        self,
+        request: IntelligenceRequest,
+        *,
+        limit: int,
+        now: datetime,
+        authority: CapabilityUseDecision,
+    ) -> tuple[ContextEvidence, ...]:
+        del now
+        connector_request = ConnectorRequest(
+            authority.request.request_id,
+            authority.request.request_id,
+            request.principal,
+            request.purpose,
+            request.security_domain,
+            request.classification,
+            self.capability_id,
+            self.operation,
+            authority,
+            self.resource_scope,
+        )
+        terms = tuple(
+            term.casefold() for term in request.query.split() if len(term) > 2
+        )
+        hits = []
+        for resource_id in self.resource_scope:
+            candidate, content = self.connector.extracted_content(
+                connector_request, resource_id
+            )
+            folded = content.casefold()
+            score = float(sum(folded.count(term) for term in terms))
+            if terms and score == 0:
+                continue
+            excerpt = " ".join(content.split())[:500]
+            evidence = self.connector.evidence((resource_id,))
+            if evidence:
+                hits.append(
+                    ContextEvidence(
+                        f"local-file:{resource_id}",
+                        self.capability_id,
+                        "Local document",
+                        candidate.filename,
+                        excerpt,
+                        score,
+                        evidence,
+                    )
+                )
+        return tuple(
+            sorted(hits, key=lambda item: (-item.score, item.context_id))[:limit]
+        )
+
+
+@dataclass(slots=True)
+class OutlookEvidenceAdapter:
+    connector: MicrosoftOutlookConnector
+    window: MailWindow = MailWindow.LAST_7_DAYS
+    capability_id: str = "outlook.search"
+    operation: str = "search"
+
+    @property
+    def resource_scope(self) -> tuple[str, ...]:
+        return (
+            self.connector.config.mailbox_id,
+            *self.connector.config.folder_ids,
+            f"window:{self.window.value}",
+        )
+
+    def retrieve(
+        self,
+        request: IntelligenceRequest,
+        *,
+        limit: int,
+        now: datetime,
+        authority: CapabilityUseDecision,
+    ) -> tuple[ContextEvidence, ...]:
+        connector_request = ConnectorRequest(
+            authority.request.request_id,
+            authority.request.request_id,
+            request.principal,
+            request.purpose,
+            request.security_domain,
+            request.classification,
+            self.capability_id,
+            self.operation,
+            authority,
+            self.resource_scope,
+        )
+        result = self.connector.search_messages(
+            connector_request, window=self.window, now=now, limit=limit
+        )
+        return tuple(
+            ContextEvidence(
+                f"outlook:{item.message_id}",
+                self.capability_id,
+                "Current Outlook mail",
+                item.subject,
+                f"{item.subject}; from {item.sender}; "
+                f"received {item.received_at.isoformat()}; "
+                f"importance {item.importance}; read {item.is_read}",
+                float(limit - index),
+                (self.connector.evidence_ref(item),),
+            )
+            for index, item in enumerate(result.messages)
+        )
 
 
 @dataclass(slots=True)

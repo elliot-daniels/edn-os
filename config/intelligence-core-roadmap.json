@@ -305,7 +305,7 @@
       "dependencies": [
         "IC-012"
       ],
-      "status": "pending",
+      "status": "completed",
       "successor_tasks": [
         "PA-004"
       ]
@@ -355,7 +355,7 @@
       "dependencies": [
         "IC-012"
       ],
-      "status": "pending",
+      "status": "completed",
       "successor_tasks": [
         "PA-004"
       ]
@@ -405,7 +405,7 @@
       "dependencies": [
         "IC-012"
       ],
-      "status": "pending",
+      "status": "completed",
       "successor_tasks": [
         "PA-004"
       ]

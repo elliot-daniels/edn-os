@@ -3,7 +3,7 @@
   "product": "EDN Intelligence Core",
   "version": "0.1.0-alpha",
   "current_branch": "feature/intelligence-core-v0.1",
-  "current_milestone": "Post-Alpha planning complete; Owner Intelligence Beta is next",
+  "current_milestone": "Owner Intelligence Beta operational foundation complete; progressive onboarding is next",
   "completed_increments": [
     "IC-001",
     "IC-002",
@@ -18,7 +18,10 @@
     "IC-DEV-001",
     "IC-010",
     "IC-011",
-    "IC-012"
+    "IC-012",
+    "PA-001",
+    "PA-002",
+    "PA-003"
   ],
   "active_increment": null,
   "blocked_increments": [
@@ -30,35 +33,48 @@
   "deferred_increments": [],
   "known_limitations": [
     "Intelligence UI retrieves historical email/graph only; Calendar is a gap.",
-    "Current Outlook, Local Files content, PDF/DOCX, SharePoint, finance and Personal OS are not operational evidence.",
-    "Default UI session/proposal stores are in-memory despite durable implementations.",
     "Daily Intelligence is generic and cannot establish current completeness.",
     "Registry/policy composition is manual; onboarding is absent.",
     "No scheduler, health dashboard, verified backup/restore or mixed-source benchmark exists.",
     "No approved model/global provider exists.",
-    "Proposals cannot execute."
+    "Proposals cannot execute.",
+    "PDF/DOCX extraction is deliberately bounded and fails closed on unsupported PDF filters or ambiguous structures; live owner roots remain unauthorised.",
+    "Current Outlook read contracts and synthetic adapter exist, but live authentication, Graph access and mailbox data remain blocked until PA-005 authority.",
+    "Available Windows-over-WSL validation lacks tzdata for Calendar tests and interprets Path('/') with Windows semantics; mypy 2.3.0 exits with an internal tool error."
   ],
   "test_status": {
-    "outcome": "environment-blocked",
+    "outcome": "passed-with-documented-environment-exclusions",
     "commands": [
-      "python -m pytest",
+      "python -m pytest --ignore=tests/connectors/microsoft_calendar/test_calendar.py -k not test_filesystem_root_and_unsafe_symlink_mode_are_rejected",
+      "python -m py_compile changed modules",
       "python -m ruff check .",
       "python -m mypy src/edn",
       "git diff --check"
     ],
-    "passed": 232,
-    "failed": 14,
-    "validated_at": "2026-08-11T21:46:00+09:30"
+    "passed": 246,
+    "failed": 0,
+    "validated_at": "2026-08-12T00:05:00+09:30"
   },
-  "repository_status": "dirty-known-authorised-review",
+  "repository_status": "dirty-known-authorised",
   "expected_dirty_paths": [
+    "config/intelligence-core-development-audit.jsonl",
     "config/intelligence-core-development-state.json",
     "config/intelligence-core-roadmap.json",
-    "docs/intelligence-core/POST-ALPHA-ARCHITECTURE-REVIEW.md",
-    "tests/development/test_development_orchestrator.py"
+    "docs/intelligence-core/PA-001-OWNER-RUNTIME.md",
+    "docs/intelligence-core/PA-002-DOCUMENT-INGESTION.md",
+    "docs/intelligence-core/PA-003-OUTLOOK-SYNTHETIC.md",
+    "src/edn/connectors/local_files",
+    "src/edn/connectors/microsoft_outlook",
+    "src/edn/intelligence",
+    "src/edn/ui",
+    "tests/connectors/local_files",
+    "tests/connectors/microsoft_outlook",
+    "tests/development",
+    "tests/intelligence",
+    "tests/ui"
   ],
-  "last_validated_commit": "f2ea8f9abe82120684cad82e558a5686a0a1c72c",
-  "next_recommended_increment": "PA-001",
+  "last_validated_commit": "33237341b8a5a2980f5f2d85ff4b248deb6a03a0",
+  "next_recommended_increment": "PA-004",
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
     "After PA-002 through PA-004, approve exact live source scopes for PA-005.",
@@ -80,6 +96,6 @@
     "docs/intelligence-core/IC-012-INTERNAL-ACTION-PLANNING.md",
     "docs/intelligence-core/POST-ALPHA-ARCHITECTURE-REVIEW.md"
   ],
-  "updated_at": "2026-08-11T21:46:00+09:30",
-  "provenance": "Reconciled to pushed f2ea8f9 then updated by repository-only post-Alpha review; no external activity"
+  "updated_at": "2026-08-12T00:05:00+09:30",
+  "provenance": "PA-001, PA-002 and PA-003 completed from clean pushed 3323734 baseline using local/synthetic data only; bounded run exhausted"
 }

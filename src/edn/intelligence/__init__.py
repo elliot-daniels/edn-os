@@ -13,6 +13,8 @@ from edn.intelligence.adapters import (
     CapabilityGapAdapter,
     EmailRetrievalAdapter,
     KnowledgeGraphAdapter,
+    LocalFilesEvidenceAdapter,
+    OutlookEvidenceAdapter,
     SourceAdapter,
 )
 from edn.intelligence.brief import DailyIntelligenceComposer
@@ -56,6 +58,8 @@ __all__ = [
     "IntelligenceService",
     "IntelligenceStatement",
     "KnowledgeGraphAdapter",
+    "LocalFilesEvidenceAdapter",
+    "OutlookEvidenceAdapter",
     "SQLiteActionProposalStore",
     "SQLiteSessionStore",
     "SessionState",
