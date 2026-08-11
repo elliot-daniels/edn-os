@@ -1,0 +1,4 @@
+interface:
+  display_name: "EDN Intelligence Core Builder"
+  short_description: "Continue governed EDN Core development"
+  default_prompt: "Use $edn-intelligence-core-builder to continue the next authorised EDN Intelligence Core increment."

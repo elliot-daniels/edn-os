@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0.0",
+  "product": "EDN Intelligence Core",
+  "version": "0.1.0-alpha",
+  "current_branch": "feature/intelligence-core-v0.1",
+  "current_milestone": "Calendar-aware conversational Alpha and autonomous development control",
+  "completed_increments": ["IC-001", "IC-002", "IC-003", "IC-004", "IC-005", "IC-006", "IC-007", "IC-008", "IC-009", "IC-009A", "IC-DEV-001"],
+  "active_increment": null,
+  "blocked_increments": [
+    {
+      "task_id": "IC-009-LIVE",
+      "reason": "Owner-visible interactive Microsoft authentication is required; previous Codex-channel prompt was buffered and stopped safely."
+    }
+  ],
+  "deferred_increments": ["IC-012", "IC-013"],
+  "known_limitations": [
+    "Calendar live validation is incomplete.",
+    "Calendar category classification is human-maintained.",
+    "Conversation sessions are in-memory.",
+    "No current accounting or finance source is available.",
+    "Development agent execution uses a local/manual interface until an approved SDK adapter exists."
+  ],
+  "test_status": {
+    "outcome": "passed",
+    "commands": ["python -m pytest", "python -m ruff check .", "python -m mypy src/edn", "git diff --check"],
+    "passed": 233,
+    "failed": 0,
+    "validated_at": "2026-08-11T20:06:00+09:30"
+  },
+  "repository_status": "dirty-known-preserved",
+  "expected_dirty_paths": [
+    ".codex/skills/edn-intelligence-core-builder",
+    "config/development-authority-policy.json",
+    "config/intelligence-core-development-state.json",
+    "config/intelligence-core-roadmap.json",
+    "docs/intelligence-core/ALPHA-SPECIFICATION.md",
+    "docs/intelligence-core/IC-007-COVERAGE-OPPORTUNITIES.md",
+    "docs/intelligence-core/IC-009-CALENDAR-CONVERSATIONAL-ALPHA.md",
+    "docs/intelligence-core/IC-009-CALENDAR-LIVE-APPROVAL.md",
+    "docs/intelligence-core/IC-DEV-001-AUTONOMOUS-DEVELOPMENT.md",
+    "docs/intelligence-core/IMPLEMENTATION-ROADMAP.md",
+    "src/edn/connectors/local_files",
+    "src/edn/connectors/microsoft_calendar",
+    "src/edn/development",
+    "src/edn/intelligence",
+    "src/edn/ui",
+    "tests/connectors/local_files",
+    "tests/connectors/microsoft_calendar",
+    "tests/development",
+    "tests/intelligence",
+    "tests/ui/test_intelligence_view.py"
+  ],
+  "last_validated_commit": "a0a4a3e0c1a3ef74c3d8f6044f0d3c9d7f6d0e85",
+  "next_recommended_increment": "IC-010",
+  "required_owner_decisions": [
+    "Provide a fresh execution window and run IC-009 live Calendar validation in an owner-visible terminal.",
+    "Approve any future new external permission, production mutation, material architecture change or human-authority change."
+  ],
+  "external_capability_blockers": [
+    "IC-009-LIVE requires owner-interactive Microsoft device-code authentication.",
+    "No Codex SDK execution adapter is configured; local/manual agent execution remains the safe default."
+  ],
+  "architecture_references": [
+    "docs/intelligence-core/INTELLIGENCE-CORE-V0.1.md",
+    "docs/intelligence-core/ALPHA-SPECIFICATION.md",
+    "docs/intelligence-core/IMPLEMENTATION-ROADMAP.md",
+    "docs/intelligence-core/PERMISSION-AUTHORITY-MODEL.md",
+    "docs/intelligence-core/CONTEXT-SECURITY-MODEL.md",
+    "docs/intelligence-core/IC-DEV-001-AUTONOMOUS-DEVELOPMENT.md"
+  ],
+  "updated_at": "2026-08-11T20:06:00+09:30",
+  "provenance": "IC-DEV-001 repository inspection and validated implementation"
+}
