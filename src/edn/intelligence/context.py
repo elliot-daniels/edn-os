@@ -11,6 +11,7 @@ from edn.core.registry import CapabilityRegistry
 from edn.intelligence.adapters import SourceAdapter
 from edn.intelligence.models import (
     AssembledContext,
+    ContextEvidence,
     GlobalKnowledge,
     IntelligenceRequest,
 )
@@ -42,7 +43,7 @@ class ContextAssembler:
                 adapter.operation,
                 request.security_domain,
                 request.classification,
-                request.resource_scope,
+                adapter.resource_scope,
             )
             decision = evaluate_capability_use(
                 self.registry, self.policy, permission_request, now=now
@@ -50,7 +51,12 @@ class ContextAssembler:
             if not decision.is_usable:
                 unavailable.append(f"{adapter.capability_id}:{decision.reason_code}")
                 continue
-            retrieved = adapter.retrieve(request, limit=self.per_source_limit)
+            retrieved = adapter.retrieve(
+                request,
+                limit=self.per_source_limit,
+                now=now,
+                authority=decision,
+            )
             for item in retrieved:
                 if any(
                     ref.record.security_domain != request.security_domain
@@ -62,8 +68,23 @@ class ContextAssembler:
                     )
                     continue
                 evidence.append(item)
-        ordered = sorted(evidence, key=lambda item: (-item.score, item.context_id))
-        deduplicated = {item.context_id: item for item in ordered}
+        # Every adapter is already bounded. Round-robin keeps one prolific source
+        # from crowding all other authorised families out of the final context.
+        families: dict[str, list[ContextEvidence]] = {}
+        for item in sorted(
+            evidence, key=lambda value: (-value.score, value.context_id)
+        ):
+            families.setdefault(item.source_label, []).append(item)
+        balanced: list[ContextEvidence] = []
+        while families and len(balanced) < self.total_limit:
+            for family in sorted(tuple(families)):
+                items = families[family]
+                balanced.append(items.pop(0))
+                if not items:
+                    del families[family]
+                if len(balanced) >= self.total_limit:
+                    break
+        deduplicated = {item.context_id: item for item in balanced}
         return AssembledContext(
             request,
             tuple(deduplicated.values())[: self.total_limit],

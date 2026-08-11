@@ -15,6 +15,12 @@ facts, inferences, recommendations, and unknowns; private evidence and global
 model knowledge are structurally separate; and follow-ups cannot widen authority.
 See `IC-008-INTELLIGENCE-RETRIEVAL-CONTEXT.md`.
 
+IC-009 adds the read-only Calendar Connector SDK implementation, Adelaide-aware
+bounded windows, conservative mixed-calendar filtering, calendar evidence adapter,
+source-family balancing, structured priorities, and a thin conversational
+Streamlit surface. Live authentication remains separately gated by
+`IC-009-CALENDAR-LIVE-APPROVAL.md`.
+
 ## Sources
 
 ### Existing, retained

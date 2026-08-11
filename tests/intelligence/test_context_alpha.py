@@ -64,7 +64,10 @@ def _request(domain: SecurityDomain = EDN) -> IntelligenceRequest:
 
 
 def _evidence(
-    request: IntelligenceRequest, capability_id: str, suffix: str
+    request: IntelligenceRequest,
+    capability_id: str,
+    suffix: str,
+    source_label: str | None = None,
 ) -> ContextEvidence:
     source = SourceRef(f"source-{suffix}", "synthetic", f"instance-{suffix}", suffix)
     record = UniversalRecordRef(
@@ -78,7 +81,7 @@ def _evidence(
     return ContextEvidence(
         f"context:{suffix}",
         capability_id,
-        suffix,
+        source_label or suffix,
         f"Title {suffix}",
         f"Useful private evidence from {suffix}.",
         1.0,
@@ -93,10 +96,18 @@ class FakeAdapter:
     operation: str = "evidence.retrieve"
     calls: list[str] = field(default_factory=list)
     returned_domain: SecurityDomain | None = None
+    resource_scope: tuple[str, ...] = ()
+    count: int = 1
 
     def retrieve(
-        self, request: IntelligenceRequest, *, limit: int
+        self,
+        request: IntelligenceRequest,
+        *,
+        limit: int,
+        now: datetime,
+        authority: object,
     ) -> tuple[ContextEvidence, ...]:
+        del now, authority
         self.calls.append(request.security_domain.domain_id)
         evidence_request = request
         if self.returned_domain is not None:
@@ -107,7 +118,15 @@ class FakeAdapter:
                 self.returned_domain,
                 request.classification,
             )
-        return (_evidence(evidence_request, self.capability_id, self.suffix),)[:limit]
+        return tuple(
+            _evidence(
+                evidence_request,
+                self.capability_id,
+                f"{self.suffix}-{index}",
+                self.suffix,
+            )
+            for index in range(min(limit, self.count))
+        )
 
 
 def _assembler(
@@ -250,6 +269,22 @@ def test_follow_up_session_cannot_widen_domain() -> None:
         service.answer(_request(PERSONAL), now=NOW, session_id=first.session_id)
 
 
+def test_context_balances_source_families_round_robin() -> None:
+    email = FakeAdapter("email.retrieve", "email", count=5)
+    calendar = FakeAdapter("calendar.retrieve", "calendar", count=5)
+    assembler = _assembler((email, calendar))
+    assembler.total_limit = 4
+
+    context = assembler.assemble(_request(), now=NOW)
+
+    assert [item.source_label for item in context.evidence] == [
+        "calendar",
+        "email",
+        "calendar",
+        "email",
+    ]
+
+
 def test_email_adapter_wraps_existing_retrieval_with_core_provenance(tmp_path) -> None:
     store = SQLiteEmailStore(tmp_path / "memory.db")
     store.initialise()
@@ -277,9 +312,8 @@ def test_email_adapter_wraps_existing_retrieval_with_core_provenance(tmp_path) -
         base.security_domain,
         base.classification,
     )
-    evidence = EmailRetrievalAdapter(RetrievalEngine.from_store(store)).retrieve(
-        request, limit=3
-    )
+    adapter = EmailRetrievalAdapter(RetrievalEngine.from_store(store))
+    evidence = _assembler((adapter,)).assemble(request, now=NOW).evidence  # type: ignore[arg-type]
 
     assert len(evidence) == 1
     assert evidence[0].provenance[0].record.source_record_key == "weekly-email"

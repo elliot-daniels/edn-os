@@ -103,9 +103,31 @@ class AssembledContext:
 
 
 @dataclass(frozen=True, slots=True)
+class IntelligencePriority:
+    title: str
+    why_it_matters: str
+    evidence_ids: tuple[str, ...]
+    timeframe: str | None
+    confidence: str
+    recommended_next_step: str
+    missing_information: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.title.strip() or not self.why_it_matters.strip():
+            raise ValueError("priority title and rationale must not be blank")
+        if not self.evidence_ids:
+            raise ValueError("priority requires private evidence")
+
+
+@dataclass(frozen=True, slots=True)
 class IntelligenceResponse:
     statements: tuple[IntelligenceStatement, ...]
     evidence: tuple[ContextEvidence, ...]
     global_knowledge: tuple[GlobalKnowledge, ...]
     unavailable_capabilities: tuple[str, ...]
     session_id: str
+    priorities: tuple[IntelligencePriority, ...] = ()
+
+    @property
+    def source_families(self) -> tuple[str, ...]:
+        return tuple(sorted({item.source_label for item in self.evidence}))

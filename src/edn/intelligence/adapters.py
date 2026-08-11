@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol
 
-from edn.core import EvidenceRef, SourceRef, UniversalRecordRef
+from edn.connectors import ConnectorRequest
+from edn.connectors.microsoft_calendar import CalendarWindow, MicrosoftCalendarConnector
+from edn.core import CapabilityUseDecision, EvidenceRef, SourceRef, UniversalRecordRef
 from edn.intelligence.models import ContextEvidence, IntelligenceRequest
 from edn.knowledge_graph.persistence import KnowledgeGraphStore
 from edn.retrieval import RetrievalEngine
@@ -14,10 +17,36 @@ from edn.retrieval import RetrievalEngine
 class SourceAdapter(Protocol):
     capability_id: str
     operation: str
+    resource_scope: tuple[str, ...]
 
     def retrieve(
-        self, request: IntelligenceRequest, *, limit: int
+        self,
+        request: IntelligenceRequest,
+        *,
+        limit: int,
+        now: datetime,
+        authority: CapabilityUseDecision,
     ) -> tuple[ContextEvidence, ...]: ...
+
+
+@dataclass(slots=True)
+class CapabilityGapAdapter:
+    """Registry-visible source whose retrieval must never run while unavailable."""
+
+    capability_id: str
+    operation: str
+    resource_scope: tuple[str, ...]
+
+    def retrieve(
+        self,
+        request: IntelligenceRequest,
+        *,
+        limit: int,
+        now: datetime,
+        authority: CapabilityUseDecision,
+    ) -> tuple[ContextEvidence, ...]:
+        del request, limit, now, authority
+        raise RuntimeError("unavailable capability was invoked")
 
 
 def _email_ref(
@@ -40,10 +69,17 @@ class EmailRetrievalAdapter:
     engine: RetrievalEngine
     capability_id: str = "email.retrieve"
     operation: str = "evidence.retrieve"
+    resource_scope: tuple[str, ...] = ()
 
     def retrieve(
-        self, request: IntelligenceRequest, *, limit: int
+        self,
+        request: IntelligenceRequest,
+        *,
+        limit: int,
+        now: datetime,
+        authority: CapabilityUseDecision,
     ) -> tuple[ContextEvidence, ...]:
+        del now, authority
         evidence = self.engine.retrieve(request.query, limit=limit)
         return tuple(
             ContextEvidence(
@@ -70,10 +106,17 @@ class KnowledgeGraphAdapter:
     store: KnowledgeGraphStore
     capability_id: str = "knowledge.retrieve"
     operation: str = "evidence.retrieve"
+    resource_scope: tuple[str, ...] = ()
 
     def retrieve(
-        self, request: IntelligenceRequest, *, limit: int
+        self,
+        request: IntelligenceRequest,
+        *,
+        limit: int,
+        now: datetime,
+        authority: CapabilityUseDecision,
     ) -> tuple[ContextEvidence, ...]:
+        del now, authority
         entities = self.store.lookup_entities(request.query, limit=limit)
         items: list[ContextEvidence] = []
         for entity in entities:
@@ -106,3 +149,60 @@ class KnowledgeGraphAdapter:
                 )
             )
         return tuple(items)
+
+
+@dataclass(slots=True)
+class CalendarEvidenceAdapter:
+    connector: MicrosoftCalendarConnector
+    window: CalendarWindow = CalendarWindow.THIS_WEEK
+    capability_id: str = "calendar.search"
+    operation: str = "search"
+
+    @property
+    def resource_scope(self) -> tuple[str, ...]:
+        return (self.connector.config.calendar_id, f"window:{self.window.value}")
+
+    def retrieve(
+        self,
+        request: IntelligenceRequest,
+        *,
+        limit: int,
+        now: datetime,
+        authority: CapabilityUseDecision,
+    ) -> tuple[ContextEvidence, ...]:
+        connector_request = ConnectorRequest(
+            authority.request.request_id,
+            authority.request.request_id,
+            request.principal,
+            request.purpose,
+            request.security_domain,
+            request.classification,
+            self.capability_id,
+            self.operation,
+            authority,
+            self.resource_scope,
+        )
+        result = self.connector.search_events(
+            connector_request, window=self.window, now=now, limit=limit
+        )
+        return tuple(
+            ContextEvidence(
+                f"calendar:{item.event_id}",
+                self.capability_id,
+                "Calendar",
+                item.subject,
+                _calendar_excerpt(item.subject, item.start, item.end, item.location),
+                float(limit - index),
+                (self.connector.evidence_ref(item),),
+            )
+            for index, item in enumerate(result.events)
+        )
+
+
+def _calendar_excerpt(
+    subject: str, start: datetime, end: datetime, location: str | None
+) -> str:
+    value = f"{subject}: {start.isoformat()} to {end.isoformat()}"
+    if location:
+        value += f" at {location}"
+    return value

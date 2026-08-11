@@ -8,6 +8,7 @@ from uuid import uuid4
 from edn.intelligence.context import ContextAssembler
 from edn.intelligence.models import (
     GlobalKnowledge,
+    IntelligencePriority,
     IntelligenceRequest,
     IntelligenceResponse,
     IntelligenceStatement,
@@ -66,10 +67,23 @@ class IntelligenceService:
                 )
             )
         self._sessions.save(SessionState.from_context(actual_session_id, context))
+        priorities = tuple(
+            IntelligencePriority(
+                item.title,
+                item.excerpt,
+                (item.context_id,),
+                item.provenance[0].locator,
+                "evidence-backed",
+                "Confirm the owner, deadline, and required decision.",
+                ("Current status is not established by this evidence alone.",),
+            )
+            for item in context.evidence[:5]
+        )
         return IntelligenceResponse(
             tuple(statements),
             context.evidence,
             context.global_knowledge,
             context.unavailable_capabilities,
             actual_session_id,
+            priorities,
         )

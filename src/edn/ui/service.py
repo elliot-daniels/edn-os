@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from edn.intelligence import ContextEvidence, IntelligenceRequest, IntelligenceResponse
 from edn.memory.models import EmailRecord
 from edn.memory.storage import DatabaseBusyError, SQLiteEmailStore
 
@@ -46,6 +47,30 @@ class EmailResultView:
     provenance_key: str
     body_preview: str
     body_text: str
+
+
+def visible_intelligence_evidence(
+    response: IntelligenceResponse, request: IntelligenceRequest
+) -> tuple[ContextEvidence, ...]:
+    """Defence-in-depth UI filter prevents rendering unauthorized evidence."""
+    return tuple(
+        item
+        for item in response.evidence
+        if all(
+            reference.record.security_domain == request.security_domain
+            and reference.record.classification == request.classification
+            for reference in item.provenance
+        )
+    )
+
+
+def evidence_security_label(item: ContextEvidence) -> str:
+    domains: set[str] = set()
+    classifications: set[str] = set()
+    for reference in item.provenance:
+        domains.add(reference.record.security_domain.label)
+        classifications.add(reference.record.classification.display_name)
+    return f"{'/'.join(sorted(domains))} · {'/'.join(sorted(classifications))}"
 
 
 def resolve_database_path(

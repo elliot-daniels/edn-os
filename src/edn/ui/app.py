@@ -2,8 +2,34 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import streamlit as st
 
+from edn.core import (
+    AuthenticationStatus,
+    CapabilityManifest,
+    CapabilityRegistry,
+    CapabilityRuntimeState,
+    CapabilityStatus,
+    Classification,
+    PermissionEvaluator,
+    PermissionOutcome,
+    PolicyRule,
+    PolicySet,
+    PrincipalContext,
+    Purpose,
+    SecurityDomain,
+)
+from edn.intelligence import (
+    CapabilityGapAdapter,
+    ContextAssembler,
+    EmailRetrievalAdapter,
+    IntelligenceRequest,
+    IntelligenceService,
+    KnowledgeGraphAdapter,
+    SourceAdapter,
+)
 from edn.knowledge.answering import (
     AnswerConfigurationError,
     AnswerGenerationError,
@@ -15,6 +41,7 @@ from edn.knowledge_graph.entities import EntityType
 from edn.knowledge_graph.persistence import KnowledgeGraphStore
 from edn.knowledge_graph.retrieval import KnowledgeCandidateRetriever
 from edn.memory.models import EmailRecord
+from edn.memory.storage import SQLiteEmailStore
 from edn.retrieval import (
     DEFAULT_EVIDENCE_LIMIT,
     MAX_EVIDENCE_LIMIT,
@@ -28,12 +55,96 @@ from edn.ui.service import (
     DatabaseTemporarilyBusyError,
     DatabaseUnavailableError,
     SearchQueryError,
+    evidence_security_label,
     format_result,
     format_sent_date,
     open_read_only_store,
     resolve_database_path,
     search_emails,
+    visible_intelligence_evidence,
 )
+
+
+def _intelligence_runtime(
+    store: SQLiteEmailStore, graph_store: KnowledgeGraphStore, graph_available: bool
+) -> tuple[
+    IntelligenceService,
+    PrincipalContext,
+    Purpose,
+    SecurityDomain,
+    Classification,
+]:
+    domain = SecurityDomain("EDN", "EDN Systems", tenant_id="edn-local")
+    classification = Classification("edn", "confidential", "EDN Confidential", rank=2)
+    principal = PrincipalContext("local-owner", "edn-local", frozenset({domain}), True)
+    purpose = Purpose("business-intelligence", "EDN business intelligence")
+    adapters: list[SourceAdapter] = [
+        EmailRetrievalAdapter(RetrievalEngine.from_store(store))
+    ]
+    if graph_available:
+        adapters.append(KnowledgeGraphAdapter(graph_store))
+    adapters.append(
+        CapabilityGapAdapter(
+            "calendar.search", "search", ("default-calendar", "window:this-week")
+        )
+    )
+    registry = CapabilityRegistry()
+    for adapter in adapters:
+        is_calendar = adapter.capability_id == "calendar.search"
+        manifest = CapabilityManifest(
+            adapter.capability_id,
+            "microsoft-graph" if is_calendar else "edn-local",
+            "microsoft-calendar" if is_calendar else "legacy-read-adapter",
+            "0.1.0",
+            frozenset({adapter.operation}),
+            frozenset({"Calendars.Read"}) if is_calendar else frozenset(),
+            frozenset({"EDN"}),
+            "read",
+        )
+        registry.register(
+            manifest,
+            CapabilityRuntimeState(
+                CapabilityStatus.AUTHENTICATION_REQUIRED
+                if is_calendar
+                else CapabilityStatus.READY,
+                AuthenticationStatus.MISSING
+                if is_calendar
+                else AuthenticationStatus.NOT_REQUIRED,
+                health="unknown" if is_calendar else "healthy",
+                explanation=(
+                    "Calendar read is implemented but awaits live approval "
+                    "and authentication."
+                    if is_calendar
+                    else "Local read-only source is available."
+                ),
+            ),
+        )
+    policy = PermissionEvaluator(
+        PolicySet(
+            "local-alpha",
+            "1",
+            tuple(
+                PolicyRule(
+                    f"allow-{adapter.capability_id.replace('.', '-')}",
+                    PermissionOutcome.ALLOWED,
+                    "Local read-only Alpha authority.",
+                    principal_ids=frozenset({principal.principal_id}),
+                    purpose_ids=frozenset({purpose.purpose_id}),
+                    domain_ids=frozenset({domain.domain_id}),
+                    capability_ids=frozenset({adapter.capability_id}),
+                    operations=frozenset({adapter.operation}),
+                )
+                for adapter in adapters
+            ),
+        )
+    )
+    return (
+        IntelligenceService(ContextAssembler(registry, policy, tuple(adapters))),
+        principal,
+        purpose,
+        domain,
+        classification,
+    )
 
 
 def _render_email_result(record: EmailRecord) -> None:
@@ -107,8 +218,89 @@ except (
     st.error(str(error))
     st.stop()
 
+if "intelligence_runtime" not in st.session_state:
+    st.session_state.intelligence_runtime = _intelligence_runtime(
+        store, graph_store, graph_available
+    )
+(
+    intelligence_service,
+    intelligence_principal,
+    intelligence_purpose,
+    intelligence_domain,
+    intelligence_classification,
+) = st.session_state.intelligence_runtime
+
 st.success(f"Database ready · {indexed_email_count:,} indexed emails")
-search_tab, ask_tab, knowledge_tab = st.tabs(("Search", "Ask EDN", "Knowledge"))
+intelligence_tab, search_tab, ask_tab, knowledge_tab = st.tabs(
+    ("Intelligence", "Search", "Ask EDN", "Knowledge")
+)
+
+with intelligence_tab:
+    st.caption(
+        "Governed local intelligence with evidence, uncertainty, and capability gaps."
+    )
+    if "intelligence_messages" not in st.session_state:
+        st.session_state.intelligence_messages = []
+    for message in st.session_state.intelligence_messages:
+        with st.chat_message(message["role"]):
+            st.write(message["content"])
+    intelligence_question = st.chat_input(
+        "Ask what matters this week for EDN Systems",
+        key="intelligence-question",
+    )
+    if intelligence_question:
+        request = IntelligenceRequest(
+            intelligence_question,
+            intelligence_principal,
+            intelligence_purpose,
+            intelligence_domain,
+            intelligence_classification,
+        )
+        prior_session = st.session_state.get("intelligence_session_id")
+        try:
+            response = intelligence_service.answer(
+                request,
+                now=datetime.now(UTC),
+                session_id=prior_session,
+            )
+        except (PermissionError, RuntimeError, ValueError):
+            st.error("Intelligence could not safely assemble the authorised context.")
+        else:
+            st.session_state.intelligence_session_id = response.session_id
+            st.session_state.intelligence_messages.extend(
+                (
+                    {"role": "user", "content": intelligence_question},
+                    {
+                        "role": "assistant",
+                        "content": "\n\n".join(
+                            f"{item.kind.value.upper()}: {item.text}"
+                            for item in response.statements
+                        ),
+                    },
+                )
+            )
+            st.subheader("Priorities")
+            for number, priority in enumerate(response.priorities, start=1):
+                with st.container(border=True):
+                    st.markdown(f"#### {number}. {priority.title}")
+                    st.write(priority.why_it_matters)
+                    st.caption(
+                        f"Timeframe: {priority.timeframe or 'Unknown'} · "
+                        f"Confidence: {priority.confidence}"
+                    )
+                    st.write(f"Recommended next step: {priority.recommended_next_step}")
+                    for missing in priority.missing_information:
+                        st.info(f"Missing information: {missing}")
+            st.subheader("Evidence")
+            for item in visible_intelligence_evidence(response, request):
+                with st.expander(f"{item.source_label}: {item.title}"):
+                    st.text(item.excerpt)
+                    st.caption(evidence_security_label(item))
+                    st.caption(item.provenance[0].locator or "Source record")
+            if response.unavailable_capabilities:
+                st.subheader("Capability gaps")
+                for gap in response.unavailable_capabilities:
+                    st.warning(gap)
 
 with search_tab:
     with st.form("email-search"):
