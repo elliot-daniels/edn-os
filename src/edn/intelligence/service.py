@@ -15,14 +15,14 @@ from edn.intelligence.models import (
     IntelligenceStatement,
     StatementKind,
 )
-from edn.intelligence.session import InMemorySessionStore, SessionState
+from edn.intelligence.session import InMemorySessionStore, SessionState, SessionStore
 
 
 class IntelligenceService:
     def __init__(
         self,
         assembler: ContextAssembler,
-        sessions: InMemorySessionStore | None = None,
+        sessions: SessionStore | None = None,
         brief_composer: DailyIntelligenceComposer | None = None,
     ) -> None:
         self._assembler = assembler

@@ -83,7 +83,7 @@
       "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy src/edn", "git diff --check"],
       "stop_conditions": ["Sensitive transcript persistence", "Security-domain ambiguity"],
       "dependencies": ["IC-010"],
-      "status": "pending",
+      "status": "completed",
       "successor_tasks": ["IC-012"]
     },
     {
@@ -97,7 +97,7 @@
       "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy src/edn"],
       "stop_conditions": ["Human authority boundary change without approval"],
       "dependencies": ["IC-011"],
-      "status": "pending",
+      "status": "blocked",
       "successor_tasks": []
     }
   ]

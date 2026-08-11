@@ -25,6 +25,10 @@ IC-010 adds a deterministic, user-invoked Daily Intelligence brief with zero to
 ten evidence-backed priorities, confidence, next actions, explicit missing
 information, and visible capability gaps.
 
+IC-011 adds a durable local session-reference store that binds follow-ups to the
+original authority context and tombstones references removed by later authorised
+retrieval. It persists identifiers and authority metadata, never transcripts.
+
 ## Sources
 
 ### Existing, retained

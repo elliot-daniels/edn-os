@@ -83,7 +83,7 @@ Synthetic tests reconstruct state, roadmap, and policy from disk in a fresh proc
 - an unknown action fails closed;
 - a material architecture finding escalates;
 - a blocked task permits another eligible routine task;
-- persisted state and the real repository configurations identify `IC-010` as the next eligible increment while `IC-009-LIVE` remains blocked.
+- persisted state and the real repository configurations identify the next eligible increment while `IC-009-LIVE` remains blocked.
 
 No test contacts an external service or production data.
 
@@ -99,7 +99,7 @@ No test contacts an external service or production data.
 
 ## Current next increment
 
-`IC-010` is complete and validated. `IC-011` is the next eligible routine development increment: a durable authority-bound session reference store. `IC-009-LIVE` remains blocked on owner-accessible authentication and must not block routine local development.
+`IC-011` is complete and validated. No further roadmap increment is autonomously eligible: `IC-012` declares a human-authority change and is owner-blocked. `IC-009-LIVE` remains blocked on owner-accessible authentication.
 
 ## Limitations
 

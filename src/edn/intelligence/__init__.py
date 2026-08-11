@@ -20,7 +20,12 @@ from edn.intelligence.models import (
     StatementKind,
 )
 from edn.intelligence.service import IntelligenceService
-from edn.intelligence.session import InMemorySessionStore, SessionState
+from edn.intelligence.session import (
+    InMemorySessionStore,
+    SessionState,
+    SessionStore,
+    SQLiteSessionStore,
+)
 
 __all__ = [
     "AssembledContext",
@@ -38,7 +43,9 @@ __all__ = [
     "IntelligenceService",
     "IntelligenceStatement",
     "KnowledgeGraphAdapter",
+    "SQLiteSessionStore",
     "SessionState",
+    "SessionStore",
     "SourceAdapter",
     "StatementKind",
 ]
