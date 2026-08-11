@@ -179,3 +179,61 @@ def test_sqlite_store_persists_review_state_without_execution(tmp_path) -> None:
         current_evidence_ids=(),
     )
     assert rejected.status is ActionStatus.REJECTED
+
+
+def test_service_lists_and_reviews_only_authorized_principal_proposals() -> None:
+    response, store = _draft_response()
+    proposal = response.proposed_actions[0]
+    base = _request()
+    request = IntelligenceRequest(
+        "Review internal proposals",
+        base.principal,
+        base.purpose,
+        base.security_domain,
+        base.classification,
+    )
+    service = IntelligenceService(
+        _assembler((FakeAdapter("email.retrieve", "email"),)),
+        action_planner=ActionPlanner(store),
+    )
+
+    assert service.proposals_for_review(request) == (proposal,)
+    rejected = service.review_proposal(
+        proposal.proposal_id,
+        status=ActionStatus.REJECTED,
+        proposal_hash=proposal.proposal_hash,
+        human_review_ref="owner-ui-review",
+        now=NOW,
+        current_evidence_ids=(),
+    )
+
+    assert rejected.status is ActionStatus.REJECTED
+    other = replace(
+        request,
+        principal=replace(request.principal, principal_id="different-owner"),
+    )
+    assert service.proposals_for_review(other) == ()
+
+
+def test_sqlite_review_listing_is_durable_and_scope_filtered(tmp_path) -> None:
+    response, _ = _draft_response()
+    proposal = response.proposed_actions[0]
+    store = SQLiteActionProposalStore(tmp_path / "actions.db")
+    store.initialise()
+    store.create(proposal)
+
+    restarted = SQLiteActionProposalStore(tmp_path / "actions.db")
+
+    assert restarted.list_for_review(
+        principal_id=proposal.principal_id,
+        tenant_id=proposal.tenant_id,
+        domain_id=proposal.domain_id,
+    ) == (proposal,)
+    assert (
+        restarted.list_for_review(
+            principal_id=proposal.principal_id,
+            tenant_id=proposal.tenant_id,
+            domain_id="PERSONAL",
+        )
+        == ()
+    )

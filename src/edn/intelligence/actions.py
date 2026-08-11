@@ -25,6 +25,9 @@ CREATE TABLE IF NOT EXISTS action_proposals (
 class ActionProposalStore(Protocol):
     def create(self, proposal: ActionProposal) -> None: ...
     def get(self, proposal_id: str) -> ActionProposal | None: ...
+    def list_for_review(
+        self, *, principal_id: str, tenant_id: str, domain_id: str
+    ) -> tuple[ActionProposal, ...]: ...
     def review(
         self,
         proposal_id: str,
@@ -105,6 +108,17 @@ class InMemoryActionProposalStore:
 
     def get(self, proposal_id: str) -> ActionProposal | None:
         return self._items.get(proposal_id)
+
+    def list_for_review(
+        self, *, principal_id: str, tenant_id: str, domain_id: str
+    ) -> tuple[ActionProposal, ...]:
+        return tuple(
+            item
+            for item in reversed(tuple(self._items.values()))
+            if item.principal_id == principal_id
+            and item.tenant_id == tenant_id
+            and item.domain_id == domain_id
+        )
 
     def review(
         self,
@@ -202,6 +216,25 @@ class SQLiteActionProposalStore:
             None
             if row is None
             else ActionProposal.from_dict(json.loads(str(row["payload_json"])))
+        )
+
+    def list_for_review(
+        self, *, principal_id: str, tenant_id: str, domain_id: str
+    ) -> tuple[ActionProposal, ...]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT payload_json FROM action_proposals ORDER BY rowid DESC"
+            ).fetchall()
+        proposals = (
+            ActionProposal.from_dict(json.loads(str(row["payload_json"])))
+            for row in rows
+        )
+        return tuple(
+            item
+            for item in proposals
+            if item.principal_id == principal_id
+            and item.tenant_id == tenant_id
+            and item.domain_id == domain_id
         )
 
     def review(

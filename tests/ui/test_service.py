@@ -16,6 +16,7 @@ from edn.ui.service import (
     format_result,
     open_read_only_store,
     resolve_database_path,
+    resolve_intelligence_database_path,
     search_emails,
 )
 
@@ -132,3 +133,28 @@ def test_format_result_preserves_readable_metadata() -> None:
     assert result.provenance_key == "<result@example.com>"
     assert result.body_preview == "Juniper outage resolved."
     assert result.body_text == "Juniper outage resolved."
+
+
+def test_intelligence_database_defaults_separately_from_email(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.delenv("EDN_INTELLIGENCE_DB", raising=False)
+    email_path = (tmp_path / "email.db").resolve()
+
+    assert (
+        resolve_intelligence_database_path(email_path)
+        == (tmp_path / "intelligence-runtime.db").resolve()
+    )
+
+
+def test_intelligence_database_rejects_relative_or_email_database(
+    tmp_path, monkeypatch
+) -> None:
+    email_path = (tmp_path / "email.db").resolve()
+    monkeypatch.setenv("EDN_INTELLIGENCE_DB", "relative.db")
+    with pytest.raises(DatabaseConfigurationError, match="absolute"):
+        resolve_intelligence_database_path(email_path)
+
+    monkeypatch.setenv("EDN_INTELLIGENCE_DB", str(email_path))
+    with pytest.raises(DatabaseConfigurationError, match="must not share"):
+        resolve_intelligence_database_path(email_path)

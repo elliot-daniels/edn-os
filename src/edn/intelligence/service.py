@@ -6,7 +6,7 @@ from dataclasses import replace
 from datetime import datetime
 from uuid import uuid4
 
-from edn.intelligence.action_models import ActionProposal
+from edn.intelligence.action_models import ActionProposal, ActionStatus
 from edn.intelligence.actions import ActionPlanner, InMemoryActionProposalStore
 from edn.intelligence.brief import DailyIntelligenceComposer
 from edn.intelligence.context import ContextAssembler
@@ -33,6 +33,34 @@ class IntelligenceService:
         self._brief_composer = brief_composer or DailyIntelligenceComposer()
         self._action_planner = action_planner or ActionPlanner(
             InMemoryActionProposalStore()
+        )
+
+    def proposals_for_review(
+        self, request: IntelligenceRequest
+    ) -> tuple[ActionProposal, ...]:
+        return self._action_planner.store.list_for_review(
+            principal_id=request.principal.principal_id,
+            tenant_id=request.principal.tenant_id,
+            domain_id=request.security_domain.domain_id,
+        )
+
+    def review_proposal(
+        self,
+        proposal_id: str,
+        *,
+        status: ActionStatus,
+        proposal_hash: str,
+        human_review_ref: str,
+        now: datetime,
+        current_evidence_ids: tuple[str, ...],
+    ) -> ActionProposal:
+        return self._action_planner.store.review(
+            proposal_id,
+            status=status,
+            proposal_hash=proposal_hash,
+            human_review_ref=human_review_ref,
+            now=now,
+            current_evidence_ids=current_evidence_ids,
         )
 
     def daily_brief(

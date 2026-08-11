@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 import streamlit as st
 
@@ -22,6 +23,8 @@ from edn.core import (
     SecurityDomain,
 )
 from edn.intelligence import (
+    ActionPlanner,
+    ActionStatus,
     CapabilityGapAdapter,
     ContextAssembler,
     EmailRetrievalAdapter,
@@ -29,6 +32,8 @@ from edn.intelligence import (
     IntelligenceService,
     KnowledgeGraphAdapter,
     SourceAdapter,
+    SQLiteActionProposalStore,
+    SQLiteSessionStore,
 )
 from edn.knowledge.answering import (
     AnswerConfigurationError,
@@ -60,19 +65,24 @@ from edn.ui.service import (
     format_sent_date,
     open_read_only_store,
     resolve_database_path,
+    resolve_intelligence_database_path,
     search_emails,
     visible_intelligence_evidence,
 )
 
 
 def _intelligence_runtime(
-    store: SQLiteEmailStore, graph_store: KnowledgeGraphStore, graph_available: bool
+    store: SQLiteEmailStore,
+    graph_store: KnowledgeGraphStore,
+    graph_available: bool,
+    operational_database_path: Path,
 ) -> tuple[
     IntelligenceService,
     PrincipalContext,
     Purpose,
     SecurityDomain,
     Classification,
+    tuple[tuple[str, str, str], ...],
 ]:
     domain = SecurityDomain("EDN", "EDN Systems", tenant_id="edn-local")
     classification = Classification("edn", "confidential", "EDN Confidential", rank=2)
@@ -138,12 +148,28 @@ def _intelligence_runtime(
             ),
         )
     )
+    sessions = SQLiteSessionStore(operational_database_path)
+    actions = SQLiteActionProposalStore(operational_database_path)
+    sessions.initialise()
+    actions.initialise()
+    health = tuple(
+        (adapter.capability_id, decision.status.value, decision.explanation)
+        for adapter in adapters
+        for decision in (
+            registry.resolve(adapter.capability_id, adapter.operation, domain),
+        )
+    )
     return (
-        IntelligenceService(ContextAssembler(registry, policy, tuple(adapters))),
+        IntelligenceService(
+            ContextAssembler(registry, policy, tuple(adapters)),
+            sessions=sessions,
+            action_planner=ActionPlanner(actions),
+        ),
         principal,
         purpose,
         domain,
         classification,
+        health,
     )
 
 
@@ -199,6 +225,7 @@ st.caption(
 
 try:
     database_path = resolve_database_path()
+    intelligence_database_path = resolve_intelligence_database_path(database_path)
     store = open_read_only_store(database_path)
     indexed_email_count = store.count()
     graph_store = KnowledgeGraphStore(database_path, read_only=True)
@@ -220,7 +247,7 @@ except (
 
 if "intelligence_runtime" not in st.session_state:
     st.session_state.intelligence_runtime = _intelligence_runtime(
-        store, graph_store, graph_available
+        store, graph_store, graph_available, intelligence_database_path
     )
 (
     intelligence_service,
@@ -228,6 +255,7 @@ if "intelligence_runtime" not in st.session_state:
     intelligence_purpose,
     intelligence_domain,
     intelligence_classification,
+    intelligence_capability_health,
 ) = st.session_state.intelligence_runtime
 
 st.success(f"Database ready · {indexed_email_count:,} indexed emails")
@@ -239,6 +267,10 @@ with intelligence_tab:
     st.caption(
         "Governed local intelligence with evidence, uncertainty, and capability gaps."
     )
+    with st.expander("Capability health"):
+        for capability_id, status, explanation in intelligence_capability_health:
+            st.write(f"**{capability_id}** - {status}")
+            st.caption(explanation)
     if "intelligence_messages" not in st.session_state:
         st.session_state.intelligence_messages = []
     for message in st.session_state.intelligence_messages:
@@ -308,23 +340,10 @@ with intelligence_tab:
                     st.write(f"Recommended next step: {priority.recommended_next_step}")
                     for missing in priority.missing_information:
                         st.info(f"Missing information: {missing}")
-            if response.proposed_actions:
-                st.subheader("Proposed actions / drafts")
-                for proposal in response.proposed_actions:
-                    with st.container(border=True):
-                        st.markdown(f"#### {proposal.proposed_operation}")
-                        st.write(proposal.rationale)
-                        if proposal.draft_text:
-                            st.markdown("**Internal draft**")
-                            st.text(proposal.draft_text)
-                        st.caption(
-                            f"Status: {proposal.status.value} · "
-                            "Not sent or executed · Owner execution approval required"
-                        )
-                        st.caption(
-                            f"Target capability: {proposal.target_capability} · "
-                            f"Risk: {proposal.risk_level}"
-                        )
+            for proposal in response.proposed_actions:
+                st.session_state.setdefault("proposal_evidence", {})[
+                    proposal.proposal_id
+                ] = proposal.source_evidence_ids
             st.subheader("Evidence")
             for item in visible_intelligence_evidence(response, request):
                 with st.expander(f"{item.source_label}: {item.title}"):
@@ -335,6 +354,81 @@ with intelligence_tab:
                 st.subheader("Capability gaps")
                 for gap in response.unavailable_capabilities:
                     st.warning(gap)
+
+    review_request = IntelligenceRequest(
+        "Review internal proposals",
+        intelligence_principal,
+        intelligence_purpose,
+        intelligence_domain,
+        intelligence_classification,
+    )
+    review_items = intelligence_service.proposals_for_review(review_request)
+    if review_items:
+        st.subheader("Proposed actions / drafts")
+    for proposal in review_items:
+        with st.container(border=True):
+            st.markdown(f"#### {proposal.proposed_operation}")
+            st.write(proposal.rationale)
+            if proposal.draft_text:
+                st.markdown("**Internal draft**")
+                st.text(proposal.draft_text)
+            st.caption(
+                f"Status: {proposal.status.value} - Not sent or executed - "
+                "Separate execution authority required"
+            )
+            st.caption(
+                f"Target capability: {proposal.target_capability} - "
+                f"Risk: {proposal.risk_level} - "
+                f"Hash: {proposal.proposal_hash[:12]}"
+            )
+            if proposal.status in {
+                ActionStatus.PROPOSED,
+                ActionStatus.DRAFT,
+                ActionStatus.AWAITING_REVIEW,
+            }:
+                approve, reject, supersede = st.columns(3)
+                evidence_ids = st.session_state.get("proposal_evidence", {}).get(
+                    proposal.proposal_id, ()
+                )
+                with approve:
+                    approved = st.button(
+                        "Approve for future execution",
+                        key=f"approve-{proposal.proposal_id}",
+                        disabled=(
+                            proposal.status is not ActionStatus.AWAITING_REVIEW
+                            or not evidence_ids
+                        ),
+                    )
+                with reject:
+                    rejected = st.button("Reject", key=f"reject-{proposal.proposal_id}")
+                with supersede:
+                    superseded = st.button(
+                        "Supersede", key=f"supersede-{proposal.proposal_id}"
+                    )
+                selected = (
+                    ActionStatus.APPROVED_FOR_EXECUTION
+                    if approved
+                    else ActionStatus.REJECTED
+                    if rejected
+                    else ActionStatus.SUPERSEDED
+                    if superseded
+                    else None
+                )
+                if selected is not None:
+                    try:
+                        now = datetime.now(UTC)
+                        intelligence_service.review_proposal(
+                            proposal.proposal_id,
+                            status=selected,
+                            proposal_hash=proposal.proposal_hash,
+                            human_review_ref=f"local-owner-ui:{now.isoformat()}",
+                            now=now,
+                            current_evidence_ids=tuple(evidence_ids),
+                        )
+                    except (KeyError, PermissionError, ValueError) as error:
+                        st.error(str(error))
+                    else:
+                        st.rerun()
 
 with search_tab:
     with st.form("email-search"):

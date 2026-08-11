@@ -16,6 +16,7 @@ from edn.memory.storage import DatabaseBusyError, SQLiteEmailStore
 DATABASE_ENVIRONMENT_VARIABLE = "EDN_MEMORY_DB"
 DEFAULT_RESULT_LIMIT = 20
 MAX_RESULT_LIMIT = 100
+INTELLIGENCE_DATABASE_ENV = "EDN_INTELLIGENCE_DB"
 DEFAULT_PREVIEW_LENGTH = 240
 BUSY_MESSAGE = "The local email database is temporarily busy. Try again shortly."
 
@@ -34,6 +35,25 @@ class DatabaseTemporarilyBusyError(DatabaseUnavailableError):
 
 class SearchQueryError(ValueError):
     """Raised when SQLite FTS5 cannot understand a search query."""
+
+
+def resolve_intelligence_database_path(email_database_path: Path) -> Path:
+    """Resolve separate writable operational storage for Intelligence state."""
+    configured = os.environ.get(INTELLIGENCE_DATABASE_ENV)
+    path = (
+        Path(configured).expanduser()
+        if configured
+        else email_database_path.with_name("intelligence-runtime.db")
+    )
+    if not path.is_absolute():
+        raise DatabaseConfigurationError(
+            f"{INTELLIGENCE_DATABASE_ENV} must be an absolute path."
+        )
+    if path.resolve() == email_database_path.resolve():
+        raise DatabaseConfigurationError(
+            "Intelligence operational state must not share the email database."
+        )
+    return path
 
 
 @dataclass(frozen=True, slots=True)
