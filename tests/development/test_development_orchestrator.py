@@ -269,6 +269,6 @@ def test_real_policy_state_and_roadmap_reconstruct_current_project() -> None:
     )
 
     assert state.product == "EDN Intelligence Core"
-    assert state.next_recommended_increment == "IC-010"
+    assert state.next_recommended_increment == "IC-011"
     assert roadmap.task("IC-009-LIVE").status is DevelopmentTaskStatus.BLOCKED
-    assert roadmap.select_next(state, policy).task_id == "IC-010"  # type: ignore[union-attr]
+    assert roadmap.select_next(state, policy).task_id == "IC-011"  # type: ignore[union-attr]

@@ -7,6 +7,7 @@ from edn.intelligence.adapters import (
     KnowledgeGraphAdapter,
     SourceAdapter,
 )
+from edn.intelligence.brief import DailyIntelligenceComposer
 from edn.intelligence.context import ContextAssembler
 from edn.intelligence.models import (
     AssembledContext,
@@ -27,6 +28,7 @@ __all__ = [
     "CapabilityGapAdapter",
     "ContextAssembler",
     "ContextEvidence",
+    "DailyIntelligenceComposer",
     "EmailRetrievalAdapter",
     "GlobalKnowledge",
     "InMemorySessionStore",

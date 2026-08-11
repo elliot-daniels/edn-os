@@ -21,6 +21,10 @@ source-family balancing, structured priorities, and a thin conversational
 Streamlit surface. Live authentication remains separately gated by
 `IC-009-CALENDAR-LIVE-APPROVAL.md`.
 
+IC-010 adds a deterministic, user-invoked Daily Intelligence brief with zero to
+ten evidence-backed priorities, confidence, next actions, explicit missing
+information, and visible capability gaps.
+
 ## Sources
 
 ### Existing, retained

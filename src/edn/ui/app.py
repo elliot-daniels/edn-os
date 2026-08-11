@@ -244,13 +244,23 @@ with intelligence_tab:
     for message in st.session_state.intelligence_messages:
         with st.chat_message(message["role"]):
             st.write(message["content"])
+    daily_brief_requested = st.button(
+        "Build today's brief",
+        type="primary",
+        key="daily-intelligence-brief",
+    )
     intelligence_question = st.chat_input(
         "Ask what matters this week for EDN Systems",
         key="intelligence-question",
     )
-    if intelligence_question:
+    if daily_brief_requested or intelligence_question:
+        submitted_question = (
+            "What do I need to know today?"
+            if daily_brief_requested
+            else intelligence_question
+        )
         request = IntelligenceRequest(
-            intelligence_question,
+            submitted_question,
             intelligence_principal,
             intelligence_purpose,
             intelligence_domain,
@@ -258,18 +268,25 @@ with intelligence_tab:
         )
         prior_session = st.session_state.get("intelligence_session_id")
         try:
-            response = intelligence_service.answer(
-                request,
-                now=datetime.now(UTC),
-                session_id=prior_session,
-            )
+            if daily_brief_requested:
+                response = intelligence_service.daily_brief(
+                    request,
+                    now=datetime.now(UTC),
+                    session_id=prior_session,
+                )
+            else:
+                response = intelligence_service.answer(
+                    request,
+                    now=datetime.now(UTC),
+                    session_id=prior_session,
+                )
         except (PermissionError, RuntimeError, ValueError):
             st.error("Intelligence could not safely assemble the authorised context.")
         else:
             st.session_state.intelligence_session_id = response.session_id
             st.session_state.intelligence_messages.extend(
                 (
-                    {"role": "user", "content": intelligence_question},
+                    {"role": "user", "content": submitted_question},
                     {
                         "role": "assistant",
                         "content": "\n\n".join(

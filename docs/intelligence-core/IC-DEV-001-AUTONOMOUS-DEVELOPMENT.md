@@ -99,7 +99,7 @@ No test contacts an external service or production data.
 
 ## Current next increment
 
-`IC-010` is the next eligible routine development increment: a deterministic daily intelligence brief over already-governed retrieval and calendar abstractions, using synthetic data until any separate live authority is granted. `IC-009-LIVE` remains blocked on owner-accessible authentication and must not block routine local development.
+`IC-010` is complete and validated. `IC-011` is the next eligible routine development increment: a durable authority-bound session reference store. `IC-009-LIVE` remains blocked on owner-accessible authentication and must not block routine local development.
 
 ## Limitations
 

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 from uuid import uuid4
 
+from edn.intelligence.brief import DailyIntelligenceComposer
 from edn.intelligence.context import ContextAssembler
 from edn.intelligence.models import (
     GlobalKnowledge,
-    IntelligencePriority,
     IntelligenceRequest,
     IntelligenceResponse,
     IntelligenceStatement,
@@ -19,10 +20,28 @@ from edn.intelligence.session import InMemorySessionStore, SessionState
 
 class IntelligenceService:
     def __init__(
-        self, assembler: ContextAssembler, sessions: InMemorySessionStore | None = None
+        self,
+        assembler: ContextAssembler,
+        sessions: InMemorySessionStore | None = None,
+        brief_composer: DailyIntelligenceComposer | None = None,
     ) -> None:
         self._assembler = assembler
         self._sessions = sessions or InMemorySessionStore()
+        self._brief_composer = brief_composer or DailyIntelligenceComposer()
+
+    def daily_brief(
+        self,
+        request: IntelligenceRequest,
+        *,
+        now: datetime,
+        session_id: str | None = None,
+    ) -> IntelligenceResponse:
+        """Build the user-invoked brief without widening request authority."""
+        return self.answer(
+            replace(request, query="What do I need to know today?"),
+            now=now,
+            session_id=session_id,
+        )
 
     def answer(
         self,
@@ -67,18 +86,7 @@ class IntelligenceService:
                 )
             )
         self._sessions.save(SessionState.from_context(actual_session_id, context))
-        priorities = tuple(
-            IntelligencePriority(
-                item.title,
-                item.excerpt,
-                (item.context_id,),
-                item.provenance[0].locator,
-                "evidence-backed",
-                "Confirm the owner, deadline, and required decision.",
-                ("Current status is not established by this evidence alone.",),
-            )
-            for item in context.evidence[:5]
-        )
+        priorities = self._brief_composer.compose(context)
         return IntelligenceResponse(
             tuple(statements),
             context.evidence,

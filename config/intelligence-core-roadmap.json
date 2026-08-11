@@ -69,7 +69,7 @@
       "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy src/edn", "git diff --check"],
       "stop_conditions": ["New external permission required", "Security-domain ambiguity", "Material architecture change"],
       "dependencies": ["IC-008", "IC-009"],
-      "status": "pending",
+      "status": "completed",
       "successor_tasks": ["IC-011"]
     },
     {

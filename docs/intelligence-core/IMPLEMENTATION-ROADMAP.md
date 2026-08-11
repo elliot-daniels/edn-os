@@ -18,7 +18,7 @@ connector reuses. Security-domain enforcement precedes multi-source context.
 | IC-008 | Source-neutral retrieval, bounded context, response semantics and Alpha sessions; wrap email/graph | IC-001–007 | **High: first governed multi-source answer** | High |
 | IC-009 | **Implemented; awaiting live approval:** controlled Microsoft 365 calendar read adapter and conversation UI | IC-004–005, IC-008 patterns | High: current weekly context | High |
 | IC-DEV-001 | **Implemented:** bounded autonomous development control, standing authority, persisted state and reconstruction skill | IC-001–009 architecture | High developer leverage | Medium |
-| IC-010 | Daily Intelligence brief | IC-008–009 | **Very high daily value** | Medium |
+| IC-010 | **Implemented:** deterministic Daily Intelligence brief | IC-008–009 | **Very high daily value** | Medium |
 | IC-011 | Durable session/follow-up reference store | IC-008–010 | High conversational continuity | Medium |
 | IC-012 | Draft/action planning with human approval state | IC-003, IC-009–011 | High administrative value | High |
 | IC-013 | Controlled action execution framework | IC-012 plus separate action specs | Later high value | Very high |
@@ -30,7 +30,7 @@ background scheduling is deferred; jobs can be launched manually/CLI in Alpha.
 Machine-readable execution status and successor selection are maintained in
 `config/intelligence-core-development-state.json` and
 `config/intelligence-core-roadmap.json`. The current next eligible routine
-increment is IC-010; IC-009 live validation remains separately owner-blocked.
+increment is IC-011; IC-010 is implemented and validated; IC-009 live validation remains separately owner-blocked.
 
 ## Stage gates
 
