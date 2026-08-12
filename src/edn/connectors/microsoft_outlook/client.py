@@ -107,8 +107,8 @@ class MicrosoftGraphOutlookClient:
         raw = payload["value"]
         if not isinstance(raw, list):
             raise RuntimeError("Microsoft Graph returned an unexpected response")
-        if payload.get("@odata.nextLink") is not None:
-            raise RuntimeError("Outlook pagination exceeded the approved single page")
+        # A continuation link can be present when more Inbox messages exist. The
+        # PA-005 boundary deliberately ignores it and never performs a second GET.
         return tuple(cast(dict[str, Any], item) for item in raw[:limit])
 
     def _get(self, url: str) -> dict[str, Any]:

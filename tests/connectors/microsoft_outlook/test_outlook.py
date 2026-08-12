@@ -200,7 +200,12 @@ def test_live_client_is_get_only_inbox_metadata_and_fails_closed() -> None:
         requests.append(request)
         if "/mailFolders/inbox?" in request.full_url:
             return _Response({"id": "native-inbox", "displayName": "Inbox"})
-        return _Response({"value": [_message()]})
+        return _Response(
+            {
+                "value": [_message()],
+                "@odata.nextLink": "https://graph.microsoft.com/prohibited-page-2",
+            }
+        )
 
     client = MicrosoftGraphOutlookClient(_Token(), opener=opener)
     folders = client.folders("me")
@@ -210,6 +215,7 @@ def test_live_client_is_get_only_inbox_metadata_and_fails_closed() -> None:
 
     assert folders[0]["id"] == "native-inbox"
     assert result[0]["id"] == "message-one"
+    assert len(requests) == 2
     assert all(request.method == "GET" for request in requests)
     query = urllib.parse.parse_qs(urllib.parse.urlsplit(requests[-1].full_url).query)
     assert query["$top"] == ["25"]

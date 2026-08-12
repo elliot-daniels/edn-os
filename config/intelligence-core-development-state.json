@@ -27,6 +27,7 @@
     "PA-005-AUTH-REPAIR",
     "PA-005-APP-BOUNDARY",
     "PA-005-INBOX-BINDING",
+    "PA-005-MAIL-PAGE-BOUNDARY",
     "PA-006"
   ],
   "active_increment": null,
@@ -97,6 +98,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-12T20:45:00+09:30",
-  "provenance": "PA-005 browser authentication succeeded with the dedicated client and exact delegated scopes. Bounded /me, Inbox resolution and Calendar reads occurred; mail-message retrieval stopped before request on a native-folder durable-scope mismatch. Repository-only alias binding repaired synthetically."
+  "updated_at": "2026-08-12T21:00:00+09:30",
+  "provenance": "PA-005 retry passed browser authentication, identity and exact scopes, then stopped after the single bounded Inbox page returned an unused continuation link. Repository-only correction now explicitly ignores and never follows that link."
 }

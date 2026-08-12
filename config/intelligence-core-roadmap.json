@@ -664,6 +664,50 @@
       ]
     },
     {
+      "task_id": "PA-005-MAIL-PAGE-BOUNDARY",
+      "objective": "Ignore Graph continuation links while retaining exactly one bounded Inbox page.",
+      "prerequisites": [
+        "PA-005-INBOX-BINDING"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn/connectors/microsoft_outlook",
+        "tests/connectors/microsoft_outlook"
+      ],
+      "acceptance_criteria": [
+        "At most one Inbox messages GET occurs",
+        "At most 25 first-page messages are retained",
+        "Graph continuation links are never followed"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "Second page request",
+        "Retrieval limit broadening",
+        "Mailbox scope broadening"
+      ],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": [
+        "PA-005"
+      ]
+    },
+    {
       "task_id": "PA-005",
       "objective": "Activate separately approved live Calendar, Outlook mail and selected Local Files sources.",
       "prerequisites": [
@@ -674,7 +718,8 @@
         "PA-005-READY",
         "PA-005-AUTH-REPAIR",
         "PA-005-APP-BOUNDARY",
-        "PA-005-INBOX-BINDING"
+        "PA-005-INBOX-BINDING",
+        "PA-005-MAIL-PAGE-BOUNDARY"
       ],
       "authority_actions": [
         "authentication.interactive",
@@ -712,7 +757,8 @@
         "PA-005-READY",
         "PA-005-AUTH-REPAIR",
         "PA-005-APP-BOUNDARY",
-        "PA-005-INBOX-BINDING"
+        "PA-005-INBOX-BINDING",
+        "PA-005-MAIL-PAGE-BOUNDARY"
       ],
       "status": "blocked",
       "successor_tasks": [
