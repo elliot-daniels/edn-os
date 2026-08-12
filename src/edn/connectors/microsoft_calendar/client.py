@@ -11,6 +11,8 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any, Protocol, cast
 
+import msal  # type: ignore[import-untyped]
+
 ALLOWED_DELEGATED_SCOPES = frozenset({"Calendars.Read", "Mail.Read"})
 
 
@@ -26,6 +28,10 @@ class GraphCalendarClient(Protocol):
         timezone_name: str,
         limit: int,
     ) -> tuple[dict[str, Any], ...]: ...
+
+
+class TokenProvider(Protocol):
+    def acquire_token(self) -> str: ...
 
 
 class DeviceCodeCredential:
@@ -111,6 +117,74 @@ class DeviceCodeCredential:
             ) from error
 
 
+class BrowserInteractiveCredential:
+    """System-browser auth-code/PKCE credential with memory-only token state."""
+
+    def __init__(
+        self,
+        tenant_id: str,
+        client_id: str,
+        account_id: str,
+        scopes: tuple[str, ...],
+        *,
+        app_factory: Callable[..., Any] = msal.PublicClientApplication,
+        port: int = 8400,
+    ) -> None:
+        if not scopes or len(scopes) != len(set(scopes)):
+            raise ValueError("delegated scopes must be nonempty and unique")
+        if not set(scopes) <= ALLOWED_DELEGATED_SCOPES:
+            raise ValueError("delegated scope exceeds the PA-005 read-only boundary")
+        if not tenant_id.strip() or not client_id.strip() or not account_id.strip():
+            raise ValueError("Microsoft identity values must be nonblank")
+        if not 1024 <= port <= 65535:
+            raise ValueError("interactive loopback port must be unprivileged")
+        self.tenant_id = tenant_id
+        self.client_id = client_id
+        self.account_id = account_id
+        self.scopes = scopes
+        self.port = port
+        self._app_factory = app_factory
+        self._token: str | None = None
+
+    def acquire_token(self) -> str:
+        if self._token is not None:
+            return self._token
+        app = self._app_factory(
+            self.client_id,
+            authority=f"https://login.microsoftonline.com/{self.tenant_id}",
+            token_cache=msal.TokenCache(),
+        )
+        result = app.acquire_token_interactive(
+            scopes=[f"https://graph.microsoft.com/{scope}" for scope in self.scopes],
+            login_hint=self.account_id,
+            prompt="select_account",
+            timeout=600,
+            port=self.port,
+        )
+        if not isinstance(result, dict) or "access_token" not in result:
+            raise RuntimeError("Microsoft browser authentication failed safely")
+        claims = result.get("id_token_claims")
+        if not isinstance(claims, dict):
+            raise RuntimeError("Microsoft identity claims were unavailable")
+        tenant = str(claims.get("tid", ""))
+        account = str(
+            claims.get("preferred_username") or claims.get("upn") or ""
+        ).casefold()
+        if tenant != self.tenant_id or account != self.account_id.casefold():
+            raise PermissionError(
+                "authenticated Microsoft identity does not match PA-005"
+            )
+        granted = {
+            value.removeprefix("https://graph.microsoft.com/")
+            for value in str(result.get("scope", "")).split()
+            if value not in {"openid", "profile", "email", "offline_access"}
+        }
+        if granted != set(self.scopes):
+            raise PermissionError("granted Microsoft permissions do not match PA-005")
+        self._token = str(result["access_token"])
+        return self._token
+
+
 class MicrosoftGraphCalendarClient:
     """Small read-only Graph client; every requested field is explicit."""
 
@@ -118,7 +192,7 @@ class MicrosoftGraphCalendarClient:
 
     def __init__(
         self,
-        token_provider: DeviceCodeCredential,
+        token_provider: TokenProvider,
         *,
         opener: Callable[..., Any] = urllib.request.urlopen,
     ) -> None:

@@ -1,6 +1,7 @@
 """Read-only Microsoft 365 calendar connector."""
 
 from edn.connectors.microsoft_calendar.client import (
+    BrowserInteractiveCredential,
     DeviceCodeCredential,
     GraphCalendarClient,
     MicrosoftGraphCalendarClient,
@@ -16,6 +17,7 @@ from edn.connectors.microsoft_calendar.models import (
 )
 
 __all__ = [
+    "BrowserInteractiveCredential",
     "CalendarAttendee",
     "CalendarConfig",
     "CalendarEvent",

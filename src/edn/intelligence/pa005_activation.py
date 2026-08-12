@@ -10,10 +10,10 @@ from typing import Any
 
 from edn.connectors import ConnectorRequest
 from edn.connectors.microsoft_calendar import (
+    BrowserInteractiveCredential,
     CalendarConfig,
     CalendarScopeMode,
     CalendarWindow,
-    DeviceCodeCredential,
     MicrosoftCalendarConnector,
     MicrosoftGraphCalendarClient,
 )
@@ -65,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
 
 def _preflight(output: Path) -> dict[str, object]:
     """Validate fixed boundaries without opening a credential or source."""
-    DeviceCodeCredential(TENANT_ID, CLIENT_ID, SCOPES)
+    BrowserInteractiveCredential(TENANT_ID, CLIENT_ID, ACCOUNT_ID, SCOPES)
     return {
         "status": "ready-for-owner-go",
         "tenant_id": TENANT_ID,
@@ -86,7 +86,9 @@ def _validate_live() -> dict[str, Any]:
     classification = Classification(
         "edn", "confidential", "EDN Confidential", rank=2
     )
-    credential = DeviceCodeCredential(TENANT_ID, CLIENT_ID, SCOPES)
+    credential = BrowserInteractiveCredential(
+        TENANT_ID, CLIENT_ID, ACCOUNT_ID, SCOPES
+    )
     calendar_client = MicrosoftGraphCalendarClient(credential)
     outlook_client = MicrosoftGraphOutlookClient(credential)
 

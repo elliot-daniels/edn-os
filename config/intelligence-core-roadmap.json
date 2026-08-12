@@ -519,6 +519,56 @@
       ]
     },
     {
+      "task_id": "PA-005-AUTH-REPAIR",
+      "objective": "Replace Security-Defaults-blocked device code with delegated browser authorization-code/PKCE authentication.",
+      "prerequisites": [
+        "PA-005-READY"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn/connectors/microsoft_calendar",
+        "src/edn/intelligence",
+        "tests",
+        "docs/intelligence-core"
+      ],
+      "acceptance_criteria": [
+        "Browser authorization-code flow uses PKCE and no client secret",
+        "Token state is memory-only",
+        "Tenant, account and exact Graph scopes fail closed before source reads",
+        "No live retry occurs during repository validation"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "Tenant security weakening",
+        "Permission broadening",
+        "Token persistence",
+        "Live authentication during tests"
+      ],
+      "dependencies": [
+        "microsoft-identity-platform"
+      ],
+      "status": "completed",
+      "successor_tasks": [
+        "PA-005"
+      ]
+    },
+    {
       "task_id": "PA-005",
       "objective": "Activate separately approved live Calendar, Outlook mail and selected Local Files sources.",
       "prerequisites": [
@@ -526,7 +576,8 @@
         "PA-002",
         "PA-003",
         "PA-004",
-        "PA-005-READY"
+        "PA-005-READY",
+        "PA-005-AUTH-REPAIR"
       ],
       "authority_actions": [
         "authentication.interactive",
@@ -561,7 +612,8 @@
         "PA-002",
         "PA-003",
         "PA-004",
-        "PA-005-READY"
+        "PA-005-READY",
+        "PA-005-AUTH-REPAIR"
       ],
       "status": "blocked",
       "successor_tasks": [

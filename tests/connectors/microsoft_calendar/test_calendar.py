@@ -14,7 +14,10 @@ from edn.connectors.microsoft_calendar import (
     MicrosoftCalendarConnector,
 )
 from edn.connectors.microsoft_calendar.cli import build_validation_report
-from edn.connectors.microsoft_calendar.client import DeviceCodeCredential
+from edn.connectors.microsoft_calendar.client import (
+    BrowserInteractiveCredential,
+    DeviceCodeCredential,
+)
 from edn.core import (
     AuthenticationStatus,
     CapabilityRegistry,
@@ -187,6 +190,86 @@ def test_device_code_credential_allows_only_exact_pa005_scopes() -> None:
         DeviceCodeCredential("tenant", "client", ("Calendars.ReadWrite",))
     with pytest.raises(ValueError, match="unique"):
         DeviceCodeCredential("tenant", "client", ("Mail.Read", "Mail.Read"))
+
+
+def test_browser_pkce_credential_is_memory_only_and_identity_bound() -> None:
+    calls: list[dict[str, Any]] = []
+
+    class FakeApp:
+        def acquire_token_interactive(self, **kwargs):
+            calls.append(kwargs)
+            return {
+                "access_token": "synthetic-token",
+                "scope": "Calendars.Read Mail.Read openid profile",
+                "id_token_claims": {
+                    "tid": "tenant",
+                    "preferred_username": "owner@example.com",
+                },
+            }
+
+    def factory(client_id, **kwargs):
+        assert client_id == "client"
+        assert kwargs["authority"].endswith("/tenant")
+        assert kwargs["token_cache"].__class__.__name__ == "TokenCache"
+        return FakeApp()
+
+    credential = BrowserInteractiveCredential(
+        "tenant",
+        "client",
+        "owner@example.com",
+        ("Calendars.Read", "Mail.Read"),
+        app_factory=factory,
+    )
+
+    assert credential.acquire_token() == "synthetic-token"
+    assert credential.acquire_token() == "synthetic-token"
+    assert len(calls) == 1
+    assert calls[0]["prompt"] == "select_account"
+    assert calls[0]["port"] == 8400
+    assert calls[0]["scopes"] == [
+        "https://graph.microsoft.com/Calendars.Read",
+        "https://graph.microsoft.com/Mail.Read",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("claims", "scope"),
+    [
+        (
+            {"tid": "other", "preferred_username": "owner@example.com"},
+            "Calendars.Read Mail.Read",
+        ),
+        (
+            {"tid": "tenant", "preferred_username": "other@example.com"},
+            "Calendars.Read Mail.Read",
+        ),
+        (
+            {"tid": "tenant", "preferred_username": "owner@example.com"},
+            "Calendars.Read Mail.ReadWrite",
+        ),
+    ],
+)
+def test_browser_pkce_credential_rejects_identity_or_scope_drift(
+    claims: dict[str, str], scope: str
+) -> None:
+    class FakeApp:
+        def acquire_token_interactive(self, **_kwargs):
+            return {
+                "access_token": "synthetic-token",
+                "scope": scope,
+                "id_token_claims": claims,
+            }
+
+    credential = BrowserInteractiveCredential(
+        "tenant",
+        "client",
+        "owner@example.com",
+        ("Calendars.Read", "Mail.Read"),
+        app_factory=lambda *_args, **_kwargs: FakeApp(),
+    )
+
+    with pytest.raises(PermissionError):
+        credential.acquire_token()
 
 
 @pytest.mark.parametrize(

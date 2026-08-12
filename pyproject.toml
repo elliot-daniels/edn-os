@@ -12,6 +12,7 @@ license = { text = "Proprietary" }
 authors = [{ name = "EDN Systems" }]
 
 dependencies = [
+    "msal>=1.33,<2",
     "streamlit>=1.40,<2",
 ]
 [project.optional-dependencies]

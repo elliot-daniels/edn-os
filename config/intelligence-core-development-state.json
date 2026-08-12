@@ -24,6 +24,7 @@
     "PA-003",
     "PA-004",
     "PA-005-READY",
+    "PA-005-AUTH-REPAIR",
     "PA-006"
   ],
   "active_increment": null,
@@ -34,7 +35,7 @@
     },
     {
       "task_id": "PA-005",
-      "reason": "Owner GO was received, but the exact approved protected F: drive path is unavailable in WSL (`/mnt/f` returned No such device); activation stopped before authentication or source access."
+      "reason": "Device-code authentication was blocked by Entra Security Defaults (AADSTS530035). Browser authorization-code/PKCE replacement is repository-validated; owner-admin must add/verify the Mobile and desktop `http://localhost` redirect and public-client setting before retry."
     }
   ],
   "deferred_increments": [],
@@ -46,7 +47,7 @@
     "No approved model/global provider exists.",
     "Proposals cannot execute.",
     "PDF/DOCX extraction is deliberately bounded and fails closed on unsupported PDF filters or ambiguous structures; live owner roots remain unauthorised.",
-    "Current Outlook read contracts, GET-only live client and activation runner exist, but authentication, Graph access and mailbox data remain blocked pending owner GO.",
+    "Current Outlook read contracts, GET-only live client and browser/PKCE activation runner exist, but Graph access remains blocked pending required Entra app-registration verification.",
     "SharePoint Business OS retrieval is synthetic-only; no live site or content is authorised."
   ],
   "test_status": {
@@ -58,9 +59,9 @@
       "python -m json.tool (state, roadmap, policy and each audit JSONL record)",
       "git diff --check"
     ],
-    "passed": 310,
+    "passed": 314,
     "failed": 0,
-    "validated_at": "2026-08-12T19:18:07+09:30"
+    "validated_at": "2026-08-12T20:05:00+09:30"
   },
   "repository_status": "clean-checkpoint-except-protected-pa005-pack",
   "expected_dirty_paths": [
@@ -74,8 +75,8 @@
     "Approve future SharePoint content, model disclosure or external execution."
   ],
   "external_capability_blockers": [
-    "IC-009-LIVE requires owner-interactive Microsoft authentication.",
-    "Current Calendar, Inbox and approved owner files require PA-005 live GO; SharePoint remains separately deferred.",
+    "IC-009-LIVE requires successful owner-interactive Microsoft authentication.",
+    "PA-005 requires owner-admin verification of the native `http://localhost` redirect and public-client setting before browser/PKCE retry; SharePoint remains separately deferred.",
     "Model intelligence requires provider/disclosure/retention approval."
   ],
   "architecture_references": [
@@ -91,8 +92,9 @@
     "docs/intelligence-core/PA-004-PROGRESSIVE-ONBOARDING.md",
     "docs/intelligence-core/PA-006-SHAREPOINT-SYNTHETIC.md",
     "docs/intelligence-core/IC-DEV-002-VALIDATED-GIT-CHECKPOINTS.md",
-    "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
+    "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
+    "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-12T19:32:00+09:30",
-  "provenance": "PA-005 live GO received; exact protected output path preflight failed because /mnt/f is unavailable. Stopped before device-code authentication, Graph calls, live file-root reads or external mutation."
+  "updated_at": "2026-08-12T20:02:00+09:30",
+  "provenance": "PA-005 device-code authentication attempted but failed with AADSTS530035; zero successful Graph reads. Microsoft-supported browser authorization-code/PKCE replacement implemented with memory-only MSAL state and unchanged source boundaries."
 }
