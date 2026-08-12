@@ -3,7 +3,7 @@
   "product": "EDN Intelligence Core",
   "version": "0.1.0-alpha",
   "current_branch": "feature/intelligence-core-v0.1",
-  "current_milestone": "PA-005 Microsoft validation passed; Local Files discovery returned no candidates",
+  "current_milestone": "PA-005 Microsoft validation passed; four controlled Local Files candidates await owner review",
   "completed_increments": [
     "IC-001",
     "IC-002",
@@ -38,7 +38,7 @@
     },
     {
       "task_id": "PA-005",
-      "reason": "Bounded Microsoft Calendar/Inbox validation passed. Exact-root Local Files metadata discovery completed with zero candidates; owner review must decide whether to populate the approved root and rerun discovery."
+      "reason": "Bounded Microsoft validation passed but no exact-EDN items were admitted. Four controlled Local Files candidates were discovered and require owner review before any ingestion plan or content read."
     }
   ],
   "deferred_increments": [],
@@ -74,11 +74,12 @@
   "next_recommended_increment": null,
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
-    "Review the empty Local Files candidate result; optionally place approved EDN documents in the exact root and authorise metadata discovery rerun.",
+    "Review the four controlled Local Files candidates and separately approve any exact ingestion selection.",
+    "Manually create or categorise one this-week default Calendar event and one current Inbox message with exact category EDN, then authorise bounded revalidation.",
     "Approve future SharePoint content, model disclosure or external execution."
   ],
   "external_capability_blockers": [
-    "PA-005 has no admitted EDN-category Calendar or Inbox records and no Local Files candidates, so useful current evidence is not yet activated.",
+    "PA-005 has four eligible controlled Local Files candidates but no admitted EDN-category Calendar or Inbox records; content ingestion remains unapproved.",
     "SharePoint remains separately deferred.",
     "Model intelligence requires provider/disclosure/retention approval."
   ],
@@ -98,6 +99,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-12T21:09:48+09:30",
-  "provenance": "PA-005 bounded revalidation succeeded: Calendar 1 retrieved/0 admitted; Inbox 25 retrieved/0 admitted; rejected items lacked exact EDN category and no continuation was followed. Exact-root metadata rediscovery reconciled an empty directory and zero candidates with zero content reads."
+  "updated_at": "2026-08-12T21:21:52+09:30",
+  "provenance": "Four explicitly synthetic, non-sensitive PA-005 documents were created in the exact approved root and discovered metadata-only as supported EDN Confidential candidates. Zero content ingestion reads, approvals or source-scope changes occurred."
 }
