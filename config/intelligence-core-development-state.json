@@ -68,7 +68,7 @@
   "expected_dirty_paths": [
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
-  "last_validated_commit": "3f8929134f3a5d880b257b7d7350da9385430ef2",
+  "last_validated_commit": "7fbacaf5415634441d41c42d3c5a054ae5218e4d",
   "next_recommended_increment": null,
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
@@ -97,5 +97,5 @@
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
   "updated_at": "2026-08-12T20:25:00+09:30",
-  "provenance": "PA-005 rebound repository-only to dedicated client 2381e4f6-44bc-4697-ad64-e86513cb9dee with exact delegated User.Read, Calendars.Read and Mail.Read; no authentication or Graph request occurred."
+  "provenance": "PA-005 rebound repository-only to dedicated client 2381e4f6-44bc-4697-ad64-e86513cb9dee with exact delegated User.Read, Calendars.Read and Mail.Read; validated and checkpointed as 7fbacaf5415634441d41c42d3c5a054ae5218e4d without authentication or Graph requests."
 }
