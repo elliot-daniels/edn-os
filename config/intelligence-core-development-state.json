@@ -98,6 +98,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-12T20:51:28+09:30",
-  "provenance": "PA-005 bounded Microsoft validation succeeded: Calendar 1 retrieved/0 admitted; Inbox 25 retrieved/0 admitted; no continuation followed. Exact-root Local Files metadata discovery completed with zero candidates and zero content reads."
+  "updated_at": "2026-08-12T21:09:48+09:30",
+  "provenance": "PA-005 bounded revalidation succeeded: Calendar 1 retrieved/0 admitted; Inbox 25 retrieved/0 admitted; rejected items lacked exact EDN category and no continuation was followed. Exact-root metadata rediscovery reconciled an empty directory and zero candidates with zero content reads."
 }
