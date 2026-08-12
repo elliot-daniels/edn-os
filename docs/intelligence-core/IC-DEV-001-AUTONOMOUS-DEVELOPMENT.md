@@ -4,7 +4,10 @@
 
 IC-DEV-001 adds a narrow, deterministic control plane for continuing EDN Intelligence Core development. It moves routine planning, implementation, validation, repair, review, documentation, and state updates under standing authority while reserving genuine business and external-effect decisions for the owner.
 
-It is development-only. It does not authenticate, contact external services, mutate production systems, deploy, merge, push, or grant itself authority.
+It is development-only. It does not authenticate, contact live services, mutate
+production systems, deploy, merge, rebase or rewrite history. It may checkpoint
+validated increments to the current non-protected feature branch's existing
+upstream only under the exact standing policy below.
 
 ## Architecture
 
@@ -39,7 +42,33 @@ Chat history is not authoritative. A fresh builder reads these artifacts, then t
 
 ## Standing authority
 
-The policy uses named actions rather than a single broad autonomy flag. Routine repository reads and writes, synthetic tests, static validation, internal refactoring and repair, documentation, state/audit updates, local planning, and commit preparation are allowed. Authority is evaluated for every action declared by a roadmap task.
+The policy uses named actions rather than a single broad autonomy flag. Routine repository reads and writes, synthetic tests, static validation, internal refactoring and repair, documentation, state/audit updates, local planning, and validated feature-branch checkpointing are allowed. Authority is evaluated for every action declared by a roadmap task.
+
+### Validated feature-branch checkpoint authority
+
+`git.stage.validated_increment`, `git.commit.validated_increment` and
+`git.push.current_upstream` are standing authority only when the typed checkpoint
+decision confirms every condition:
+
+- the branch begins `feature/` and is not `main`, `master`, `protected/*` or
+  `release/*`;
+- the push remote is `origin`, and target remote/branch exactly equal the current
+  branch's already-configured upstream;
+- every changed path belongs only to completed, reviewed roadmap increments;
+- relevant validation passed without bypassing checks or hooks;
+- the commit message reflects the completed increment;
+- no secret, protected operational data or live evidence is included;
+- audit/state checkpoint recording is planned; and
+- local `HEAD` will be compared with the upstream after push.
+
+Failure of any condition prohibits the checkpoint; it is not converted into a
+routine owner prompt. Unknown state fails closed.
+
+Autonomous force-push (including `--force-with-lease`), protected/different-
+branch or different-remote push, merge, rebase, branch/tag deletion, tag
+creation, amendment of pushed commits, history rewriting, remote/upstream
+changes, hook/validation bypass, protected-data commits and destructive Git
+recovery/reset are permanently prohibited.
 
 New data access, domain/classification expansion, external permissions or authentication, production mutation, external communication, financial/legal actions, destructive or irreversible work, material architecture changes, security weakening, human-authority or product-vision changes, material infrastructure cost, protected-branch integration, and indeterminate actions require the owner. Explicitly prohibited autonomous actions remain prohibited rather than becoming approval requests.
 
@@ -61,7 +90,11 @@ Roadmap tasks use stable IDs and record objective, prerequisites, action/authori
 
 The loop validates branch and expected working-tree state before selecting work. It then evaluates authority, calls the builder adapter, validates, reviews, and repairs routine findings. Limits apply to tasks, repair cycles, and elapsed time. Repeated identical validation failures, unexpected repository state, authority ambiguity, material architecture conflict, builder failure, or exhausted limits stop the run.
 
-Successful tasks update state, append audit outcomes, and produce a recommended commit message. Commit creation, pushing, merging, and deployment remain separate policy actions.
+Successful tasks update state, append audit outcomes, and produce a matching
+commit message. A policy-authorised feature checkpoint may then stage exact
+increment paths, commit, push to the existing upstream, verify equality and append
+content-free commit/push audit/state evidence. Merge, rebase and deployment remain
+prohibited.
 
 ## Builder, validator, and reviewer
 
@@ -84,6 +117,8 @@ Synthetic tests reconstruct state, roadmap, and policy from disk in a fresh proc
 - a material architecture finding escalates;
 - a blocked task permits another eligible routine task;
 - persisted state and the real repository configurations identify the next eligible increment while `IC-009-LIVE` remains blocked.
+- validated completed work may checkpoint only to its exact existing feature
+  upstream, while every prohibited Git variant and missing precondition fails.
 
 No test contacts an external service or production data.
 
@@ -106,5 +141,6 @@ No test contacts an external service or production data.
 - The initial builder adapter is manual/local; no Codex SDK executor is bundled.
 - Acceptance-criterion interpretation is supplied by the validator/reviewer rather than a generic natural-language engine.
 - JSON state assumes one orchestrator writer at a time.
-- Commit creation and all external effects remain outside this increment.
+- Git checkpoint evaluation is deterministic; the shell adapter must still
+  resolve the real current branch/upstream and exact changed paths before acting.
 - The expected-dirty-path list must be intentionally updated as pre-existing work changes.

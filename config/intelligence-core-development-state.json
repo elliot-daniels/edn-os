@@ -56,22 +56,23 @@
       "python -m mypy src/edn",
       "git diff --check"
     ],
-    "passed": 270,
+    "passed": 304,
     "failed": 0,
-    "validated_at": "2026-08-12T08:36:43+09:30"
+    "validated_at": "2026-08-12T18:44:52+09:30"
   },
-  "repository_status": "dirty-known-authorised",
+  "repository_status": "dirty-known-authorised-review",
   "expected_dirty_paths": [
+    ".codex/skills/edn-intelligence-core-builder/SKILL.md",
     "config/intelligence-core-development-audit.jsonl",
     "config/intelligence-core-development-state.json",
-    "config/intelligence-core-roadmap.json",
-    "docs/intelligence-core/PA-006-SHAREPOINT-SYNTHETIC.md",
-    "src/edn/connectors/microsoft_sharepoint",
-    "src/edn/intelligence",
-    "tests/development",
-    "tests/connectors/microsoft_sharepoint"
+    "config/development-authority-policy.json",
+    "docs/intelligence-core/IC-DEV-001-AUTONOMOUS-DEVELOPMENT.md",
+    "docs/intelligence-core/IC-DEV-002-VALIDATED-GIT-CHECKPOINTS.md",
+    "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
+    "src/edn/development",
+    "tests/development"
   ],
-  "last_validated_commit": "c3cde3526887f811450b00fb11d9d952413f21a0",
+  "last_validated_commit": "32f6cbac363ce60ad898aa1d33243be6d4a15fb3",
   "next_recommended_increment": null,
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
@@ -94,8 +95,9 @@
     "docs/intelligence-core/IC-012-INTERNAL-ACTION-PLANNING.md",
     "docs/intelligence-core/POST-ALPHA-ARCHITECTURE-REVIEW.md",
     "docs/intelligence-core/PA-004-PROGRESSIVE-ONBOARDING.md",
-    "docs/intelligence-core/PA-006-SHAREPOINT-SYNTHETIC.md"
+    "docs/intelligence-core/PA-006-SHAREPOINT-SYNTHETIC.md",
+    "docs/intelligence-core/IC-DEV-002-VALIDATED-GIT-CHECKPOINTS.md"
   ],
-  "updated_at": "2026-08-12T08:36:43+09:30",
-  "provenance": "PA-006 completed from clean pushed c3cde35 baseline using synthetic SharePoint fixtures only; one-task bounded run exhausted"
+  "updated_at": "2026-08-12T18:53:56+09:30",
+  "provenance": "Validated Git checkpoint standing-authority policy version 1.1.0 approved by owner for checkpoint to feature/intelligence-core-v0.1 existing origin upstream; PA-005 pack explicitly excluded"
 }

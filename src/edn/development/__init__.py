@@ -10,7 +10,11 @@ from edn.development.audit import (
     InMemoryDevelopmentAudit,
     JsonlDevelopmentAudit,
 )
-from edn.development.authority import DevelopmentAuthorityPolicy
+from edn.development.authority import (
+    DevelopmentAuthorityPolicy,
+    GitCheckpointAuthority,
+    GitCheckpointRequest,
+)
 from edn.development.models import (
     AgentResult,
     AuditEvent,
@@ -55,6 +59,8 @@ __all__ = [
     "DevelopmentTaskStatus",
     "DevelopmentValidator",
     "EscalationRequest",
+    "GitCheckpointAuthority",
+    "GitCheckpointRequest",
     "InMemoryDevelopmentAudit",
     "JsonlDevelopmentAudit",
     "ManualLocalAgent",

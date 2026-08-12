@@ -1,6 +1,6 @@
 {
   "policy_id": "edn-development-standing-authority",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "allowed_actions": [
     "agent.local.execute",
     "architecture.approved.refactor",
@@ -9,8 +9,11 @@
     "config.development.write",
     "documentation.write",
     "git.branch.create",
+    "git.commit.validated_increment",
     "git.commit.prepare",
     "git.history.read",
+    "git.push.current_upstream",
+    "git.stage.validated_increment",
     "git.status.read",
     "repository.read",
     "roadmap.continue",
@@ -49,7 +52,65 @@
     "autonomous.financial.action",
     "autonomous.production.deployment",
     "cloud.orchestrator.create",
+    "git.branch.delete",
+    "git.commit.amend_pushed",
+    "git.destructive_recovery",
+    "git.hooks.bypass",
+    "git.merge",
+    "git.protected_branch.push",
+    "git.push.different_remote",
+    "git.push.force",
+    "git.push.force_with_lease",
+    "git.rebase",
+    "git.remote.change",
+    "git.secret_or_protected_data.commit",
+    "git.tag.create",
+    "git.tag.delete",
+    "git.upstream.change",
+    "git.validation.bypass",
+    "git.history.rewrite",
     "production.protected_branch.force",
     "security.control.bypass"
-  ]
+  ],
+  "git_checkpoint_authority": {
+    "allowed_branch_prefixes": [
+      "feature/"
+    ],
+    "protected_branches": [
+      "main",
+      "master"
+    ],
+    "protected_branch_prefixes": [
+      "protected/",
+      "release/"
+    ],
+    "allowed_remote": "origin",
+    "prohibited_operations": [
+      "branch-delete",
+      "bypass-hooks",
+      "bypass-validation",
+      "commit-amend-pushed",
+      "destructive-reset",
+      "force-push",
+      "force-with-lease",
+      "history-rewrite",
+      "merge",
+      "push-different-remote",
+      "rebase",
+      "remote-change",
+      "tag-create",
+      "tag-delete",
+      "upstream-change"
+    ],
+    "required_record_fields": [
+      "task_id",
+      "commit_hash",
+      "commit_message",
+      "branch",
+      "upstream",
+      "validation_evidence",
+      "pushed_at",
+      "local_head_equals_upstream"
+    ]
+  }
 }
