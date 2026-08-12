@@ -15,6 +15,7 @@ from edn.intelligence.adapters import (
     KnowledgeGraphAdapter,
     LocalFilesEvidenceAdapter,
     OutlookEvidenceAdapter,
+    SharePointEvidenceAdapter,
     SourceAdapter,
 )
 from edn.intelligence.brief import DailyIntelligenceComposer
@@ -64,6 +65,7 @@ __all__ = [
     "SQLiteSessionStore",
     "SessionState",
     "SessionStore",
+    "SharePointEvidenceAdapter",
     "SourceAdapter",
     "StatementKind",
     "proposal_fingerprint",

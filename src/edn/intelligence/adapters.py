@@ -10,6 +10,7 @@ from edn.connectors import ConnectorRequest
 from edn.connectors.local_files import LocalFilesConnector
 from edn.connectors.microsoft_calendar import CalendarWindow, MicrosoftCalendarConnector
 from edn.connectors.microsoft_outlook import MailWindow, MicrosoftOutlookConnector
+from edn.connectors.microsoft_sharepoint import MicrosoftSharePointConnector
 from edn.core import CapabilityUseDecision, EvidenceRef, SourceRef, UniversalRecordRef
 from edn.intelligence.models import ContextEvidence, IntelligenceRequest
 from edn.knowledge_graph.persistence import KnowledgeGraphStore
@@ -263,6 +264,53 @@ class OutlookEvidenceAdapter:
                 (self.connector.evidence_ref(item),),
             )
             for index, item in enumerate(result.messages)
+        )
+
+
+@dataclass(slots=True)
+class SharePointEvidenceAdapter:
+    connector: MicrosoftSharePointConnector
+    capability_id: str = "sharepoint.search"
+    operation: str = "search"
+
+    @property
+    def resource_scope(self) -> tuple[str, ...]:
+        return (self.connector.config.site_id, self.connector.config.list_id)
+
+    def retrieve(
+        self,
+        request: IntelligenceRequest,
+        *,
+        limit: int,
+        now: datetime,
+        authority: CapabilityUseDecision,
+    ) -> tuple[ContextEvidence, ...]:
+        connector_request = ConnectorRequest(
+            authority.request.request_id,
+            authority.request.request_id,
+            request.principal,
+            request.purpose,
+            request.security_domain,
+            request.classification,
+            self.capability_id,
+            self.operation,
+            authority,
+            self.resource_scope,
+        )
+        result = self.connector.search_records(
+            connector_request, query=request.query, now=now, limit=limit
+        )
+        return tuple(
+            ContextEvidence(
+                f"sharepoint:{item.item_id}",
+                self.capability_id,
+                "Business OS SharePoint",
+                item.title,
+                "; ".join(f"{name}: {value}" for name, value in item.fields),
+                float(limit - index),
+                (self.connector.evidence_ref(item),),
+            )
+            for index, item in enumerate(result.records)
         )
 
 
