@@ -3,7 +3,7 @@
   "product": "EDN Intelligence Core",
   "version": "0.1.0-alpha",
   "current_branch": "feature/intelligence-core-v0.1",
-  "current_milestone": "PA-005 activation plumbing complete; first live source access requires owner GO",
+  "current_milestone": "PA-005 Microsoft validation passed; Local Files discovery returned no candidates",
   "completed_increments": [
     "IC-001",
     "IC-002",
@@ -38,7 +38,7 @@
     },
     {
       "task_id": "PA-005",
-      "reason": "Browser authorization-code/PKCE is repository-validated against the dedicated EDN Intelligence Core public client; a new owner GO is required before retrying live authentication."
+      "reason": "Bounded Microsoft Calendar/Inbox validation passed. Exact-root Local Files metadata discovery completed with zero candidates; owner review must decide whether to populate the approved root and rerun discovery."
     }
   ],
   "deferred_increments": [],
@@ -50,7 +50,7 @@
     "No approved model/global provider exists.",
     "Proposals cannot execute.",
     "PDF/DOCX extraction is deliberately bounded and fails closed on unsupported PDF filters or ambiguous structures; live owner roots remain unauthorised.",
-    "Current Outlook read contracts, GET-only live client and browser/PKCE activation runner exist, but Graph access remains blocked pending required Entra app-registration verification.",
+    "Current Outlook and Calendar live validation passed, but exact EDN category admission yielded zero retained records in both sources.",
     "SharePoint Business OS retrieval is synthetic-only; no live site or content is authorised."
   ],
   "test_status": {
@@ -70,16 +70,16 @@
   "expected_dirty_paths": [
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
-  "last_validated_commit": "7fbacaf5415634441d41c42d3c5a054ae5218e4d",
+  "last_validated_commit": "c2f9859f0b309f615d53fc651d7550fc84d33d4f",
   "next_recommended_increment": null,
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
-    "Issue GO for the exact PA-005 pack before first device-code authentication or approved Local Files root read.",
+    "Review the empty Local Files candidate result; optionally place approved EDN documents in the exact root and authorise metadata discovery rerun.",
     "Approve future SharePoint content, model disclosure or external execution."
   ],
   "external_capability_blockers": [
-    "IC-009-LIVE requires successful owner-interactive Microsoft authentication.",
-    "PA-005 browser/PKCE retry requires owner GO; SharePoint remains separately deferred.",
+    "PA-005 has no admitted EDN-category Calendar or Inbox records and no Local Files candidates, so useful current evidence is not yet activated.",
+    "SharePoint remains separately deferred.",
     "Model intelligence requires provider/disclosure/retention approval."
   ],
   "architecture_references": [
@@ -98,6 +98,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-12T21:00:00+09:30",
-  "provenance": "PA-005 retry passed browser authentication, identity and exact scopes, then stopped after the single bounded Inbox page returned an unused continuation link. Repository-only correction now explicitly ignores and never follows that link."
+  "updated_at": "2026-08-12T20:51:28+09:30",
+  "provenance": "PA-005 bounded Microsoft validation succeeded: Calendar 1 retrieved/0 admitted; Inbox 25 retrieved/0 admitted; no continuation followed. Exact-root Local Files metadata discovery completed with zero candidates and zero content reads."
 }
