@@ -34,7 +34,7 @@
     },
     {
       "task_id": "PA-005",
-      "reason": "Executable bounded activation is ready; owner GO is required before first Microsoft authentication or approved Local Files root read."
+      "reason": "Owner GO was received, but the exact approved protected F: drive path is unavailable in WSL (`/mnt/f` returned No such device); activation stopped before authentication or source access."
     }
   ],
   "deferred_increments": [],
@@ -93,6 +93,6 @@
     "docs/intelligence-core/IC-DEV-002-VALIDATED-GIT-CHECKPOINTS.md",
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
-  "updated_at": "2026-08-12T19:18:07+09:30",
-  "provenance": "PA-005 repository-only executable plumbing validated, committed as 098a358d1e16859b4f96138fee2515ffaf75abc7 and pushed to the existing feature/intelligence-core-v0.1 origin upstream; no authentication, Graph call, live file-root read or external mutation"
+  "updated_at": "2026-08-12T19:32:00+09:30",
+  "provenance": "PA-005 live GO received; exact protected output path preflight failed because /mnt/f is unavailable. Stopped before device-code authentication, Graph calls, live file-root reads or external mutation."
 }
