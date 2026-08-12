@@ -806,7 +806,7 @@
         "PA-005-MAIL-PAGE-BOUNDARY",
         "PA-005-DOMAIN-BINDING"
       ],
-      "status": "blocked",
+      "status": "completed",
       "successor_tasks": [
         "PA-007"
       ]

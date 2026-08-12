@@ -29,6 +29,7 @@
     "PA-005-INBOX-BINDING",
     "PA-005-MAIL-PAGE-BOUNDARY",
     "PA-005-DOMAIN-BINDING",
+    "PA-005",
     "PA-006"
   ],
   "active_increment": null,
@@ -36,10 +37,6 @@
     {
       "task_id": "IC-009-LIVE",
       "reason": "Owner-visible interactive Microsoft authentication is required; previous Codex-channel prompt was buffered and stopped safely."
-    },
-    {
-      "task_id": "PA-005",
-      "reason": "Bounded Microsoft validation passed but no exact-EDN items were admitted. Four controlled Local Files candidates were discovered and require owner review before any ingestion plan or content read."
     }
   ],
   "deferred_increments": [],
@@ -72,15 +69,13 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
   "last_validated_commit": "c2f9859f0b309f615d53fc651d7550fc84d33d4f",
-  "next_recommended_increment": null,
+  "next_recommended_increment": "PA-007",
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
-    "Review the four controlled Local Files candidates and separately approve any exact ingestion selection.",
-    "Manually create or categorise one this-week default Calendar event and one current Inbox message with exact category EDN, then authorise bounded revalidation.",
     "Approve future SharePoint content, model disclosure or external execution."
   ],
   "external_capability_blockers": [
-    "PA-005 has four eligible controlled Local Files candidates but no admitted EDN-category Calendar or Inbox records; content ingestion remains unapproved.",
+    "PA-005 controlled evidence passed; broader operational completeness remains unproven.",
     "SharePoint remains separately deferred.",
     "Model intelligence requires provider/disclosure/retention approval."
   ],
@@ -100,6 +95,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-12T21:21:52+09:30",
-  "provenance": "Four explicitly synthetic, non-sensitive PA-005 documents were created in the exact approved root and discovered metadata-only as supported EDN Confidential candidates. Zero content ingestion reads, approvals or source-scope changes occurred."
+  "updated_at": "2026-08-12T21:50:54+09:30",
+  "provenance": "PA-005 controlled evidence validation passed: Calendar 1/1 admitted, Inbox 2/25 admitted, four exact synthetic Local Files ingested with plan/fingerprint/provenance binding, and three-source bounded context assembly passed under EDN/edn-local/confidential."
 }
