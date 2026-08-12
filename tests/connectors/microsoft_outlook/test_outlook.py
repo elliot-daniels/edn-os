@@ -175,6 +175,23 @@ def test_connector_is_read_only_and_conformant() -> None:
     assert not hasattr(connector, "act")
 
 
+def test_native_folder_id_can_bind_to_durable_inbox_authority_alias() -> None:
+    config = OutlookConfig(
+        "tenant",
+        "owner@example.com",
+        "owner-mailbox",
+        ("native+/=folder",),
+        EDN,
+        CLASSIFICATION,
+        MailScopeMode.CATEGORY_REQUIRED,
+        "EDN",
+        authority_folder_ids=("inbox",),
+    )
+
+    assert config.folder_ids == ("native+/=folder",)
+    assert config.authority_folders == ("inbox",)
+
+
 def test_live_client_is_get_only_inbox_metadata_and_fails_closed() -> None:
     requests = []
 

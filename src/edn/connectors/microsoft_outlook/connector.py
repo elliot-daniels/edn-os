@@ -171,7 +171,7 @@ class MicrosoftOutlookConnector:
             raise PermissionError("mail domain does not match approved source")
         if request.classification != self.config.classification:
             raise PermissionError("mail classification does not match source")
-        expected = {self.config.mailbox_id, *self.config.folder_ids}
+        expected = {self.config.mailbox_id, *self.config.authority_folders}
         if not expected <= set(request.scope):
             raise PermissionError(
                 "request is not bound to the configured mailbox scope"

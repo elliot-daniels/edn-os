@@ -26,6 +26,7 @@
     "PA-005-READY",
     "PA-005-AUTH-REPAIR",
     "PA-005-APP-BOUNDARY",
+    "PA-005-INBOX-BINDING",
     "PA-006"
   ],
   "active_increment": null,
@@ -60,9 +61,9 @@
       "python -m json.tool (state, roadmap, policy and each audit JSONL record)",
       "git diff --check"
     ],
-    "passed": 314,
+    "passed": 315,
     "failed": 0,
-    "validated_at": "2026-08-12T20:05:00+09:30"
+    "validated_at": "2026-08-12T20:45:00+09:30"
   },
   "repository_status": "clean-checkpoint-except-protected-pa005-pack",
   "expected_dirty_paths": [
@@ -96,6 +97,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-12T20:25:00+09:30",
-  "provenance": "PA-005 rebound repository-only to dedicated client 2381e4f6-44bc-4697-ad64-e86513cb9dee with exact delegated User.Read, Calendars.Read and Mail.Read; validated and checkpointed as 7fbacaf5415634441d41c42d3c5a054ae5218e4d without authentication or Graph requests."
+  "updated_at": "2026-08-12T20:45:00+09:30",
+  "provenance": "PA-005 browser authentication succeeded with the dedicated client and exact delegated scopes. Bounded /me, Inbox resolution and Calendar reads occurred; mail-message retrieval stopped before request on a native-folder durable-scope mismatch. Repository-only alias binding repaired synthetically."
 }

@@ -127,6 +127,7 @@ def _validate_live() -> dict[str, Any]:
             classification,
             MailScopeMode.CATEGORY_REQUIRED,
             CATEGORY,
+            authority_folder_ids=("inbox",),
         ),
         outlook_client,
     )
@@ -139,7 +140,7 @@ def _validate_live() -> dict[str, Any]:
     )
     mail_result = outlook.search_messages(
         _request(
-            outlook, domain, classification, ("me", inbox_id, "window:last-7-days")
+            outlook, domain, classification, ("me", "inbox", "window:last-7-days")
         ),
         window=MailWindow.LAST_7_DAYS,
         now=now,

@@ -42,6 +42,7 @@ class OutlookConfig:
     required_category: str | None = None
     include_body: bool = False
     include_attachments: bool = False
+    authority_folder_ids: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         identities = (
@@ -56,6 +57,11 @@ class OutlookConfig:
             raise ValueError("Outlook identity and folder values must be nonblank")
         if not self.folder_ids:
             raise ValueError("at least one exact Outlook folder is required")
+        if self.authority_folder_ids is not None and (
+            len(self.authority_folder_ids) != len(self.folder_ids)
+            or any(not value.strip() for value in self.authority_folder_ids)
+        ):
+            raise ValueError("authority folder aliases must exactly map folders")
         if self.include_body or self.include_attachments:
             raise ValueError("PA-003 excludes mail bodies and attachments")
         if self.scope_mode is MailScopeMode.CATEGORY_REQUIRED:
@@ -63,6 +69,14 @@ class OutlookConfig:
                 raise ValueError("category-required mode needs an exact category")
         elif self.required_category is not None:
             raise ValueError("dedicated-mailbox mode does not accept a category")
+
+    @property
+    def authority_folders(self) -> tuple[str, ...]:
+        return (
+            self.folder_ids
+            if self.authority_folder_ids is None
+            else self.authority_folder_ids
+        )
 
 
 @dataclass(frozen=True, slots=True)
