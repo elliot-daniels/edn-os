@@ -66,7 +66,7 @@
   "expected_dirty_paths": [
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
-  "last_validated_commit": "e0d553e47fda22c09c195c89fc8b2f8382ee7996",
+  "last_validated_commit": "098a358d1e16859b4f96138fee2515ffaf75abc7",
   "next_recommended_increment": null,
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
@@ -94,5 +94,5 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
   "updated_at": "2026-08-12T19:18:07+09:30",
-  "provenance": "PA-005 repository-only executable plumbing implemented and synthetically reviewed from validated baseline e0d553e47fda22c09c195c89fc8b2f8382ee7996; no authentication, Graph call, live file-root read or external mutation"
+  "provenance": "PA-005 repository-only executable plumbing validated, committed as 098a358d1e16859b4f96138fee2515ffaf75abc7 and pushed to the existing feature/intelligence-core-v0.1 origin upstream; no authentication, Graph call, live file-root read or external mutation"
 }
