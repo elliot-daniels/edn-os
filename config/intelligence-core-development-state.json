@@ -67,7 +67,7 @@
   "expected_dirty_paths": [
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
-  "last_validated_commit": "098a358d1e16859b4f96138fee2515ffaf75abc7",
+  "last_validated_commit": "3f8929134f3a5d880b257b7d7350da9385430ef2",
   "next_recommended_increment": null,
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
@@ -96,5 +96,5 @@
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
   "updated_at": "2026-08-12T20:02:00+09:30",
-  "provenance": "PA-005 device-code authentication attempted but failed with AADSTS530035; zero successful Graph reads. Microsoft-supported browser authorization-code/PKCE replacement implemented with memory-only MSAL state and unchanged source boundaries."
+  "provenance": "PA-005 device-code authentication failed with AADSTS530035 and zero successful Graph reads. Browser authorization-code/PKCE replacement validated and checkpointed as 3f8929134f3a5d880b257b7d7350da9385430ef2; retry awaits owner-admin Entra configuration."
 }
