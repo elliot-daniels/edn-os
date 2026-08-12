@@ -708,6 +708,50 @@
       ]
     },
     {
+      "task_id": "PA-005-DOMAIN-BINDING",
+      "objective": "Bind admitted Microsoft evidence to the EDN Core tenant while independently verifying the Entra tenant.",
+      "prerequisites": [
+        "PA-005-MAIL-PAGE-BOUNDARY"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn/intelligence",
+        "tests/intelligence"
+      ],
+      "acceptance_criteria": [
+        "Entra tenant verification remains exact",
+        "Admitted evidence uses EDN Core tenant edn-local",
+        "Local Files, Calendar and Inbox evidence can share one domain boundary"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "Authentication tenant weakening",
+        "Domain ambiguity",
+        "Cross-domain evidence admission"
+      ],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": [
+        "PA-005"
+      ]
+    },
+    {
       "task_id": "PA-005",
       "objective": "Activate separately approved live Calendar, Outlook mail and selected Local Files sources.",
       "prerequisites": [
@@ -719,7 +763,8 @@
         "PA-005-AUTH-REPAIR",
         "PA-005-APP-BOUNDARY",
         "PA-005-INBOX-BINDING",
-        "PA-005-MAIL-PAGE-BOUNDARY"
+        "PA-005-MAIL-PAGE-BOUNDARY",
+        "PA-005-DOMAIN-BINDING"
       ],
       "authority_actions": [
         "authentication.interactive",
@@ -758,7 +803,8 @@
         "PA-005-AUTH-REPAIR",
         "PA-005-APP-BOUNDARY",
         "PA-005-INBOX-BINDING",
-        "PA-005-MAIL-PAGE-BOUNDARY"
+        "PA-005-MAIL-PAGE-BOUNDARY",
+        "PA-005-DOMAIN-BINDING"
       ],
       "status": "blocked",
       "successor_tasks": [

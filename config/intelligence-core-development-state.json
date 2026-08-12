@@ -28,6 +28,7 @@
     "PA-005-APP-BOUNDARY",
     "PA-005-INBOX-BINDING",
     "PA-005-MAIL-PAGE-BOUNDARY",
+    "PA-005-DOMAIN-BINDING",
     "PA-006"
   ],
   "active_increment": null,

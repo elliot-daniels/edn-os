@@ -44,6 +44,7 @@ from edn.core import (
 TENANT_ID = "aae6ab79-45eb-4829-a04f-595becdb936d"
 CLIENT_ID = "2381e4f6-44bc-4697-ad64-e86513cb9dee"
 ACCOUNT_ID = "elliot@ednsystems.com.au"
+CORE_TENANT_ID = "edn-local"
 SCOPES = ("User.Read", "Calendars.Read", "Mail.Read")
 TIMEZONE = "Australia/Adelaide"
 CATEGORY = "EDN"
@@ -82,7 +83,9 @@ def _preflight(output: Path) -> dict[str, object]:
 
 
 def _validate_live() -> dict[str, Any]:
-    domain = SecurityDomain("EDN", "EDN Systems", tenant_id=TENANT_ID)
+    domain = SecurityDomain(
+        "EDN", "EDN Systems", tenant_id=CORE_TENANT_ID, owner_id="local-owner"
+    )
     classification = Classification(
         "edn", "confidential", "EDN Confidential", rank=2
     )
@@ -191,7 +194,7 @@ def _request(
         else "outlook.search"
     )
     principal = PrincipalContext(
-        "approved-operator", TENANT_ID, frozenset({domain}), True
+        "local-owner", CORE_TENANT_ID, frozenset({domain}), True
     )
     purpose = Purpose("pa005-live-validation", "Owner-approved PA-005 validation")
     permission = PermissionRequest(
