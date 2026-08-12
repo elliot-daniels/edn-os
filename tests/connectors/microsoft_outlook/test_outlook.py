@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import urllib.parse
 from datetime import UTC, datetime
 from typing import Any
 
@@ -9,6 +11,7 @@ from edn.connectors import ConnectorRequest, check_connector
 from edn.connectors.microsoft_outlook import (
     MailScopeMode,
     MailWindow,
+    MicrosoftGraphOutlookClient,
     MicrosoftOutlookConnector,
     OutlookConfig,
 )
@@ -34,6 +37,25 @@ NOW = datetime(2026, 8, 11, 12, tzinfo=UTC)
 EDN = SecurityDomain("EDN", "EDN", "tenant")
 PERSONAL = SecurityDomain("PERSONAL", "Personal", "tenant")
 CLASSIFICATION = Classification("edn", "confidential", "EDN Confidential")
+
+
+class _Response:
+    def __init__(self, value: dict[str, Any]) -> None:
+        self.value = value
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return None
+
+    def read(self) -> bytes:
+        return json.dumps(self.value).encode()
+
+
+class _Token:
+    def acquire_token(self) -> str:
+        return "synthetic-token"
 
 
 class FakeOutlookClient:
@@ -151,6 +173,38 @@ def test_connector_is_read_only_and_conformant() -> None:
         for item in connector.manifest.capabilities
     )
     assert not hasattr(connector, "act")
+
+
+def test_live_client_is_get_only_inbox_metadata_and_fails_closed() -> None:
+    requests = []
+
+    def opener(request, *, timeout):
+        assert timeout == 30
+        requests.append(request)
+        if "/mailFolders/inbox?" in request.full_url:
+            return _Response({"id": "native-inbox", "displayName": "Inbox"})
+        return _Response({"value": [_message()]})
+
+    client = MicrosoftGraphOutlookClient(_Token(), opener=opener)
+    folders = client.folders("me")
+    result = client.messages(
+        "me", "native-inbox", NOW.replace(day=4), NOW, limit=25
+    )
+
+    assert folders[0]["id"] == "native-inbox"
+    assert result[0]["id"] == "message-one"
+    assert all(request.method == "GET" for request in requests)
+    query = urllib.parse.parse_qs(urllib.parse.urlsplit(requests[-1].full_url).query)
+    assert query["$top"] == ["25"]
+    projection = query["$select"][0]
+    assert all(
+        excluded not in projection
+        for excluded in ("body", "bodyPreview", "attachments", "uniqueBody")
+    )
+    with pytest.raises(ValueError, match="Inbox must be resolved"):
+        client.messages("me", "other-folder", NOW.replace(day=4), NOW, limit=25)
+    with pytest.raises(ValueError, match="only /me"):
+        client.folders("another-user")
 
 
 def test_current_mail_metadata_is_bounded_and_body_payload_fails_closed() -> None:

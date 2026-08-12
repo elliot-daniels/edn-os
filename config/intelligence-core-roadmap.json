@@ -465,13 +465,68 @@
       ]
     },
     {
+      "task_id": "PA-005-READY",
+      "objective": "Make the approved PA-005 source set executable without live access.",
+      "prerequisites": [
+        "PA-002",
+        "PA-003",
+        "PA-004"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "synthetic.fixture.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn/connectors",
+        "src/edn/intelligence",
+        "tests",
+        "docs/intelligence-core"
+      ],
+      "acceptance_criteria": [
+        "Combined delegated consent is exactly Calendars.Read and Mail.Read",
+        "Calendar, Inbox and selected-file runners are bounded and fail closed",
+        "Synthetic validation performs no live authentication or source access"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "Live authentication",
+        "Live source access",
+        "Permission broadening",
+        "Source mutation"
+      ],
+      "dependencies": [
+        "PA-002",
+        "PA-003",
+        "PA-004"
+      ],
+      "status": "completed",
+      "successor_tasks": [
+        "PA-005"
+      ]
+    },
+    {
       "task_id": "PA-005",
       "objective": "Activate separately approved live Calendar, Outlook mail and selected Local Files sources.",
       "prerequisites": [
         "IC-009",
         "PA-002",
         "PA-003",
-        "PA-004"
+        "PA-004",
+        "PA-005-READY"
       ],
       "authority_actions": [
         "authentication.interactive",
@@ -505,7 +560,8 @@
         "IC-009",
         "PA-002",
         "PA-003",
-        "PA-004"
+        "PA-004",
+        "PA-005-READY"
       ],
       "status": "blocked",
       "successor_tasks": [

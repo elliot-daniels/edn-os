@@ -3,7 +3,7 @@
   "product": "EDN Intelligence Core",
   "version": "0.1.0-alpha",
   "current_branch": "feature/intelligence-core-v0.1",
-  "current_milestone": "Synthetic Business OS retrieval complete; live source activation requires owner authority",
+  "current_milestone": "PA-005 activation plumbing complete; first live source access requires owner GO",
   "completed_increments": [
     "IC-001",
     "IC-002",
@@ -23,6 +23,7 @@
     "PA-002",
     "PA-003",
     "PA-004",
+    "PA-005-READY",
     "PA-006"
   ],
   "active_increment": null,
@@ -33,7 +34,7 @@
     },
     {
       "task_id": "PA-005",
-      "reason": "Exact live Calendar, Outlook mail and selected Local Files identity, scope, domain and retention authority is required."
+      "reason": "Executable bounded activation is ready; owner GO is required before first Microsoft authentication or approved Local Files root read."
     }
   ],
   "deferred_increments": [],
@@ -45,7 +46,7 @@
     "No approved model/global provider exists.",
     "Proposals cannot execute.",
     "PDF/DOCX extraction is deliberately bounded and fails closed on unsupported PDF filters or ambiguous structures; live owner roots remain unauthorised.",
-    "Current Outlook read contracts and synthetic adapter exist, but live authentication, Graph access and mailbox data remain blocked until PA-005 authority.",
+    "Current Outlook read contracts, GET-only live client and activation runner exist, but authentication, Graph access and mailbox data remain blocked pending owner GO.",
     "SharePoint Business OS retrieval is synthetic-only; no live site or content is authorised."
   ],
   "test_status": {
@@ -54,34 +55,27 @@
       "python -m pytest",
       "python -m ruff check .",
       "python -m mypy src/edn",
+      "python -m json.tool (state, roadmap, policy and each audit JSONL record)",
       "git diff --check"
     ],
-    "passed": 304,
+    "passed": 310,
     "failed": 0,
-    "validated_at": "2026-08-12T18:44:52+09:30"
+    "validated_at": "2026-08-12T19:18:07+09:30"
   },
-  "repository_status": "dirty-known-authorised-review",
+  "repository_status": "clean-checkpoint-except-protected-pa005-pack",
   "expected_dirty_paths": [
-    ".codex/skills/edn-intelligence-core-builder/SKILL.md",
-    "config/intelligence-core-development-audit.jsonl",
-    "config/intelligence-core-development-state.json",
-    "config/development-authority-policy.json",
-    "docs/intelligence-core/IC-DEV-001-AUTONOMOUS-DEVELOPMENT.md",
-    "docs/intelligence-core/IC-DEV-002-VALIDATED-GIT-CHECKPOINTS.md",
-    "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
-    "src/edn/development",
-    "tests/development"
+    "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
-  "last_validated_commit": "32f6cbac363ce60ad898aa1d33243be6d4a15fb3",
+  "last_validated_commit": "e0d553e47fda22c09c195c89fc8b2f8382ee7996",
   "next_recommended_increment": null,
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
-    "Approve exact live source scopes for PA-005 when current evidence activation is desired.",
+    "Issue GO for the exact PA-005 pack before first device-code authentication or approved Local Files root read.",
     "Approve future SharePoint content, model disclosure or external execution."
   ],
   "external_capability_blockers": [
     "IC-009-LIVE requires owner-interactive Microsoft authentication.",
-    "Current mail, owner files and SharePoint content require separate authority.",
+    "Current Calendar, Inbox and approved owner files require PA-005 live GO; SharePoint remains separately deferred.",
     "Model intelligence requires provider/disclosure/retention approval."
   ],
   "architecture_references": [
@@ -96,8 +90,9 @@
     "docs/intelligence-core/POST-ALPHA-ARCHITECTURE-REVIEW.md",
     "docs/intelligence-core/PA-004-PROGRESSIVE-ONBOARDING.md",
     "docs/intelligence-core/PA-006-SHAREPOINT-SYNTHETIC.md",
-    "docs/intelligence-core/IC-DEV-002-VALIDATED-GIT-CHECKPOINTS.md"
+    "docs/intelligence-core/IC-DEV-002-VALIDATED-GIT-CHECKPOINTS.md",
+    "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
-  "updated_at": "2026-08-12T18:53:56+09:30",
-  "provenance": "Validated Git checkpoint standing-authority policy version 1.1.0 approved by owner for checkpoint to feature/intelligence-core-v0.1 existing origin upstream; PA-005 pack explicitly excluded"
+  "updated_at": "2026-08-12T19:18:07+09:30",
+  "provenance": "PA-005 repository-only executable plumbing implemented and synthetically reviewed from validated baseline e0d553e47fda22c09c195c89fc8b2f8382ee7996; no authentication, Graph call, live file-root read or external mutation"
 }

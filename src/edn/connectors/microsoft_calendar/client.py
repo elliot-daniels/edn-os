@@ -11,6 +11,8 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any, Protocol, cast
 
+ALLOWED_DELEGATED_SCOPES = frozenset({"Calendars.Read", "Mail.Read"})
+
 
 class GraphCalendarClient(Protocol):
     def calendars(self) -> tuple[dict[str, Any], ...]: ...
@@ -33,6 +35,7 @@ class DeviceCodeCredential:
         self,
         tenant_id: str,
         client_id: str,
+        scopes: tuple[str, ...] = ("Calendars.Read",),
         *,
         prompt: Callable[[str], None] = print,
         opener: Callable[..., Any] = urllib.request.urlopen,
@@ -40,17 +43,27 @@ class DeviceCodeCredential:
     ) -> None:
         self.tenant_id = tenant_id
         self.client_id = client_id
+        if not scopes or len(scopes) != len(set(scopes)):
+            raise ValueError("delegated scopes must be nonempty and unique")
+        if not set(scopes) <= ALLOWED_DELEGATED_SCOPES:
+            raise ValueError("delegated scope exceeds the PA-005 read-only boundary")
+        self.scopes = scopes
         self._prompt = prompt
         self._opener = opener
         self._sleep = sleep
+        self._token: str | None = None
 
     def acquire_token(self) -> str:
+        if self._token is not None:
+            return self._token
         endpoint = f"https://login.microsoftonline.com/{self.tenant_id}/oauth2/v2.0"
         device = self._post(
             f"{endpoint}/devicecode",
             {
                 "client_id": self.client_id,
-                "scope": "https://graph.microsoft.com/Calendars.Read",
+                "scope": " ".join(
+                    f"https://graph.microsoft.com/{scope}" for scope in self.scopes
+                ),
             },
         )
         self._prompt(str(device["message"]))
@@ -68,7 +81,8 @@ class DeviceCodeCredential:
                 allow_pending=True,
             )
             if "access_token" in token:
-                return str(token["access_token"])
+                self._token = str(token["access_token"])
+                return self._token
             if token.get("error") not in {"authorization_pending", "slow_down"}:
                 raise RuntimeError("Microsoft delegated authentication failed safely.")
         raise RuntimeError("Microsoft delegated authentication expired.")

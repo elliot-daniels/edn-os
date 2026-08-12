@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from edn.connectors import ConnectorRequest
 from edn.connectors.local_files import LocalFilesConnector, load_config
 from edn.core import (
     CapabilityRegistry,
@@ -24,6 +25,7 @@ from edn.core import (
     evaluate_capability_use,
 )
 from edn.jobs import (
+    ApprovalBinding,
     Job,
     JobProgress,
     JobService,
@@ -49,6 +51,14 @@ def build_parser() -> argparse.ArgumentParser:
     discover = subcommands.choices["discover"]
     discover.add_argument("--job-id")
     discover.add_argument("--run-next", action="store_true")
+    for name in ("ingestion-plan", "ingest"):
+        command = subcommands.add_parser(name)
+        command.add_argument("--config", required=True, type=Path)
+        command.add_argument("--authority", required=True, type=Path)
+        command.add_argument("--selection", required=True, type=Path)
+    ingest = subcommands.choices["ingest"]
+    ingest.add_argument("--approval", required=True, type=Path)
+    ingest.add_argument("--job-id")
     summary = subcommands.add_parser("summary")
     summary.add_argument("--config", required=True, type=Path)
     summary.add_argument("--run-id", required=True)
@@ -83,6 +93,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             _print(_summary(connector, args.run_id))
             return 0
         principal, purpose, evaluator = _load_authority(args.authority)
+        if args.command in {"ingestion-plan", "ingest"}:
+            return _ingestion_command(
+                args, config, connector, principal, purpose, evaluator
+            )
         root = config.root(args.root_id)
         registry = _registry(connector)
         decision = _decision(
@@ -208,18 +222,159 @@ def _decision(
     domain: SecurityDomain,
     classification: Classification,
     scope: tuple[str, ...],
+    capability_id: str = "local-files.discover",
+    operation: str = "discover",
 ) -> CapabilityUseDecision:
     request = PermissionRequest(
         f"cli:{uuid4().hex}",
         principal,
         purpose,
-        "local-files.discover",
-        "discover",
+        capability_id,
+        operation,
         domain,
         classification,
         scope,
     )
     return evaluate_capability_use(registry, evaluator, request, now=datetime.now(UTC))
+
+
+def _ingestion_command(
+    args: argparse.Namespace,
+    config: Any,
+    connector: LocalFilesConnector,
+    principal: PrincipalContext,
+    purpose: Purpose,
+    evaluator: PermissionEvaluator,
+) -> int:
+    selected = _load_selection(args.selection)
+    if not selected:
+        raise ValueError("ingestion selection must contain exact candidate IDs")
+    candidates = connector.catalogue.selected(selected)
+    if len(candidates) != len(selected):
+        raise ValueError("selection contains unknown or unselected candidates")
+    domain = candidates[0].security_domain
+    classification = candidates[0].classification
+    if any(
+        item.security_domain != domain or item.classification != classification
+        for item in candidates
+    ):
+        raise ValueError("selection mixes domains or classifications")
+    registry = _registry(connector)
+    plan_decision = _decision(
+        registry,
+        evaluator,
+        principal,
+        purpose,
+        domain,
+        classification,
+        selected,
+        "local-files.plan",
+        "plan",
+    )
+    if not plan_decision.is_usable:
+        raise PermissionError(f"planning authority denied: {plan_decision.reason_code}")
+    request = ConnectorRequest(
+        f"cli:{uuid4().hex}",
+        f"pa005:{uuid4().hex}",
+        principal,
+        purpose,
+        domain,
+        classification,
+        "local-files.plan",
+        "plan",
+        plan_decision,
+        selected,
+    )
+    plan = connector.plan(request)
+    if args.command == "ingestion-plan":
+        _print(plan.to_dict())
+        return 0
+    approval = _load_approval(args.approval)
+    if not approval.matches(plan, now=datetime.now(UTC)):
+        raise PermissionError("approval does not match the exact current plan")
+    if config.job_store_path is None:
+        raise ValueError("ingest requires job_store_path in configuration")
+    now = datetime.now(UTC)
+    store = JobStore(config.job_store_path)
+    store.initialise()
+    job = Job(
+        args.job_id or f"local-files-ingest:{uuid4().hex}",
+        JobType.INGESTION,
+        connector.manifest.connector_id,
+        connector.manifest.version,
+        config.configuration_hash,
+        "local-files.ingest",
+        "ingest",
+        principal,
+        purpose,
+        domain,
+        classification,
+        plan.scope,
+        f"pa005-ingest:{uuid4().hex}",
+        now,
+        now,
+        JobStatus.READY,
+        RetryPolicy(),
+        JobProgress("ready"),
+        plan,
+        approval,
+    )
+    JobService(store).create(job, actor_id=principal.principal_id)
+    worker = LocalJobWorker(
+        store,
+        registry,
+        evaluator,
+        (connector,),
+        worker_id="local-files-cli",
+        configuration_hashes={
+            connector.manifest.connector_id: config.configuration_hash
+        },
+    )
+    result = job
+    for _ in range(100):
+        result = worker.run_next(now=datetime.now(UTC)) or result
+        if result.status not in {JobStatus.READY, JobStatus.RETRY_WAIT}:
+            break
+    _print(
+        {
+            "job_id": result.job_id,
+            "status": result.status.value,
+            "records": list(result.result.references) if result.result else [],
+        }
+    )
+    return 0 if result.status is JobStatus.COMPLETED else 2
+
+
+def _load_selection(path: Path) -> tuple[str, ...]:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ValueError("selection must be a JSON list of candidate IDs")
+    if len(value) != len(set(value)) or len(value) > 100:
+        raise ValueError("selection must be unique and contain at most 100 IDs")
+    return tuple(value)
+
+
+def _load_approval(path: Path) -> ApprovalBinding:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict) or set(value) != {
+        "approval_ref",
+        "plan_id",
+        "plan_hash",
+        "scope",
+        "expires_at",
+    }:
+        raise ValueError("approval file shape is invalid")
+    expires = datetime.fromisoformat(str(value["expires_at"]).replace("Z", "+00:00"))
+    scope = value["scope"]
+    if not isinstance(scope, list) or not all(isinstance(item, str) for item in scope):
+        raise ValueError("approval scope must be a list of IDs")
+    return ApprovalBinding(
+        str(value["approval_ref"]),
+        str(value["plan_id"]),
+        str(value["plan_hash"]),
+        tuple(scope),
+        expires_at=expires,
+    )
 
 
 def _registry(connector: LocalFilesConnector) -> CapabilityRegistry:

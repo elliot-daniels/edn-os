@@ -14,6 +14,7 @@ from edn.connectors.microsoft_calendar import (
     MicrosoftCalendarConnector,
 )
 from edn.connectors.microsoft_calendar.cli import build_validation_report
+from edn.connectors.microsoft_calendar.client import DeviceCodeCredential
 from edn.core import (
     AuthenticationStatus,
     CapabilityRegistry,
@@ -174,6 +175,18 @@ def test_calendar_connector_conforms_and_has_no_write_capability() -> None:
         capability.required_permissions == {"Calendars.Read"}
         for capability in connector.manifest.capabilities
     )
+
+
+def test_device_code_credential_allows_only_exact_pa005_scopes() -> None:
+    credential = DeviceCodeCredential(
+        "tenant", "client", ("Calendars.Read", "Mail.Read")
+    )
+
+    assert credential.scopes == ("Calendars.Read", "Mail.Read")
+    with pytest.raises(ValueError, match="exceeds"):
+        DeviceCodeCredential("tenant", "client", ("Calendars.ReadWrite",))
+    with pytest.raises(ValueError, match="unique"):
+        DeviceCodeCredential("tenant", "client", ("Mail.Read", "Mail.Read"))
 
 
 @pytest.mark.parametrize(
