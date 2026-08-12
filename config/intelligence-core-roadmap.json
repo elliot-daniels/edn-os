@@ -492,7 +492,7 @@
         "docs/intelligence-core"
       ],
       "acceptance_criteria": [
-        "Combined delegated consent is exactly Calendars.Read and Mail.Read",
+        "Combined delegated consent is exactly User.Read, Calendars.Read and Mail.Read",
         "Calendar, Inbox and selected-file runners are bounded and fail closed",
         "Synthetic validation performs no live authentication or source access"
       ],
@@ -569,6 +569,56 @@
       ]
     },
     {
+      "task_id": "PA-005-APP-BOUNDARY",
+      "objective": "Bind PA-005 to the dedicated single-tenant EDN Intelligence Core public application.",
+      "prerequisites": [
+        "PA-005-AUTH-REPAIR"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn/connectors/microsoft_calendar",
+        "src/edn/intelligence",
+        "tests",
+        "docs/intelligence-core"
+      ],
+      "acceptance_criteria": [
+        "Client is exactly 2381e4f6-44bc-4697-ad64-e86513cb9dee",
+        "Delegated Graph scopes are exactly User.Read, Calendars.Read and Mail.Read",
+        "User.Read is limited to authenticated-user identity verification",
+        "No authentication or Graph request occurs during repository validation"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "Application permission",
+        "Client secret",
+        "Permission broadening",
+        "Live authentication during tests"
+      ],
+      "dependencies": [
+        "microsoft-identity-platform"
+      ],
+      "status": "completed",
+      "successor_tasks": [
+        "PA-005"
+      ]
+    },
+    {
       "task_id": "PA-005",
       "objective": "Activate separately approved live Calendar, Outlook mail and selected Local Files sources.",
       "prerequisites": [
@@ -577,7 +627,8 @@
         "PA-003",
         "PA-004",
         "PA-005-READY",
-        "PA-005-AUTH-REPAIR"
+        "PA-005-AUTH-REPAIR",
+        "PA-005-APP-BOUNDARY"
       ],
       "authority_actions": [
         "authentication.interactive",
@@ -613,7 +664,8 @@
         "PA-003",
         "PA-004",
         "PA-005-READY",
-        "PA-005-AUTH-REPAIR"
+        "PA-005-AUTH-REPAIR",
+        "PA-005-APP-BOUNDARY"
       ],
       "status": "blocked",
       "successor_tasks": [

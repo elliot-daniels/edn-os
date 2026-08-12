@@ -13,7 +13,7 @@ from typing import Any, Protocol, cast
 
 import msal  # type: ignore[import-untyped]
 
-ALLOWED_DELEGATED_SCOPES = frozenset({"Calendars.Read", "Mail.Read"})
+ALLOWED_DELEGATED_SCOPES = frozenset({"User.Read", "Calendars.Read", "Mail.Read"})
 
 
 class GraphCalendarClient(Protocol):

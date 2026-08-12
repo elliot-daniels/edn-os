@@ -42,9 +42,9 @@ from edn.core import (
 )
 
 TENANT_ID = "aae6ab79-45eb-4829-a04f-595becdb936d"
-CLIENT_ID = "d08166f6-2074-4590-8edf-bb8275e9eb11"
+CLIENT_ID = "2381e4f6-44bc-4697-ad64-e86513cb9dee"
 ACCOUNT_ID = "elliot@ednsystems.com.au"
-SCOPES = ("Calendars.Read", "Mail.Read")
+SCOPES = ("User.Read", "Calendars.Read", "Mail.Read")
 TIMEZONE = "Australia/Adelaide"
 CATEGORY = "EDN"
 LIMIT = 25

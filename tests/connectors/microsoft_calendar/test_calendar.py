@@ -182,10 +182,10 @@ def test_calendar_connector_conforms_and_has_no_write_capability() -> None:
 
 def test_device_code_credential_allows_only_exact_pa005_scopes() -> None:
     credential = DeviceCodeCredential(
-        "tenant", "client", ("Calendars.Read", "Mail.Read")
+        "tenant", "client", ("User.Read", "Calendars.Read", "Mail.Read")
     )
 
-    assert credential.scopes == ("Calendars.Read", "Mail.Read")
+    assert credential.scopes == ("User.Read", "Calendars.Read", "Mail.Read")
     with pytest.raises(ValueError, match="exceeds"):
         DeviceCodeCredential("tenant", "client", ("Calendars.ReadWrite",))
     with pytest.raises(ValueError, match="unique"):
@@ -200,7 +200,7 @@ def test_browser_pkce_credential_is_memory_only_and_identity_bound() -> None:
             calls.append(kwargs)
             return {
                 "access_token": "synthetic-token",
-                "scope": "Calendars.Read Mail.Read openid profile",
+                "scope": "User.Read Calendars.Read Mail.Read openid profile",
                 "id_token_claims": {
                     "tid": "tenant",
                     "preferred_username": "owner@example.com",
@@ -217,7 +217,7 @@ def test_browser_pkce_credential_is_memory_only_and_identity_bound() -> None:
         "tenant",
         "client",
         "owner@example.com",
-        ("Calendars.Read", "Mail.Read"),
+        ("User.Read", "Calendars.Read", "Mail.Read"),
         app_factory=factory,
     )
 
@@ -227,6 +227,7 @@ def test_browser_pkce_credential_is_memory_only_and_identity_bound() -> None:
     assert calls[0]["prompt"] == "select_account"
     assert calls[0]["port"] == 8400
     assert calls[0]["scopes"] == [
+        "https://graph.microsoft.com/User.Read",
         "https://graph.microsoft.com/Calendars.Read",
         "https://graph.microsoft.com/Mail.Read",
     ]
@@ -237,11 +238,11 @@ def test_browser_pkce_credential_is_memory_only_and_identity_bound() -> None:
     [
         (
             {"tid": "other", "preferred_username": "owner@example.com"},
-            "Calendars.Read Mail.Read",
+            "User.Read Calendars.Read Mail.Read",
         ),
         (
             {"tid": "tenant", "preferred_username": "other@example.com"},
-            "Calendars.Read Mail.Read",
+            "User.Read Calendars.Read Mail.Read",
         ),
         (
             {"tid": "tenant", "preferred_username": "owner@example.com"},
@@ -264,7 +265,7 @@ def test_browser_pkce_credential_rejects_identity_or_scope_drift(
         "tenant",
         "client",
         "owner@example.com",
-        ("Calendars.Read", "Mail.Read"),
+        ("User.Read", "Calendars.Read", "Mail.Read"),
         app_factory=lambda *_args, **_kwargs: FakeApp(),
     )
 

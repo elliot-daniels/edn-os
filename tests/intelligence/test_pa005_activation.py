@@ -10,7 +10,12 @@ def test_preflight_is_fixed_and_has_no_source_activity(tmp_path: Path) -> None:
 
     report = _preflight(output)
 
-    assert report["delegated_permissions"] == ["Calendars.Read", "Mail.Read"]
+    assert report["delegated_permissions"] == [
+        "User.Read",
+        "Calendars.Read",
+        "Mail.Read",
+    ]
+    assert report["client_id"] == "2381e4f6-44bc-4697-ad64-e86513cb9dee"
     assert report["network_calls"] == 0
     assert report["source_reads"] == 0
     assert report["calendar"] == {

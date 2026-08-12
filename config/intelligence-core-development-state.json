@@ -25,6 +25,7 @@
     "PA-004",
     "PA-005-READY",
     "PA-005-AUTH-REPAIR",
+    "PA-005-APP-BOUNDARY",
     "PA-006"
   ],
   "active_increment": null,
@@ -35,7 +36,7 @@
     },
     {
       "task_id": "PA-005",
-      "reason": "Device-code authentication was blocked by Entra Security Defaults (AADSTS530035). Browser authorization-code/PKCE replacement is repository-validated; owner-admin must add/verify the Mobile and desktop `http://localhost` redirect and public-client setting before retry."
+      "reason": "Browser authorization-code/PKCE is repository-validated against the dedicated EDN Intelligence Core public client; a new owner GO is required before retrying live authentication."
     }
   ],
   "deferred_increments": [],
@@ -76,7 +77,7 @@
   ],
   "external_capability_blockers": [
     "IC-009-LIVE requires successful owner-interactive Microsoft authentication.",
-    "PA-005 requires owner-admin verification of the native `http://localhost` redirect and public-client setting before browser/PKCE retry; SharePoint remains separately deferred.",
+    "PA-005 browser/PKCE retry requires owner GO; SharePoint remains separately deferred.",
     "Model intelligence requires provider/disclosure/retention approval."
   ],
   "architecture_references": [
@@ -95,6 +96,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-12T20:02:00+09:30",
-  "provenance": "PA-005 device-code authentication failed with AADSTS530035 and zero successful Graph reads. Browser authorization-code/PKCE replacement validated and checkpointed as 3f8929134f3a5d880b257b7d7350da9385430ef2; retry awaits owner-admin Entra configuration."
+  "updated_at": "2026-08-12T20:25:00+09:30",
+  "provenance": "PA-005 rebound repository-only to dedicated client 2381e4f6-44bc-4697-ad64-e86513cb9dee with exact delegated User.Read, Calendars.Read and Mail.Read; no authentication or Graph request occurred."
 }

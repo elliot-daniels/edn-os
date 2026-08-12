@@ -21,13 +21,15 @@ memory.
 
 Before any Graph request, the credential requires ID-token tenant and preferred
 username claims to match PA-005 and requires the granted Graph scope set to equal
-`Calendars.Read` and `Mail.Read`. Protocol scopes such as `openid` and `profile`
+`User.Read`, `Calendars.Read` and `Mail.Read`. `User.Read` is used only to verify
+the signed-in `/me` identity. Protocol scopes such as `openid` and `profile`
 are not Graph permissions. Existing connector and source boundaries are
 unchanged.
 
 ## Required owner-admin Entra configuration
 
-For application `d08166f6-2074-4590-8edf-bb8275e9eb11` in tenant
+For the dedicated single-tenant **EDN Intelligence Core** application
+`2381e4f6-44bc-4697-ad64-e86513cb9dee` in tenant
 `aae6ab79-45eb-4829-a04f-595becdb936d`:
 
 1. Open **Microsoft Entra admin center > App registrations > the application >
@@ -36,11 +38,12 @@ For application `d08166f6-2074-4590-8edf-bb8275e9eb11` in tenant
    with redirect URI exactly `http://localhost` (or verify it already exists on
    that platform). Microsoft ignores the ephemeral port when matching localhost
    native-app redirects, so the runtime URI on port 8400 matches this entry.
-3. Verify **Allow public client flows** is **Yes**. Do not add a secret, web/SPА
+3. Verify **Allow public client flows** is **Yes**. Do not add a secret, web/SPA
    redirect, application permission, SharePoint permission, or broader delegated
    permission.
 4. Under **API permissions**, verify the only PA-005 Microsoft Graph delegated
-   permissions are `Calendars.Read` and `Mail.Read`.
+   permissions are exactly `User.Read`, `Calendars.Read` and `Mail.Read`.
+   `User.Read` is restricted in PA-005 to authenticated-user identity verification.
 
 Do not weaken Security Defaults, Conditional Access, MFA or device controls.
 
