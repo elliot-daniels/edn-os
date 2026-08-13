@@ -960,10 +960,62 @@
       "successor_tasks": []
     },
     {
+      "task_id": "PA-009-SYNTHETIC",
+      "objective": "Build and validate a synthetic-only provider-neutral model/disclosure boundary without genuine EDN evidence disclosure.",
+      "prerequisites": [
+        "PA-008"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "synthetic.fixture.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare",
+        "config.development.write",
+        "state.development.write"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn/intelligence",
+        "tests/intelligence",
+        "docs/intelligence-core",
+        "config"
+      ],
+      "acceptance_criteria": [
+        "Disclosure decisions and minimum projections fail closed",
+        "Synthetic provider responses preserve provenance and uncertainty",
+        "Classification, domain, leakage and budget conformance passes",
+        "Local fallback and proposal-only boundaries remain available"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "External provider access",
+        "Genuine evidence disclosure",
+        "Provider credentials",
+        "Classification or authority weakening"
+      ],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": [
+        "PA-009"
+      ]
+    },
+    {
       "task_id": "PA-009",
       "objective": "Integrate an approved global/model provider behind a private-evidence disclosure boundary.",
       "prerequisites": [
-        "PA-008"
+        "PA-008",
+        "PA-009-SYNTHETIC"
       ],
       "authority_actions": [
         "external.permission.new",

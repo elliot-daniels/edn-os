@@ -3,7 +3,7 @@
   "product": "EDN Intelligence Core",
   "version": "0.1.0-alpha",
   "current_branch": "feature/intelligence-core-v0.1",
-  "current_milestone": "PA-008 local Daily Intelligence scheduling, run observability and synthetic operational backup/recovery validated; production activation remains uninstalled",
+  "current_milestone": "PA-009-SYNTHETIC provider-neutral model/disclosure boundary validated; real provider disclosure remains unactivated",
   "completed_increments": [
     "IC-001",
     "IC-002",
@@ -48,6 +48,7 @@
     "Registry, policy and onboarding value-profile composition remain manual.",
     "No production scheduler/service, automatic morning delivery, external notification, or mixed-source benchmark exists; PA-008 scheduling remains a local activation-ready abstraction.",
     "No approved model/global provider exists.",
+    "Synthetic model intelligence has no real provider, network dispatch or genuine EDN evidence disclosure; PA-009 remains separately gated.",
     "Proposals cannot execute.",
     "PDF/DOCX extraction is deliberately bounded and fails closed on unsupported PDF filters or ambiguous structures; live owner roots remain unauthorised.",
     "Current Outlook and Calendar live validation passed, but exact EDN category admission yielded zero retained records in both sources.",
@@ -62,9 +63,18 @@
       "python -m json.tool (state, roadmap, policy and each audit JSONL record)",
       "git diff --check"
     ],
-    "passed": 328,
+    "passed": 336,
     "failed": 0,
-    "validated_at": "2026-08-13T13:00:00+09:30"
+    "focused_pa009_synthetic": 8,
+    "mypy_files": 100,
+    "commands": [
+      "./.venv-wsl/bin/python -m pytest -q",
+      "./.venv-wsl/bin/ruff check .",
+      "./.venv-wsl/bin/python -m mypy src/edn",
+      "JSON/JSONL validation",
+      "git diff --check"
+    ],
+    "validated_at": "2026-08-13T14:45:00+09:30"
   },
   "repository_status": "clean-checkpoint-except-protected-pa005-pack",
   "expected_dirty_paths": [
@@ -74,7 +84,8 @@
   "next_recommended_increment": null,
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
-    "Approve future SharePoint content, model disclosure or external execution."
+    "Approve a named model provider, genuine evidence disclosure categories, retention/cost policy and threat model before PA-009.",
+    "Approve future SharePoint content or external execution separately."
   ],
   "external_capability_blockers": [
     "PA-005 controlled evidence passed; broader operational completeness remains unproven.",
@@ -95,6 +106,7 @@
     "docs/intelligence-core/PA-006-SHAREPOINT-SYNTHETIC.md",
     "docs/intelligence-core/PA-007-FRESHNESS-AWARE-DAILY-INTELLIGENCE.md",
     "docs/intelligence-core/PA-008-OPERATIONAL-RELIABILITY.md",
+    "docs/intelligence-core/PA-009-SYNTHETIC-MODEL-DISCLOSURE.md",
     "docs/intelligence-core/IC-DEV-002-VALIDATED-GIT-CHECKPOINTS.md",
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"

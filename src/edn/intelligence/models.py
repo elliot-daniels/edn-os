@@ -73,6 +73,7 @@ class ContextEvidence:
     provenance: tuple[EvidenceRef, ...]
     source_timestamp: datetime | None = None
     timestamp_kind: str | None = None
+    freshness_state: FreshnessState = FreshnessState.UNKNOWN
 
     def __post_init__(self) -> None:
         if not self.context_id or not self.capability_id:
