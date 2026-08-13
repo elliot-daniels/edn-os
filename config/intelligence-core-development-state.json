@@ -69,7 +69,7 @@
   "expected_dirty_paths": [
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
-  "last_validated_commit": "30bf7942ea16e89eaa37dcf79fbcd0be3b55c8cf",
+  "last_validated_commit": "20ba0f5caa75c046050e7f17a16730a0cf605ec0",
   "next_recommended_increment": "PA-008",
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
@@ -97,6 +97,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-13T11:50:06+09:30",
+  "updated_at": "2026-08-13T11:58:48+09:30",
   "provenance": "PA-007 repository validation passed: 319 synthetic/local tests cover typed evidence, inference and gaps; deterministic current/ageing/stale/unknown freshness; value/corroboration/recurrence/provenance ranking; explicit missing-source reporting; and proposal-only internal actions without live access or execution."
 }
