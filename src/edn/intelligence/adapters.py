@@ -99,6 +99,8 @@ class EmailRetrievalAdapter:
                         f"email-{item.evidence_id}",
                     ),
                 ),
+                source_timestamp=item.sent_at,
+                timestamp_kind="email_sent_at" if item.sent_at is not None else None,
             )
             for index, item in enumerate(evidence)
         )
@@ -206,6 +208,8 @@ class LocalFilesEvidenceAdapter:
                         excerpt,
                         score,
                         evidence,
+                        candidate.modified_at,
+                        "file_modified_at",
                     )
                 )
         return tuple(
@@ -262,6 +266,8 @@ class OutlookEvidenceAdapter:
                 f"importance {item.importance}; read {item.is_read}",
                 float(limit - index),
                 (self.connector.evidence_ref(item),),
+                item.received_at,
+                "mail_received_at",
             )
             for index, item in enumerate(result.messages)
         )
@@ -357,6 +363,8 @@ class CalendarEvidenceAdapter:
                 _calendar_excerpt(item.subject, item.start, item.end, item.location),
                 float(limit - index),
                 (self.connector.evidence_ref(item),),
+                item.end,
+                "calendar_event_end",
             )
             for index, item in enumerate(result.events)
         )

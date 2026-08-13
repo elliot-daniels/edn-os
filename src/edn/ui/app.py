@@ -385,18 +385,25 @@ with intelligence_tab:
                     },
                 )
             )
-            st.subheader("Priorities")
-            for number, priority in enumerate(response.priorities, start=1):
-                with st.container(border=True):
-                    st.markdown(f"#### {number}. {priority.title}")
-                    st.write(priority.why_it_matters)
-                    st.caption(
-                        f"Timeframe: {priority.timeframe or 'Unknown'} · "
-                        f"Confidence: {priority.confidence}"
-                    )
-                    st.write(f"Recommended next step: {priority.recommended_next_step}")
-                    for missing in priority.missing_information:
-                        st.info(f"Missing information: {missing}")
+            if response.daily_brief is not None:
+                st.subheader("Daily Intelligence")
+                for section in response.daily_brief.sections:
+                    st.markdown(f"### {section.title}")
+                    if not section.items:
+                        st.caption("No admitted evidence for this section.")
+                    for item in section.items:
+                        with st.container(border=True):
+                            st.markdown(f"#### {item.title}")
+                            st.caption(
+                                f"{item.kind.value.replace('_', ' ').title()} · "
+                                f"Freshness: {item.freshness.value.replace('_', ' ')}"
+                            )
+                            st.write(item.text)
+                            if item.proposal_only:
+                                st.info(
+                                    "Internal proposal only. Nothing was sent, "
+                                    "written, mutated, or executed."
+                                )
             for proposal in response.proposed_actions:
                 st.session_state.setdefault("proposal_evidence", {})[
                     proposal.proposal_id

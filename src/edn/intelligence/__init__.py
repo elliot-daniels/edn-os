@@ -18,11 +18,16 @@ from edn.intelligence.adapters import (
     SharePointEvidenceAdapter,
     SourceAdapter,
 )
-from edn.intelligence.brief import DailyIntelligenceComposer
+from edn.intelligence.brief import DailyIntelligenceComposer, SourceBriefPolicy
 from edn.intelligence.context import ContextAssembler
 from edn.intelligence.models import (
     AssembledContext,
+    BriefSectionKind,
     ContextEvidence,
+    DailyBriefItem,
+    DailyBriefSection,
+    DailyIntelligenceBrief,
+    FreshnessState,
     GlobalKnowledge,
     IntelligencePriority,
     IntelligenceRequest,
@@ -44,12 +49,17 @@ __all__ = [
     "ActionProposalStore",
     "ActionStatus",
     "AssembledContext",
+    "BriefSectionKind",
     "CalendarEvidenceAdapter",
     "CapabilityGapAdapter",
     "ContextAssembler",
     "ContextEvidence",
+    "DailyBriefItem",
+    "DailyBriefSection",
+    "DailyIntelligenceBrief",
     "DailyIntelligenceComposer",
     "EmailRetrievalAdapter",
+    "FreshnessState",
     "GlobalKnowledge",
     "InMemoryActionProposalStore",
     "InMemorySessionStore",
@@ -67,6 +77,7 @@ __all__ = [
     "SessionStore",
     "SharePointEvidenceAdapter",
     "SourceAdapter",
+    "SourceBriefPolicy",
     "StatementKind",
     "proposal_fingerprint",
 ]

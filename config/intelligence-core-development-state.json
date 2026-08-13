@@ -3,7 +3,7 @@
   "product": "EDN Intelligence Core",
   "version": "0.1.0-alpha",
   "current_branch": "feature/intelligence-core-v0.1",
-  "current_milestone": "PA-005 Microsoft validation passed; four controlled Local Files candidates await owner review",
+  "current_milestone": "PA-007 freshness-aware Daily Intelligence implemented and validated over synthetic current-evidence composition",
   "completed_increments": [
     "IC-001",
     "IC-002",
@@ -30,7 +30,8 @@
     "PA-005-MAIL-PAGE-BOUNDARY",
     "PA-005-DOMAIN-BINDING",
     "PA-005",
-    "PA-006"
+    "PA-006",
+    "PA-007"
   ],
   "active_increment": null,
   "blocked_increments": [
@@ -41,8 +42,8 @@
   ],
   "deferred_increments": [],
   "known_limitations": [
-    "Intelligence UI retrieves historical email/graph only; Calendar is a gap.",
-    "Daily Intelligence is generic and cannot establish current completeness.",
+    "Default owner UI runtime still composes historical email/graph with Calendar shown as a gap until separately configured authorised current-source adapters are wired.",
+    "Daily Intelligence freshness and ranking are deterministic, but owner usefulness over a representative live day remains unreviewed.",
     "Registry, policy and onboarding value-profile composition remain manual.",
     "No scheduler, health dashboard, verified backup/restore or mixed-source benchmark exists.",
     "No approved model/global provider exists.",
@@ -60,16 +61,16 @@
       "python -m json.tool (state, roadmap, policy and each audit JSONL record)",
       "git diff --check"
     ],
-    "passed": 315,
+    "passed": 319,
     "failed": 0,
-    "validated_at": "2026-08-12T20:45:00+09:30"
+    "validated_at": "2026-08-13T11:50:06+09:30"
   },
   "repository_status": "clean-checkpoint-except-protected-pa005-pack",
   "expected_dirty_paths": [
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
-  "last_validated_commit": "c2f9859f0b309f615d53fc651d7550fc84d33d4f",
-  "next_recommended_increment": "PA-007",
+  "last_validated_commit": "30bf7942ea16e89eaa37dcf79fbcd0be3b55c8cf",
+  "next_recommended_increment": "PA-008",
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
     "Approve future SharePoint content, model disclosure or external execution."
@@ -91,10 +92,11 @@
     "docs/intelligence-core/POST-ALPHA-ARCHITECTURE-REVIEW.md",
     "docs/intelligence-core/PA-004-PROGRESSIVE-ONBOARDING.md",
     "docs/intelligence-core/PA-006-SHAREPOINT-SYNTHETIC.md",
+    "docs/intelligence-core/PA-007-FRESHNESS-AWARE-DAILY-INTELLIGENCE.md",
     "docs/intelligence-core/IC-DEV-002-VALIDATED-GIT-CHECKPOINTS.md",
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-12T21:50:54+09:30",
-  "provenance": "PA-005 controlled evidence validation passed: Calendar 1/1 admitted, Inbox 2/25 admitted, four exact synthetic Local Files ingested with plan/fingerprint/provenance binding, and three-source bounded context assembly passed under EDN/edn-local/confidential."
+  "updated_at": "2026-08-13T11:50:06+09:30",
+  "provenance": "PA-007 repository validation passed: 319 synthetic/local tests cover typed evidence, inference and gaps; deterministic current/ageing/stale/unknown freshness; value/corroboration/recurrence/provenance ranking; explicit missing-source reporting; and proposal-only internal actions without live access or execution."
 }

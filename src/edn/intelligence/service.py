@@ -120,7 +120,8 @@ class IntelligenceService:
                 )
             )
         self._sessions.save(SessionState.from_context(actual_session_id, context))
-        priorities = self._brief_composer.compose(context)
+        daily_brief = self._brief_composer.compose(context, now=now)
+        priorities = self._brief_composer.priorities(daily_brief)
         normalized_query = request.query.casefold()
         action_requested = (
             "what should i do" in normalized_query or "draft" in normalized_query
@@ -150,4 +151,5 @@ class IntelligenceService:
             actual_session_id,
             priorities,
             proposals,
+            daily_brief,
         )
