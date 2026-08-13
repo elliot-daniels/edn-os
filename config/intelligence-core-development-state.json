@@ -70,7 +70,7 @@
   "expected_dirty_paths": [
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
-  "last_validated_commit": "ac10d8161763494128b97ec973b41f80323e8ebe",
+  "last_validated_commit": "da1ef1ea8908d148b3c2b3ed713797099ae7c22d",
   "next_recommended_increment": null,
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
@@ -99,6 +99,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-13T13:00:00+09:30",
+  "updated_at": "2026-08-13T13:10:00+09:30",
   "provenance": "PA-008 repository validation passed: 328 tests cover Adelaide timezone-aware scheduling, deterministic run lifecycle, duplicate suppression, safe retry, missed runs, structured local status, allowlisted backup manifests, integrity/schema failure, isolated restore, and prohibited-material exclusion without production activation or live access."
 }
