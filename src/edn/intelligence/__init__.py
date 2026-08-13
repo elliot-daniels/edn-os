@@ -62,8 +62,10 @@ from edn.intelligence.openai_provider import (
     OpenAIProvider,
     PilotBudgetLedger,
     PilotDispatchError,
+    ProviderApproval,
     ProviderAuditRecord,
     ProviderFailureCode,
+    ProviderPreflight,
 )
 from edn.intelligence.operations import (
     EDN_TIMEZONE,
@@ -144,8 +146,10 @@ __all__ = [
     "PilotBudgetLedger",
     "PilotDispatchError",
     "ProjectedEvidence",
+    "ProviderApproval",
     "ProviderAuditRecord",
     "ProviderFailureCode",
+    "ProviderPreflight",
     "RunFailureCode",
     "RunStatus",
     "SQLiteActionProposalStore",

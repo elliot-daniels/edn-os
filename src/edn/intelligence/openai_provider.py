@@ -9,8 +9,10 @@ an owner-approved policy, credential and explicit provider enablement exist.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
@@ -44,6 +46,8 @@ class ProviderFailureCode(StrEnum):
     PROVIDER_UNAVAILABLE = "provider_unavailable"
     NETWORK = "network_failure"
     INVALID_RESPONSE = "invalid_response"
+    PROJECTION_NOT_APPROVED = "projection_not_approved"
+    PROHIBITED_CONTENT = "prohibited_content"
 
 
 class PilotDispatchError(RuntimeError):
@@ -145,6 +149,55 @@ class ProviderAuditRecord:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class ProviderPreflight:
+    request_id: str
+    provider_id: str
+    model: str
+    disclosure_policy: str
+    evidence_item_count: int
+    projected_categories: tuple[str, ...]
+    projected_payload_size: int
+    classification_ceiling: str
+    disclosure_decision: str
+    estimated_cost_usd: float | None
+    dispatch_permitted: bool
+    refusal_reason: str | None = None
+    preflight_hash: str = ""
+    redaction_count: int = 0
+    refused_field_count: int = 0
+    prohibited_categories_absent: bool = True
+    provider_approval_explicit: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderApproval:
+    preflight_hash: str
+    request_id: str
+    provider_id: str
+    model: str
+    disclosure_policy: str
+    projected_categories: tuple[str, ...]
+    expires_at: datetime
+
+    def token(self) -> str:
+        return hashlib.sha256(
+            json.dumps(
+                {
+                    "preflight_hash": self.preflight_hash,
+                    "request_id": self.request_id,
+                    "provider_id": self.provider_id,
+                    "model": self.model,
+                    "disclosure_policy": self.disclosure_policy,
+                    "projected_categories": self.projected_categories,
+                    "expires_at": self.expires_at.isoformat(),
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+
+
 @dataclass(slots=True)
 class InMemoryProviderAudit:
     records: list[ProviderAuditRecord] = field(default_factory=list)
@@ -196,7 +249,13 @@ class OpenAIDisclosurePolicy:
             return False
         if request.classification.rank is None or self.classification_ceiling.rank is None:
             return False
-        return request.classification.rank <= self.classification_ceiling.rank
+        if request.classification.rank > self.classification_ceiling.rank:
+            return False
+        return all(
+            item.provider_approved
+            and item.field_category in self.allowed_categories
+            for item in request.projection.items
+        )
 
 
 @dataclass(slots=True)
@@ -261,6 +320,108 @@ class OpenAIProvider:
         self.audit = audit or InMemoryProviderAudit()
         self.budget = budget or PilotBudgetLedger()
         self.environment = environment or os.environ
+        self._approvals: dict[str, ProviderApproval] = {}
+
+    def preflight(self, request: ModelRequest) -> ProviderPreflight:
+        projection = request.projection
+        categories = tuple(sorted({item.field_category for item in projection.items}))
+        estimated = (
+            max(1, (projection.total_chars + 3) // 4)
+            / 1_000_000
+            * OPENAI_INPUT_USD_PER_MILLION
+            + self.config.max_output_tokens
+            / 1_000_000
+            * OPENAI_OUTPUT_USD_PER_MILLION
+        ) * self.config.usd_to_aud
+        reason: str | None = None
+        if request.synthetic_fixture:
+            reason = ProviderFailureCode.INVALID_AUTHORITY.value
+        elif not self.config.enabled:
+            reason = ProviderFailureCode.PROVIDER_DISABLED.value
+        elif self.policy is None or not self.policy.external_model_approved:
+            reason = ProviderFailureCode.DISCLOSURE_DENIED.value
+        elif not all(item.provider_approved for item in projection.items):
+            reason = ProviderFailureCode.PROJECTION_NOT_APPROVED.value
+        elif any(
+            _PROHIBITED_CONTENT.search(f"{item.title} {item.excerpt}")
+            for item in projection.items
+        ):
+            reason = ProviderFailureCode.PROHIBITED_CONTENT.value
+        elif self.policy is None or not self.policy.allows(request):
+            reason = ProviderFailureCode.DISCLOSURE_DENIED.value
+        elif projection.total_chars > min(self.config.max_context_chars, self.policy.max_context_chars):
+            reason = ProviderFailureCode.BUDGET_EXCEEDED.value
+        digest = hashlib.sha256(
+            json.dumps(
+                {
+                    "request_id": request.request_id,
+                    "provider": self.provider_id,
+                    "model": self.config.model,
+                    "policy": self.config.policy_id,
+                    "categories": categories,
+                    "size": projection.total_chars,
+                    "classification": request.classification.level_id,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+        result = ProviderPreflight(
+            request.request_id,
+            self.provider_id,
+            self.config.model,
+            self.config.policy_id,
+            len(projection.items),
+            categories,
+            projection.total_chars,
+            request.classification.level_id,
+            "allowed" if reason is None else "denied",
+            estimated if reason is None else None,
+            reason is None,
+            reason,
+            digest,
+            len(projection.redactions),
+            sum(1 for item in projection.items if not item.provider_approved),
+            not any(category in {"credentials", "personal", "financial", "security-sensitive", "defence", "customer-restricted"} for category in categories),
+            all(item.provider_approved for item in projection.items),
+        )
+        self.audit.append(
+            ProviderAuditRecord(
+                timestamp=datetime.now(UTC),
+                request_id=result.request_id,
+                provider_id=result.provider_id,
+                model=result.model,
+                disclosure_policy=result.disclosure_policy,
+                evidence_item_count=result.evidence_item_count,
+                projected_categories=result.projected_categories,
+                projected_payload_size=result.projected_payload_size,
+                classification_ceiling=result.classification_ceiling,
+                disclosure_decision=result.disclosure_decision,
+                dispatch_status="preflight_generated",
+                failure_reason=result.refusal_reason,
+                estimated_cost_usd=result.estimated_cost_usd,
+            )
+        )
+        return result
+
+    def approve(self, preflight: ProviderPreflight, *, expires_at: datetime) -> ProviderApproval:
+        if (
+            not preflight.dispatch_permitted
+            or expires_at.tzinfo is None
+            or expires_at <= datetime.now(UTC)
+        ):
+            raise PilotDispatchError(ProviderFailureCode.DISCLOSURE_DENIED)
+        approval = ProviderApproval(
+            preflight.preflight_hash,
+            preflight.request_id,
+            preflight.provider_id,
+            preflight.model,
+            preflight.disclosure_policy,
+            preflight.projected_categories,
+            expires_at,
+        )
+        self._approvals[approval.token()] = approval
+        return approval
 
     def generate(self, request: ModelRequest) -> ModelResponse:
         now = datetime.now(UTC)
@@ -280,14 +441,25 @@ class OpenAIProvider:
             dispatch_status="refused",
         )
         try:
-            if request.synthetic_fixture:
-                raise PilotDispatchError(ProviderFailureCode.INVALID_AUTHORITY, "real adapter requires synthetic_fixture=False")
-            if not self.config.enabled:
-                raise PilotDispatchError(ProviderFailureCode.PROVIDER_DISABLED)
-            if self.policy is None or not self.policy.allows(request):
-                raise PilotDispatchError(ProviderFailureCode.DISCLOSURE_DENIED)
-            if projection.total_chars > min(self.config.max_context_chars, self.policy.max_context_chars):
-                raise PilotDispatchError(ProviderFailureCode.BUDGET_EXCEEDED)
+            preflight = self.preflight(request)
+            if not preflight.dispatch_permitted:
+                raise PilotDispatchError(
+                    ProviderFailureCode(preflight.refusal_reason or ProviderFailureCode.DISCLOSURE_DENIED.value)
+                )
+            if request.approval_token is None:
+                raise PilotDispatchError(ProviderFailureCode.INVALID_AUTHORITY, "preflight approval required")
+            approval = self._approvals.get(request.approval_token)
+            if (
+                approval is None
+                or approval.expires_at <= datetime.now(UTC)
+                or approval.preflight_hash != preflight.preflight_hash
+                or approval.request_id != request.request_id
+                or approval.provider_id != self.provider_id
+                or approval.model != self.config.model
+                or approval.disclosure_policy != self.config.policy_id
+                or approval.projected_categories != preflight.projected_categories
+            ):
+                raise PilotDispatchError(ProviderFailureCode.INVALID_AUTHORITY, "approval token mismatch or expired")
             api_key = self.environment.get(self.config.api_key_env)
             if not api_key:
                 raise PilotDispatchError(ProviderFailureCode.MISSING_CREDENTIAL)
@@ -411,3 +583,10 @@ def _usage(value: object) -> tuple[int | None, int | None]:
         raw = value.get(name)
         return raw if isinstance(raw, int) and raw >= 0 else None
     return integer("input_tokens"), integer("output_tokens")
+
+
+_PROHIBITED_CONTENT = re.compile(
+    r"(?i)(email body|bodypreview|mime|attachment|password|api[_ -]?key|"
+    r"access[_ -]?token|refresh[_ -]?token|phone number|email address|"
+    r"financial|defence|classified|customer[- ]restricted|personal data)"
+)

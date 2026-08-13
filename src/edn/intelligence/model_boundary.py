@@ -82,6 +82,8 @@ class ProjectedEvidence:
     freshness: FreshnessState
     provenance_digest: str
     source_timestamp: datetime | None = None
+    field_category: str = "unknown"
+    provider_approved: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,6 +106,7 @@ class ModelRequest:
     capability: str
     max_output_items: int
     synthetic_fixture: bool = True
+    approval_token: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

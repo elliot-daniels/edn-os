@@ -1043,12 +1043,27 @@
       "successor_tasks": ["PA-009"]
     },
     {
+      "task_id": "PA-009-PREFLIGHT",
+      "objective": "Add metadata-only provider preflight, field-level disclosure hardening and hash-bound owner approval before genuine PA-009 dispatch.",
+      "prerequisites": ["PA-009-ADAPTER"],
+      "authority_actions": ["repository.read", "code.development.write", "test.development.write", "documentation.write", "synthetic.fixture.write", "validation.pytest", "validation.ruff", "validation.mypy", "validation.whitespace", "git.commit.prepare", "config.development.write", "state.development.write"],
+      "risk": "critical",
+      "expected_components": ["src/edn/intelligence", "tests/intelligence", "config"],
+      "acceptance_criteria": ["Preflight cannot dispatch", "Only explicitly approved fields project", "Approval binds exact preflight and expires", "Prohibited content and unknown approval fail closed"],
+      "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy src/edn", "git diff --check"],
+      "stop_conditions": ["Genuine provider dispatch", "Broader disclosure", "Security weakening", "PA-010 scope"],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": ["PA-009"]
+    },
+    {
       "task_id": "PA-009",
       "objective": "Integrate an approved global/model provider behind a private-evidence disclosure boundary.",
       "prerequisites": [
         "PA-008",
         "PA-009-SYNTHETIC",
         "PA-009-ADAPTER"
+        ,"PA-009-PREFLIGHT"
       ],
       "authority_actions": [
         "external.permission.new",
