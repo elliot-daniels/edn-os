@@ -3,7 +3,7 @@
   "product": "EDN Intelligence Core",
   "version": "0.1.0-alpha",
   "current_branch": "feature/intelligence-core-v0.1",
-  "current_milestone": "PA-009-SYNTHETIC provider-neutral model/disclosure boundary validated; real provider disclosure remains unactivated",
+  "current_milestone": "PA-009 OpenAI adapter and synthetic boundary validated; genuine EDN disclosure remains owner-gated",
   "completed_increments": [
     "IC-001",
     "IC-002",
@@ -33,6 +33,7 @@
     "PA-006",
     "PA-007",
     "PA-008"
+    ,"PA-009-ADAPTER"
   ],
   "active_increment": null,
   "blocked_increments": [
@@ -49,6 +50,7 @@
     "No production scheduler/service, automatic morning delivery, external notification, or mixed-source benchmark exists; PA-008 scheduling remains a local activation-ready abstraction.",
     "No approved model/global provider exists.",
     "Synthetic model intelligence has no real provider, network dispatch or genuine EDN evidence disclosure; PA-009 remains separately gated.",
+    "OpenAI adapter is activation-ready but disabled by default; no genuine EDN evidence has been disclosed.",
     "Proposals cannot execute.",
     "PDF/DOCX extraction is deliberately bounded and fails closed on unsupported PDF filters or ambiguous structures; live owner roots remain unauthorised.",
     "Current Outlook and Calendar live validation passed, but exact EDN category admission yielded zero retained records in both sources.",
@@ -63,10 +65,12 @@
       "python -m json.tool (state, roadmap, policy and each audit JSONL record)",
       "git diff --check"
     ],
-    "passed": 336,
+    "passed": 344,
     "failed": 0,
     "focused_pa009_synthetic": 8,
-    "mypy_files": 100,
+    "focused_pa009_openai": 8,
+    "boundary_regressions": 35,
+    "mypy_files": 101,
     "commands": [
       "./.venv-wsl/bin/python -m pytest -q",
       "./.venv-wsl/bin/ruff check .",
@@ -85,6 +89,7 @@
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
     "Approve a named model provider, genuine evidence disclosure categories, retention/cost policy and threat model before PA-009.",
+    "Before first real request: approve exact OpenAI model snapshot, field-level disclosure policy, retention/residency terms, credential installation, pilot duration and kill switch.",
     "Approve future SharePoint content or external execution separately."
   ],
   "external_capability_blockers": [
@@ -107,6 +112,7 @@
     "docs/intelligence-core/PA-007-FRESHNESS-AWARE-DAILY-INTELLIGENCE.md",
     "docs/intelligence-core/PA-008-OPERATIONAL-RELIABILITY.md",
     "docs/intelligence-core/PA-009-SYNTHETIC-MODEL-DISCLOSURE.md",
+    "docs/intelligence-core/PA-009-OPENAI-PILOT.md",
     "docs/intelligence-core/IC-DEV-002-VALIDATED-GIT-CHECKPOINTS.md",
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"

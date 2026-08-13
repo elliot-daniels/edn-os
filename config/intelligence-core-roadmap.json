@@ -1011,11 +1011,44 @@
       ]
     },
     {
+      "task_id": "PA-009-ADAPTER",
+      "objective": "Implement the disabled-by-default OpenAI Daily Intelligence adapter and synthetic/provider-boundary controls; stop before genuine EDN disclosure.",
+      "prerequisites": ["PA-009-SYNTHETIC"],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "synthetic.fixture.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare",
+        "config.development.write",
+        "state.development.write"
+      ],
+      "risk": "critical",
+      "expected_components": ["src/edn/intelligence", "tests/intelligence", "docs/intelligence-core", "config"],
+      "acceptance_criteria": [
+        "OpenAI adapter uses bounded Responses structured output with no tools or state",
+        "Disclosure approval, field policy, audit, credential and local cost controls fail closed",
+        "Synthetic transport validation passes without genuine EDN disclosure",
+        "PA-009 remains disabled pending final owner approval"
+      ],
+      "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy src/edn", "git diff --check"],
+      "stop_conditions": ["Credential creation", "Genuine evidence dispatch", "Provider contract uncertainty", "PA-010 scope"],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": ["PA-009"]
+    },
+    {
       "task_id": "PA-009",
       "objective": "Integrate an approved global/model provider behind a private-evidence disclosure boundary.",
       "prerequisites": [
         "PA-008",
-        "PA-009-SYNTHETIC"
+        "PA-009-SYNTHETIC",
+        "PA-009-ADAPTER"
       ],
       "authority_actions": [
         "external.permission.new",
