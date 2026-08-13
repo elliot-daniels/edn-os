@@ -18,6 +18,7 @@ from edn.intelligence.adapters import (
     SharePointEvidenceAdapter,
     SourceAdapter,
 )
+from edn.intelligence.backup import BackupComponent, BackupManifest, OperationalBackup
 from edn.intelligence.brief import DailyIntelligenceComposer, SourceBriefPolicy
 from edn.intelligence.context import ContextAssembler
 from edn.intelligence.models import (
@@ -35,6 +36,17 @@ from edn.intelligence.models import (
     IntelligenceStatement,
     StatementKind,
 )
+from edn.intelligence.operations import (
+    EDN_TIMEZONE,
+    BriefRunResult,
+    DailyIntelligenceScheduler,
+    DailyOperationalStatus,
+    DailyOperationsStore,
+    DailyRun,
+    DailySchedule,
+    RunFailureCode,
+    RunStatus,
+)
 from edn.intelligence.service import IntelligenceService
 from edn.intelligence.session import (
     InMemorySessionStore,
@@ -44,11 +56,15 @@ from edn.intelligence.session import (
 )
 
 __all__ = [
+    "EDN_TIMEZONE",
     "ActionPlanner",
     "ActionProposal",
     "ActionProposalStore",
     "ActionStatus",
     "AssembledContext",
+    "BackupComponent",
+    "BackupManifest",
+    "BriefRunResult",
     "BriefSectionKind",
     "CalendarEvidenceAdapter",
     "CapabilityGapAdapter",
@@ -58,6 +74,11 @@ __all__ = [
     "DailyBriefSection",
     "DailyIntelligenceBrief",
     "DailyIntelligenceComposer",
+    "DailyIntelligenceScheduler",
+    "DailyOperationalStatus",
+    "DailyOperationsStore",
+    "DailyRun",
+    "DailySchedule",
     "EmailRetrievalAdapter",
     "FreshnessState",
     "GlobalKnowledge",
@@ -70,7 +91,10 @@ __all__ = [
     "IntelligenceStatement",
     "KnowledgeGraphAdapter",
     "LocalFilesEvidenceAdapter",
+    "OperationalBackup",
     "OutlookEvidenceAdapter",
+    "RunFailureCode",
+    "RunStatus",
     "SQLiteActionProposalStore",
     "SQLiteSessionStore",
     "SessionState",
