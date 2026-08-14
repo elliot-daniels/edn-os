@@ -24,6 +24,9 @@ SCHEMA_VERSION = "1.0.0"
 DIRECTORY_MODE = 0o700
 FILE_MODE = 0o600
 MAX_ENVELOPE_BYTES = 64 * 1024
+RETRYABLE_INITIAL_FAILURE_CODES = frozenset(
+    {"timeout", "quota_rate_limit", "provider_unavailable", "network_failure"}
+)
 
 
 class ProtectedPreflightError(RuntimeError):
@@ -44,6 +47,8 @@ class ProtectedProjectionEnvelope:
     created_at: datetime
     expires_at: datetime
     dispatch_attempts: int = 0
+    initial_failure_code: str | None = None
+    initial_failure_retryable: bool = False
 
     def __post_init__(self) -> None:
         if self.created_at.tzinfo is None or self.expires_at.tzinfo is None:
@@ -52,6 +57,17 @@ class ProtectedProjectionEnvelope:
             raise ValueError("protected preflight expiry must follow creation")
         if self.dispatch_attempts < 0 or self.dispatch_attempts > 2:
             raise ValueError("protected preflight dispatch attempts are invalid")
+        if self.dispatch_attempts == 0 and (
+            self.initial_failure_code is not None or self.initial_failure_retryable
+        ):
+            raise ValueError("initial failure metadata requires a retry attempt")
+        if self.dispatch_attempts > 0 and (
+            self.initial_failure_code not in RETRYABLE_INITIAL_FAILURE_CODES
+            or not self.initial_failure_retryable
+        ):
+            raise ValueError(
+                "retry attempt requires retryable initial failure metadata"
+            )
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -68,6 +84,8 @@ class ProtectedProjectionEnvelope:
             "created_at": _timestamp(self.created_at),
             "expires_at": _timestamp(self.expires_at),
             "dispatch_attempts": self.dispatch_attempts,
+            "initial_failure_code": self.initial_failure_code,
+            "initial_failure_retryable": self.initial_failure_retryable,
         }
 
     @classmethod
@@ -87,6 +105,12 @@ class ProtectedProjectionEnvelope:
             _datetime(value["created_at"]),
             _datetime(value["expires_at"]),
             int(value.get("dispatch_attempts", 0)),
+            (
+                None
+                if value.get("initial_failure_code") is None
+                else str(value["initial_failure_code"])
+            ),
+            value.get("initial_failure_retryable") is True,
         )
 
 
@@ -163,13 +187,22 @@ class ProtectedPreflightStore:
             raise ProtectedPreflightError("protected preflight retry limit reached")
         return envelope
 
-    def restore_retry(self, envelope: ProtectedProjectionEnvelope) -> None:
+    def restore_retry(
+        self, envelope: ProtectedProjectionEnvelope, *, failure_code: str
+    ) -> None:
         claimed = self._path(envelope.request.request_id, claimed=True)
         active = self._path(envelope.request.request_id, claimed=False)
         self._validate_file(claimed)
         if active.exists():
             raise ProtectedPreflightError("active protected preflight already exists")
-        updated = replace(envelope, dispatch_attempts=envelope.dispatch_attempts + 1)
+        if envelope.dispatch_attempts != 0 or not failure_code:
+            raise ProtectedPreflightError("protected preflight retry is invalid")
+        updated = replace(
+            envelope,
+            dispatch_attempts=1,
+            initial_failure_code=failure_code,
+            initial_failure_retryable=True,
+        )
         self._rewrite_claimed(claimed, updated)
         os.replace(claimed, active)
 
@@ -224,7 +257,12 @@ class ProtectedPreflightStore:
             raise ProtectedPreflightError("protected preflight is invalid") from exc
         if not isinstance(value, dict) or canonical_json(value) != data:
             raise ProtectedPreflightError("protected preflight is not canonical")
-        return ProtectedProjectionEnvelope.from_dict(value)
+        try:
+            return ProtectedProjectionEnvelope.from_dict(value)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ProtectedPreflightError(
+                "protected preflight fields are invalid"
+            ) from exc
 
     def _open_read(self, path: Path) -> int:
         flags = os.O_RDONLY

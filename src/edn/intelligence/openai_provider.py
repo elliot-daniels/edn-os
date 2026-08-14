@@ -132,12 +132,27 @@ class ProviderAuditRecord:
     input_tokens: int | None = None
     output_tokens: int | None = None
     estimated_cost_usd: float | None = None
+    attempt_number: int = 0
+    transport_attempted: bool = False
+    retryable: bool = False
+    retry_admission_decision: str = "not_applicable"
+    initial_failure_code: str | None = None
+    final_outcome: str | None = None
 
     def __post_init__(self) -> None:
         if self.timestamp.tzinfo is None:
             raise ValueError("audit timestamp must be timezone-aware")
         if self.projected_payload_size < 0 or self.evidence_item_count < 0:
             raise ValueError("audit sizes must not be negative")
+        if self.attempt_number < 0 or self.attempt_number > 2:
+            raise ValueError("audit attempt number is invalid")
+        if self.retry_admission_decision not in {
+            "not_applicable",
+            "pending",
+            "admitted",
+            "blocked",
+        }:
+            raise ValueError("audit retry admission decision is invalid")
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -156,6 +171,12 @@ class ProviderAuditRecord:
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
             "estimated_cost_usd": self.estimated_cost_usd,
+            "attempt_number": self.attempt_number,
+            "transport_attempted": self.transport_attempted,
+            "retryable": self.retryable,
+            "retry_admission_decision": self.retry_admission_decision,
+            "initial_failure_code": self.initial_failure_code,
+            "final_outcome": self.final_outcome,
         }
 
 
@@ -291,7 +312,12 @@ class PilotBudgetLedger:
     monthly_usd: dict[tuple[int, int], float] = field(default_factory=dict)
 
     def admit(
-        self, *, now: datetime, config: OpenAIPilotConfig, input_tokens: int
+        self,
+        *,
+        now: datetime,
+        config: OpenAIPilotConfig,
+        input_tokens: int,
+        is_retry: bool = False,
     ) -> float:
         day = self.daily.setdefault(now.date(), _BudgetDay())
         month_key = (now.year, now.month)
@@ -303,7 +329,7 @@ class PilotBudgetLedger:
         if (
             day.requests >= config.max_requests_per_day
             or day.successful_briefs >= config.max_successful_briefs_per_day
-            or day.retries >= config.max_retries_per_day
+            or (is_retry and day.retries >= config.max_retries_per_day)
             or day.estimated_usd * config.usd_to_aud + estimated_aud
             > config.max_daily_spend_aud
             or self.monthly_usd.get(month_key, 0.0) * config.usd_to_aud + estimated_aud
@@ -311,6 +337,8 @@ class PilotBudgetLedger:
         ):
             raise PilotDispatchError(ProviderFailureCode.BUDGET_EXCEEDED)
         day.requests += 1
+        if is_retry:
+            day.retries += 1
         day.estimated_usd += estimated_usd
         self.monthly_usd[month_key] = (
             self.monthly_usd.get(month_key, 0.0) + estimated_usd
@@ -319,10 +347,6 @@ class PilotBudgetLedger:
 
     def record_success(self, *, now: datetime) -> None:
         self.daily.setdefault(now.date(), _BudgetDay()).successful_briefs += 1
-
-    def record_retry(self, *, now: datetime) -> None:
-        self.daily.setdefault(now.date(), _BudgetDay()).retries += 1
-
 
 class OpenAIProvider:
     provider_id = "openai.api"
@@ -595,14 +619,27 @@ class OpenAIProvider:
                     "protected preflight or approval mismatch",
                 )
             self._approvals[approval.token()] = approval
-            result = self._generate(request, preflight=preflight)
+            result = self._generate(
+                request,
+                preflight=preflight,
+                attempt_number=envelope.dispatch_attempts + 1,
+                is_retry=envelope.dispatch_attempts > 0,
+                initial_failure_code=envelope.initial_failure_code,
+            )
         except PilotDispatchError as exc:
             if exc.code in _RETRYABLE_FAILURES and envelope.dispatch_attempts == 0:
                 try:
-                    self.budget.record_retry(now=datetime.now(UTC))
-                    self.preflight_store.restore_retry(envelope)
+                    self.preflight_store.restore_retry(
+                        envelope, failure_code=exc.code.value
+                    )
+                    self._audit_retry_admission(
+                        request, exc.code, decision="pending"
+                    )
                 except ProtectedPreflightError:
                     self.preflight_store.destroy_claim(approval.request_id)
+                    self._audit_retry_admission(
+                        request, exc.code, decision="blocked"
+                    )
             else:
                 self.preflight_store.destroy_claim(approval.request_id)
             raise
@@ -614,8 +651,12 @@ class OpenAIProvider:
         request: ModelRequest,
         *,
         preflight: ProviderPreflight | None = None,
+        attempt_number: int = 1,
+        is_retry: bool = False,
+        initial_failure_code: str | None = None,
     ) -> ModelResponse:
         now = datetime.now(UTC)
+        transport_attempted = False
         projection = request.projection
         categories = (
             tuple(sorted(self.policy.allowed_categories)) if self.policy else ()
@@ -632,6 +673,9 @@ class OpenAIProvider:
             classification_ceiling=request.classification.level_id,
             disclosure_decision="unknown",
             dispatch_status="refused",
+            attempt_number=attempt_number,
+            retry_admission_decision=("admitted" if is_retry else "not_applicable"),
+            initial_failure_code=initial_failure_code,
         )
         try:
             checked = preflight or self.preflight(request)
@@ -666,9 +710,13 @@ class OpenAIProvider:
                 raise PilotDispatchError(ProviderFailureCode.MISSING_CREDENTIAL)
             input_tokens = max(1, (projection.total_chars + 3) // 4)
             estimated = self.budget.admit(
-                now=now, config=self.config, input_tokens=input_tokens
+                now=now,
+                config=self.config,
+                input_tokens=input_tokens,
+                is_retry=is_retry,
             )
             payload = _request_payload(request, self.config.model)
+            transport_attempted = True
             response = self.transport.post(payload, api_key=api_key)
             parsed = _parse_response(response, request, self.config.model)
             usage = response.get("usage")
@@ -682,6 +730,8 @@ class OpenAIProvider:
                     input_tokens=input_used,
                     output_tokens=output_used,
                     estimated_cost_usd=estimated,
+                    transport_attempted=transport_attempted,
+                    final_outcome="completed",
                 )
             )
             return parsed
@@ -695,9 +745,51 @@ class OpenAIProvider:
                         else "not_dispatched"
                     ),
                     failure_reason=exc.code.value,
+                    transport_attempted=transport_attempted,
+                    retryable=exc.code in _RETRYABLE_FAILURES,
+                    retry_admission_decision=(
+                        "blocked"
+                        if is_retry and exc.code is ProviderFailureCode.BUDGET_EXCEEDED
+                        else base.retry_admission_decision
+                    ),
+                    final_outcome="failed",
                 )
             )
             raise
+
+    def _audit_retry_admission(
+        self,
+        request: ModelRequest,
+        failure: ProviderFailureCode,
+        *,
+        decision: str,
+    ) -> None:
+        self.audit.append(
+            ProviderAuditRecord(
+                timestamp=datetime.now(UTC),
+                request_id=request.request_id,
+                provider_id=self.provider_id,
+                model=self.config.model,
+                disclosure_policy=self.config.policy_id,
+                evidence_item_count=len(request.projection.items),
+                projected_categories=tuple(
+                    sorted({item.field_category for item in request.projection.items})
+                ),
+                projected_payload_size=request.projection.total_chars,
+                classification_ceiling=request.classification.level_id,
+                disclosure_decision="allowed",
+                dispatch_status="retry_admission",
+                failure_reason=failure.value,
+                attempt_number=1,
+                transport_attempted=True,
+                retryable=True,
+                retry_admission_decision=decision,
+                initial_failure_code=failure.value,
+                final_outcome=(
+                    "retry_pending" if decision == "pending" else "failed"
+                ),
+            )
+        )
 
 
 def _request_payload(request: ModelRequest, model: str) -> dict[str, object]:

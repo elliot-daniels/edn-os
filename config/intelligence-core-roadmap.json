@@ -1071,6 +1071,20 @@
       "successor_tasks": ["PA-009"]
     },
     {
+      "task_id": "PA-009-RETRY-CONTROL-REPAIR",
+      "objective": "Correct PA-009 retry admission, budget accounting and metadata-only failure lineage after the first genuine pilot attempt exposed a retry-control defect.",
+      "prerequisites": ["PA-009-PROTECTED-HANDOFF"],
+      "authority_actions": ["repository.read", "code.development.write", "test.development.write", "documentation.write", "synthetic.fixture.write", "validation.pytest", "validation.ruff", "validation.mypy", "validation.whitespace", "git.commit.prepare", "config.development.write", "state.development.write"],
+      "risk": "critical",
+      "expected_components": ["src/edn/intelligence", "tests/intelligence", "docs/intelligence-core", "config"],
+      "acceptance_criteria": ["One retry means exactly one additional transport attempt", "Retry allowance is consumed only after full admission", "Initial failure remains separately auditable", "Terminal responses, authority drift, replay and budget refusal remain fail closed"],
+      "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy src/edn", "git diff --check"],
+      "stop_conditions": ["Live access", "Credential access", "Protected evidence access", "Disclosure broadening", "PA-010 scope"],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": ["PA-009"]
+    },
+    {
       "task_id": "PA-009",
       "objective": "Integrate an approved global/model provider behind a private-evidence disclosure boundary.",
       "prerequisites": [

@@ -43,6 +43,14 @@ An owner must install a least-privilege project credential as `EDN_OPENAI_API_KE
 
 Every attempted dispatch emits metadata-only audit information: request ID, provider/model, policy, item count, projected categories/size, classification ceiling, decision, status, failure code and usage/cost when available. Prompt and response bodies are not stored.
 
+`max_retries_per_day=1` means one additional transport attempt after an
+explicitly retryable pre-valid-result failure; the initial attempt is not a
+retry. Retry admission revalidates all protected authority and budget controls
+before incrementing request and retry counters. Invalid structured output,
+invalid citations and other terminal responses are not retryable. The protected
+envelope retains only the normalized initial retryable failure code so a later
+terminal refusal cannot overwrite the original transport failure in audit.
+
 ## Kill switch and remaining acceptance
 
 `OpenAIPilotConfig.enabled=false` is the default and produces `provider_disabled` without transport dispatch. The deterministic local Daily Intelligence path continues. Before the first genuine request, the owner must accept current provider retention, abuse-monitoring, data-residency, contractual and Australian processing conditions, and explicitly approve the exact model, fields, limits, credential and pilot duration.

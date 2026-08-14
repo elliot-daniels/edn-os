@@ -21,10 +21,20 @@ claimed file. This is invalidation and logical deletion, not a claim of secure
 physical erasure from SSD or backup media.
 
 One retryable network/provider failure may restore the envelope to active state
-with a persisted attempt count. A second attempt is terminal. Successful use,
-invalid response, missing credentials, authority mismatch, cancellation and
-expiry make the envelope unusable. Existing daily request, success, retry and
-spend controls remain in force.
+with a persisted attempt count and normalized initial failure code. A retry is
+an explicitly identified second attempt: it must re-pass envelope, hash,
+approval, expiry, disclosure, credential, model, policy, request-count, retry-
+count and spend admission before transport. Retry allowance is consumed only
+after those checks pass. A second transport attempt is terminal. Successful
+use, invalid response, missing credentials, authority mismatch, cancellation
+and expiry make the envelope unusable. Existing limits remain two provider
+requests, one successful brief and one retry per day, plus the configured daily
+and monthly spend ceilings.
+
+Metadata-only audit records distinguish the initial attempt, normalized failure,
+retryability, pending/admitted/blocked retry decision, retry attempt number,
+whether transport occurred, initial failure code and final outcome. They contain
+no prompt, response, projected evidence or credential values.
 
 ## Protected storage
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -46,6 +47,21 @@ class OneNetworkFailureTransport(FakeTransport):
         del payload, api_key
         self.calls += 1
         raise PilotDispatchError(ProviderFailureCode.NETWORK)
+
+
+class SequenceTransport(FakeTransport):
+    def __init__(self, outcomes: list[dict[str, object] | ProviderFailureCode]) -> None:
+        super().__init__()
+        self.outcomes = outcomes
+
+    def post(self, payload: dict[str, object], *, api_key: str) -> dict[str, object]:
+        del payload
+        assert api_key == "synthetic-key"
+        self.calls += 1
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, ProviderFailureCode):
+            raise PilotDispatchError(outcome)
+        return outcome
 
 
 def _response() -> dict[str, object]:
@@ -330,7 +346,11 @@ def test_terminal_failure_destroys_envelope_and_preserves_fallback(
     assert exc.value.code is ProviderFailureCode.INVALID_RESPONSE
     assert transport.calls == 1
     assert not ProtectedPreflightStore(root).exists(_request().request_id)
-    assert provider.audit.records[-1].dispatch_status == "refused"  # type: ignore[attr-defined]
+    record = provider.audit.records[-1]  # type: ignore[attr-defined]
+    assert record.dispatch_status == "refused"
+    assert record.transport_attempted is True
+    assert record.retryable is False
+    assert record.attempt_number == 1
 
 
 def test_only_one_retryable_failure_can_restore_across_processes(
@@ -361,3 +381,178 @@ def test_only_one_retryable_failure_can_restore_across_processes(
     second.generate_protected(second_approval)
     assert success_transport.calls == 1
     assert not ProtectedPreflightStore(root).exists(_request().request_id)
+
+
+def _approved_provider(
+    root: Path, transport: FakeTransport
+) -> tuple[OpenAIProvider, ProviderApproval]:
+    _, preflight = _persist(root)
+    provider = _provider(root, transport)
+    approval = provider.approve_protected(
+        request_id=_request().request_id,
+        preflight_hash=preflight.preflight_hash,  # type: ignore[attr-defined]
+        expires_at=EXPIRY,
+    )
+    return provider, approval
+
+
+def test_initial_success_is_one_transport_and_zero_retries(tmp_path: Path) -> None:
+    provider, approval = _approved_provider(tmp_path / "protected", FakeTransport())
+
+    provider.generate_protected(approval)
+
+    transport = provider.transport
+    assert isinstance(transport, FakeTransport)
+    assert transport.calls == 1
+    day = provider.budget.daily[datetime.now(UTC).date()]
+    assert day.requests == 1
+    assert day.retries == 0
+    assert provider.audit.records[-1].attempt_number == 1  # type: ignore[attr-defined]
+    assert provider.audit.records[-1].final_outcome == "completed"  # type: ignore[attr-defined]
+
+
+def test_retryable_initial_failure_then_success_is_exactly_two_transports(
+    tmp_path: Path,
+) -> None:
+    transport = SequenceTransport([ProviderFailureCode.NETWORK, _response()])
+    provider, approval = _approved_provider(tmp_path / "protected", transport)
+
+    with pytest.raises(PilotDispatchError) as first:
+        provider.generate_protected(approval)
+    assert first.value.code is ProviderFailureCode.NETWORK
+    provider.generate_protected(approval)
+
+    assert transport.calls == 2
+    day = provider.budget.daily[datetime.now(UTC).date()]
+    assert (day.requests, day.retries, day.successful_briefs) == (2, 1, 1)
+    records = [
+        record
+        for record in provider.audit.records  # type: ignore[attr-defined]
+        if record.attempt_number > 0
+    ]
+    assert records[0].transport_attempted is True
+    assert records[0].failure_reason == "network_failure"
+    assert records[0].retryable is True
+    assert records[1].retry_admission_decision == "pending"
+    assert records[-1].attempt_number == 2
+    assert records[-1].retry_admission_decision == "admitted"
+    assert records[-1].initial_failure_code == "network_failure"
+    assert records[-1].final_outcome == "completed"
+
+
+def test_retryable_initial_failure_then_failed_retry_falls_back(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "protected"
+    transport = SequenceTransport(
+        [ProviderFailureCode.NETWORK, ProviderFailureCode.PROVIDER_UNAVAILABLE]
+    )
+    provider, approval = _approved_provider(root, transport)
+
+    with pytest.raises(PilotDispatchError):
+        provider.generate_protected(approval)
+    with pytest.raises(PilotDispatchError) as final:
+        provider.generate_protected(approval)
+
+    assert final.value.code is ProviderFailureCode.PROVIDER_UNAVAILABLE
+    assert transport.calls == 2
+    assert not ProtectedPreflightStore(root).exists(_request().request_id)
+    record = provider.audit.records[-1]  # type: ignore[attr-defined]
+    assert record.initial_failure_code == "network_failure"
+    assert record.failure_reason == "provider_unavailable"
+    assert record.final_outcome == "failed"
+
+
+def test_retry_authority_mismatch_blocks_second_transport(tmp_path: Path) -> None:
+    root = tmp_path / "protected"
+    transport = SequenceTransport([ProviderFailureCode.NETWORK, _response()])
+    provider, approval = _approved_provider(root, transport)
+    with pytest.raises(PilotDispatchError):
+        provider.generate_protected(approval)
+
+    mismatched = replace(approval, preflight_hash="0" * 64)
+    with pytest.raises(PilotDispatchError) as blocked:
+        provider.generate_protected(mismatched)
+
+    assert blocked.value.code is ProviderFailureCode.INVALID_AUTHORITY
+    assert transport.calls == 1
+    assert not ProtectedPreflightStore(root).exists(_request().request_id)
+
+
+def test_tampered_retry_failure_metadata_blocks_before_transport(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "protected"
+    transport = SequenceTransport([ProviderFailureCode.NETWORK, _response()])
+    provider, approval = _approved_provider(root, transport)
+    with pytest.raises(PilotDispatchError):
+        provider.generate_protected(approval)
+    _mutate(root, lambda value: value.__setitem__("initial_failure_code", "changed"))
+
+    with pytest.raises(PilotDispatchError) as blocked:
+        provider.approve_protected(
+            request_id=approval.request_id,
+            preflight_hash=approval.preflight_hash,
+            expires_at=approval.expires_at,
+        )
+
+    assert blocked.value.code is ProviderFailureCode.INVALID_AUTHORITY
+    assert transport.calls == 1
+
+
+def test_spend_budget_can_block_retry_without_losing_initial_failure(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "protected"
+    transport = SequenceTransport([ProviderFailureCode.NETWORK, _response()])
+    provider, approval = _approved_provider(root, transport)
+    provider.config = replace(provider.config, max_daily_spend_aud=0.004)
+
+    with pytest.raises(PilotDispatchError) as first:
+        provider.generate_protected(approval)
+    assert first.value.code is ProviderFailureCode.NETWORK
+    with pytest.raises(PilotDispatchError) as second:
+        provider.generate_protected(approval)
+
+    assert second.value.code is ProviderFailureCode.BUDGET_EXCEEDED
+    assert transport.calls == 1
+    record = provider.audit.records[-1]  # type: ignore[attr-defined]
+    assert record.transport_attempted is False
+    assert record.retry_admission_decision == "blocked"
+    assert record.initial_failure_code == "network_failure"
+    assert record.failure_reason == "budget_exceeded"
+    assert not ProtectedPreflightStore(root).exists(_request().request_id)
+
+
+def test_terminal_retry_consumption_blocks_replay(tmp_path: Path) -> None:
+    root = tmp_path / "protected"
+    transport = SequenceTransport(
+        [ProviderFailureCode.NETWORK, ProviderFailureCode.TIMEOUT]
+    )
+    provider, approval = _approved_provider(root, transport)
+    with pytest.raises(PilotDispatchError):
+        provider.generate_protected(approval)
+    with pytest.raises(PilotDispatchError):
+        provider.generate_protected(approval)
+    with pytest.raises(PilotDispatchError) as replay:
+        provider.generate_protected(approval)
+
+    assert replay.value.code is ProviderFailureCode.INVALID_AUTHORITY
+    assert transport.calls == 2
+
+
+def test_retry_audit_contains_metadata_only(tmp_path: Path) -> None:
+    transport = SequenceTransport([ProviderFailureCode.NETWORK, _response()])
+    provider, approval = _approved_provider(tmp_path / "protected", transport)
+    with pytest.raises(PilotDispatchError):
+        provider.generate_protected(approval)
+    provider.generate_protected(approval)
+
+    serialized = json.dumps(
+        [record.to_dict() for record in provider.audit.records],  # type: ignore[attr-defined]
+        sort_keys=True,
+    )
+    assert "synthetic-key" not in serialized
+    assert "Synthetic metadata only" not in serialized
+    assert "structured_output" not in serialized
+    assert "statements" not in serialized
