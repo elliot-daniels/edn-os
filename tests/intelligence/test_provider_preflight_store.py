@@ -34,9 +34,7 @@ class FakeTransport:
         self.calls = 0
         self.response = response or _response()
 
-    def post(
-        self, payload: dict[str, object], *, api_key: str
-    ) -> dict[str, object]:
+    def post(self, payload: dict[str, object], *, api_key: str) -> dict[str, object]:
         del payload
         assert api_key == "synthetic-key"
         self.calls += 1
@@ -44,9 +42,7 @@ class FakeTransport:
 
 
 class OneNetworkFailureTransport(FakeTransport):
-    def post(
-        self, payload: dict[str, object], *, api_key: str
-    ) -> dict[str, object]:
+    def post(self, payload: dict[str, object], *, api_key: str) -> dict[str, object]:
         del payload, api_key
         self.calls += 1
         raise PilotDispatchError(ProviderFailureCode.NETWORK)
@@ -56,6 +52,10 @@ def _response() -> dict[str, object]:
     return {
         "id": "response-1",
         "model": "gpt-5-mini-2025-08-07",
+        "metadata": {
+            "edn_request_id": "protected-request-1",
+            "edn_provider_id": "openai.api",
+        },
         "output": [],
         "structured_output": {
             "statements": [
@@ -305,7 +305,15 @@ def test_terminal_failure_destroys_envelope_and_preserves_fallback(
     root = tmp_path / "protected"
     _, preflight = _persist(root)
     transport = FakeTransport(
-        {"id": "bad", "model": "gpt-5-mini-2025-08-07", "output": []}
+        {
+            "id": "bad",
+            "model": "gpt-5-mini-2025-08-07",
+            "metadata": {
+                "edn_request_id": "protected-request-1",
+                "edn_provider_id": "openai.api",
+            },
+            "output": [],
+        }
     )
     provider = _provider(root, transport)
     approval = ProviderApproval(

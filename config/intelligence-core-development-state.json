@@ -3,7 +3,7 @@
   "product": "EDN Intelligence Core",
   "version": "0.1.0-alpha",
   "current_branch": "feature/intelligence-core-v0.1",
-  "current_milestone": "PA-009 protected cross-process preflight handoff validated and checkpointed; genuine dispatch remains fresh exact-hash owner-gated",
+  "current_milestone": "PA-009 strict Structured Outputs schema hardened and validated; genuine dispatch remains fresh exact-hash owner-gated",
   "completed_increments": [
     "IC-001",
     "IC-002",
@@ -35,7 +35,8 @@
     "PA-008",
     "PA-009-ADAPTER",
     "PA-009-PREFLIGHT",
-    "PA-009-PROTECTED-HANDOFF"
+    "PA-009-PROTECTED-HANDOFF",
+    "PA-009-SCHEMA-HARDENING"
   ],
   "active_increment": null,
   "blocked_increments": [
@@ -53,7 +54,7 @@
     "No approved model/global provider exists.",
     "Synthetic model intelligence has no real provider, network dispatch or genuine EDN evidence disclosure; PA-009 remains separately gated.",
     "OpenAI adapter is activation-ready but disabled by default; no genuine EDN evidence has been disclosed.",
-    "First genuine PA-009 dispatch requires a fresh protected metadata-only preflight and hash-bound expiring owner approval token.",
+    "First genuine PA-009 dispatch requires safe credential verification, a fresh protected metadata-only preflight and a hash-bound expiring owner approval token.",
     "Proposals cannot execute.",
     "PDF/DOCX extraction is deliberately bounded and fails closed on unsupported PDF filters or ambiguous structures; live owner roots remain unauthorised.",
     "Current Outlook and Calendar live validation passed, but exact EDN category admission yielded zero retained records in both sources.",
@@ -68,12 +69,12 @@
       "python -m json.tool (state, roadmap, policy and each audit JSONL record)",
       "git diff --check"
     ],
-    "passed": 364,
+    "passed": 380,
     "failed": 0,
     "focused_pa009_synthetic": 8,
-    "focused_pa009_openai": 8,
+    "focused_pa009_openai": 32,
     "focused_pa009_preflight": 28,
-    "boundary_regressions": 35,
+    "boundary_regressions": 71,
     "mypy_files": 102,
     "commands": [
       "./.venv-wsl/bin/python -m pytest -q",
@@ -82,7 +83,7 @@
       "JSON/JSONL validation",
       "git diff --check"
     ],
-    "validated_at": "2026-08-14T11:09:49+09:30"
+    "validated_at": "2026-08-14T12:08:14+09:30"
   },
   "repository_status": "clean-checkpoint-except-protected-pa005-pack",
   "expected_dirty_paths": [
@@ -122,6 +123,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-14T11:09:49+09:30",
+  "updated_at": "2026-08-14T12:08:14+09:30",
   "provenance": "PA-008 repository validation passed: 328 tests cover Adelaide timezone-aware scheduling, deterministic run lifecycle, duplicate suppression, safe retry, missed runs, structured local status, allowlisted backup manifests, integrity/schema failure, isolated restore, and prohibited-material exclusion without production activation or live access."
 }

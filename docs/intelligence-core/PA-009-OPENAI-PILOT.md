@@ -10,6 +10,17 @@ The proposed pinned model is `gpt-5-mini-2025-08-07`. OpenAI's current model doc
 
 `OpenAIProvider` implements the existing `ModelProvider` contract using an injected transport. The production transport is standard-library HTTPS; tests use a fake transport and never contact OpenAI. Requests use the Responses endpoint with `store=false`, no tools, no web/file search, no code execution, no uploads and no conversation state. Structured output is parsed into typed `ModelStatement` values and evidence references are checked against the disclosed projection.
 
+The Responses request uses a strict, closed JSON Schema with one explicit
+variant for each supported statement kind: model assertion, unsupported
+assertion, uncertainty, evidence gap and proposed action. Every variant requires
+the complete typed field set and rejects additional properties. Evidence IDs
+are enumerated from the actual disclosed projection; unsupported assertions
+cannot cite evidence; proposed actions require `proposal_only=true`; and all
+other statement types require `proposal_only=false`. Response metadata must
+echo the exact EDN request and provider IDs, while the response model must match
+the pinned snapshot. The local parser independently enforces these constraints
+so invalid provider output fails closed even if it bypasses schema enforcement.
+
 The adapter refuses synthetic requests, disabled providers, missing credentials, disclosure denial, unknown authority, oversized context and local budget exhaustion. Failures normalize to deterministic codes and preserve the caller's local fallback.
 
 ## Proposed first-pilot disclosure policy
