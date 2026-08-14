@@ -94,7 +94,7 @@
   "expected_dirty_paths": [
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
-  "last_validated_commit": "272c1b22a6d54faecfd40a5822e88f71acb226ac",
+  "last_validated_commit": "d1c02828f1c77eaac61c2e3d54d16261b75da17f",
   "next_recommended_increment": null,
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
