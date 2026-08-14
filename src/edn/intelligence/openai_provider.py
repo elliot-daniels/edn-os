@@ -29,6 +29,10 @@ from edn.intelligence.model_boundary import (
     ModelStatement,
     ModelStatementKind,
 )
+from edn.intelligence.provider_budget_store import (
+    DurableBudgetError,
+    DurablePilotBudgetLedger,
+)
 from edn.intelligence.provider_preflight_store import (
     ProtectedPreflightError,
     ProtectedPreflightStore,
@@ -797,7 +801,7 @@ class OpenAIProvider:
         policy: OpenAIDisclosurePolicy | None = None,
         transport: OpenAITransport | None = None,
         audit: AuditSink | None = None,
-        budget: PilotBudgetLedger | None = None,
+        budget: PilotBudgetLedger | DurablePilotBudgetLedger | None = None,
         environment: Mapping[str, str] | None = None,
         preflight_store: ProtectedPreflightStore | None = None,
     ) -> None:
@@ -812,7 +816,11 @@ class OpenAIProvider:
             )
         else:
             self.audit = InMemoryProviderAudit()
-        self.budget = budget or PilotBudgetLedger()
+        self.budget = budget or (
+            DurablePilotBudgetLedger(preflight_store.root.parent / "provider-budget")
+            if preflight_store is not None
+            else PilotBudgetLedger()
+        )
         self.environment = os.environ if environment is None else environment
         self.preflight_store = preflight_store
         self._approvals: dict[str, ProviderApproval] = {}
@@ -1150,16 +1158,30 @@ class OpenAIProvider:
                     ProviderFailureCode.INVALID_AUTHORITY,
                     "approval token mismatch or expired",
                 )
+            input_tokens = max(1, (projection.total_chars + 3) // 4)
+            try:
+                estimated = (
+                    self.budget.admit(
+                        now=now,
+                        config=self.config,
+                        input_tokens=input_tokens,
+                        is_retry=is_retry,
+                        request_id=request.request_id,
+                        attempt_number=attempt_number,
+                    )
+                    if isinstance(self.budget, DurablePilotBudgetLedger)
+                    else self.budget.admit(
+                        now=now,
+                        config=self.config,
+                        input_tokens=input_tokens,
+                        is_retry=is_retry,
+                    )
+                )
+            except DurableBudgetError as exc:
+                raise PilotDispatchError(ProviderFailureCode.BUDGET_EXCEEDED) from exc
             api_key = self.environment.get(self.config.api_key_env)
             if not api_key:
                 raise PilotDispatchError(ProviderFailureCode.MISSING_CREDENTIAL)
-            input_tokens = max(1, (projection.total_chars + 3) // 4)
-            estimated = self.budget.admit(
-                now=now,
-                config=self.config,
-                input_tokens=input_tokens,
-                is_retry=is_retry,
-            )
             self.audit.append(
                 replace(
                     base,
@@ -1189,6 +1211,8 @@ class OpenAIProvider:
                 )
             )
             transport_attempted = True
+            if isinstance(self.budget, DurablePilotBudgetLedger):
+                self.budget.mark_transport_started(request.request_id, attempt_number)
             response = self.transport.post(payload, api_key=api_key)
             response_metadata = _response_metadata(
                 response, output_token_ceiling=self.config.max_output_tokens
@@ -1222,7 +1246,14 @@ class OpenAIProvider:
             parsed = _parse_response(
                 response, request, self.config.model, self.config.policy_id
             )
-            self.budget.record_success(now=now)
+            if isinstance(self.budget, DurablePilotBudgetLedger):
+                self.budget.record_success(
+                    now=now,
+                    request_id=request.request_id,
+                    attempt_number=attempt_number,
+                )
+            else:
+                self.budget.record_success(now=now)
             self.audit.append(
                 replace(
                     base,

@@ -120,6 +120,22 @@ An owner must install a least-privilege project credential as `EDN_OPENAI_API_KE
 - AUD 2 estimated daily spend;
 - AUD 20 estimated monthly spend.
 
+Budget accounting is owner-local and durable under
+`$XDG_STATE_HOME/edn-intelligence-core/provider-budget/` (or the matching
+`$HOME/.local/state` fallback). A mode `0600` SQLite database in a mode `0700`
+directory is the sole admission authority. `BEGIN IMMEDIATE` atomically checks
+and reserves request, retry and estimated spend capacity before credential lookup
+or transport. Reservations are never refunded after an unknown crash; successful
+completion marks the same reservation rather than creating a second counter.
+Lifecycle audit is evidence, while disagreement resolves to the conservative
+budget reservation and cannot add authority.
+
+Periods use the existing UTC semantics: calendar day and calendar month. A new
+ledger cannot fabricate earlier pilot counters. On first bootstrap it records an
+`authoritative_from` boundary at the next UTC month and fails closed before that
+boundary. This makes historical activity explicit and prevents an empty database
+from resetting current-day or current-month authority.
+
 Every attempted dispatch emits metadata-only audit information: request ID, provider/model, policy, item count, projected categories/size, classification ceiling, decision, status, failure code and usage/cost when available. Prompt and response bodies are not stored.
 
 `max_retries_per_day=1` means one additional transport attempt after an

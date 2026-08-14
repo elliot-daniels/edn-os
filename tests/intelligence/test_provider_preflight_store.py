@@ -19,6 +19,7 @@ from edn.intelligence import (
     OpenAIDisclosurePolicy,
     OpenAIPilotConfig,
     OpenAIProvider,
+    PilotBudgetLedger,
     PilotDispatchError,
     ProjectedEvidence,
     ProtectedPreflightStore,
@@ -160,6 +161,7 @@ def _provider(
             True,
         ),
         transport=transport,
+        budget=PilotBudgetLedger(),
         environment={"EDN_OPENAI_API_KEY": "synthetic-key"},
         preflight_store=ProtectedPreflightStore(root),
     )

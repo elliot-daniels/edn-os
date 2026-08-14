@@ -44,6 +44,14 @@ destruction. The journal contains no approval token or projection values, so it
 cannot replay authority; a crash leaving only `transport_started` remains an
 unknown outcome with the protected claim unavailable for reuse.
 
+The sibling `provider-budget` runtime is the authoritative cross-process budget
+ledger. Admission and reservation occur atomically before credential loading.
+Reserved, transport-started and outcome-unknown attempts continue to count, so a
+crash cannot restore request or spend authority. The lifecycle audit is
+reconciliatory evidence only; missing audit completion never removes a durable
+reservation. Unknown historical activity closes admission until the recorded UTC
+month boundary rather than being reconstructed or reset.
+
 ## Protected storage
 
 The default location is:

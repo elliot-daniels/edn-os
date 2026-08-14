@@ -82,6 +82,10 @@ from edn.intelligence.operations import (
     RunFailureCode,
     RunStatus,
 )
+from edn.intelligence.provider_budget_store import (
+    DurableBudgetError,
+    DurablePilotBudgetLedger,
+)
 from edn.intelligence.provider_preflight_store import (
     ProtectedPreflightError,
     ProtectedPreflightStore,
@@ -128,6 +132,8 @@ __all__ = [
     "DisclosurePolicy",
     "DisclosureProjection",
     "DisclosureProjector",
+    "DurableBudgetError",
+    "DurablePilotBudgetLedger",
     "DurableProviderAudit",
     "DurableProviderAuditError",
     "EmailRetrievalAdapter",
