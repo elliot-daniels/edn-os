@@ -103,7 +103,7 @@ def _response() -> dict[str, object]:
                 ],
             }
         ],
-        "usage": {"input_tokens": 12, "output_tokens": 7},
+        "usage": {"input_tokens": 12, "output_tokens": 7, "total_tokens": 19},
     }
 
 

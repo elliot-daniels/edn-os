@@ -1099,6 +1099,20 @@
       "successor_tasks": ["PA-009"]
     },
     {
+      "task_id": "PA-009-INCOMPLETE-RESPONSE-DIAGNOSTICS",
+      "objective": "Capture allowlisted HTTP, incomplete-status and numeric usage/cost metadata before terminal PA-009 response parsing.",
+      "prerequisites": ["PA-009-INVALID-RESPONSE-DIAGNOSTICS"],
+      "authority_actions": ["repository.read", "code.development.write", "test.development.write", "documentation.write", "synthetic.fixture.write", "validation.pytest", "validation.ruff", "validation.mypy", "validation.whitespace", "git.commit.prepare", "config.development.write", "state.development.write"],
+      "risk": "critical",
+      "expected_components": ["src/edn/intelligence", "tests/intelligence", "docs/intelligence-core", "config"],
+      "acceptance_criteria": ["Incomplete reasons use closed metadata-only codes", "HTTP and valid numeric usage survive terminal parsing failures", "Returned usage yields a bounded cost estimate and output-ceiling diagnostic", "No provider text, evidence, prompt, credential or protected envelope is accessed or retained"],
+      "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy src/edn", "git diff --check"],
+      "stop_conditions": ["Provider or live-source access", "Credential or protected-envelope access", "Diagnostic content leakage", "Output ceiling broadening", "PA-010 scope"],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": ["PA-009"]
+    },
+    {
       "task_id": "PA-009",
       "objective": "Integrate an approved global/model provider behind a private-evidence disclosure boundary.",
       "prerequisites": [

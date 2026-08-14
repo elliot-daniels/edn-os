@@ -156,6 +156,7 @@ def _response(*, refs: list[str] | None = None) -> dict[str, object]:
     }
     return {
         "id": "resp-1",
+        "_edn_http_status": 200,
         "object": "response",
         "status": "completed",
         "model": "gpt-5-mini-2025-08-07",
@@ -181,7 +182,13 @@ def _response(*, refs: list[str] | None = None) -> dict[str, object]:
                 ],
             }
         ],
-        "usage": {"input_tokens": 10, "output_tokens": 8},
+        "usage": {
+            "input_tokens": 10,
+            "output_tokens": 8,
+            "total_tokens": 18,
+            "input_tokens_details": {"cached_tokens": 2},
+            "output_tokens_details": {"reasoning_tokens": 3},
+        },
     }
 
 
@@ -261,6 +268,135 @@ def test_fake_transport_serializes_safe_responses_request_and_validates_response
     assert "system" in str(transport.payload)
     assert audit.records[-1].dispatch_status == "completed"
     assert audit.records[-1].estimated_cost_usd is not None
+    assert audit.records[-1].http_status == 200
+    assert audit.records[-1].provider_response_status == "completed"
+    assert audit.records[-1].input_tokens == 10
+    assert audit.records[-1].output_tokens == 8
+    assert audit.records[-1].total_tokens == 18
+    assert audit.records[-1].cached_input_tokens == 2
+    assert audit.records[-1].reasoning_output_tokens == 3
+    assert audit.records[-1].usage_metadata_valid is True
+    assert audit.records[-1].actual_estimated_cost_usd == pytest.approx(0.00001805)
+    assert audit.records[-1].provider_response_id == "resp-1"
+
+
+def _approved_request(provider: OpenAIProvider) -> ModelRequest:
+    request = _real_request()
+    approval = provider.approve(
+        provider.preflight(request), expires_at=datetime(2099, 1, 1, tzinfo=UTC)
+    )
+    return replace(request, approval_token=approval.token())
+
+
+@pytest.mark.parametrize(
+    ("reason", "reason_code", "implicated"),
+    (
+        (
+            "max_output_tokens",
+            "responses_incomplete_max_output_tokens",
+            True,
+        ),
+        (
+            "content_filter",
+            "responses_incomplete_content_filter",
+            False,
+        ),
+        ("future_reason", "responses_incomplete_unknown_reason", None),
+        (None, "responses_incomplete_metadata_missing_or_malformed", None),
+    ),
+)
+def test_incomplete_response_preserves_allowlisted_http_usage_and_reason(
+    reason: str | None, reason_code: str, implicated: bool | None
+) -> None:
+    response = _response()
+    response["status"] = "incomplete"
+    response["usage"] = {
+        "input_tokens": 220,
+        "output_tokens": 1000,
+        "total_tokens": 1220,
+        "input_tokens_details": {"cached_tokens": 20},
+        "output_tokens_details": {"reasoning_tokens": 900},
+    }
+    response["incomplete_details"] = {} if reason is None else {"reason": reason}
+    provider, audit = _provider(FakeTransport(response))
+
+    with pytest.raises(PilotDispatchError) as exc:
+        provider.generate(_approved_request(provider))
+
+    assert exc.value.code is ProviderFailureCode.INVALID_RESPONSE
+    assert exc.value.validation_reason is ProviderValidationReason(reason_code)
+    record = audit.records[-1]
+    assert record.http_status == 200
+    assert record.provider_response_status == "incomplete"
+    assert record.incomplete_reason == (
+        "missing_or_malformed"
+        if reason is None
+        else reason
+        if reason in {"max_output_tokens", "content_filter"}
+        else "unknown"
+    )
+    assert record.input_tokens == 220
+    assert record.output_tokens == 1000
+    assert record.total_tokens == 1220
+    assert record.cached_input_tokens == 20
+    assert record.reasoning_output_tokens == 900
+    assert record.usage_metadata_valid is True
+    assert record.output_token_ceiling_reached is True
+    assert record.output_token_ceiling_implicated is implicated or implicated is None
+    assert record.actual_estimated_cost_usd == pytest.approx(0.0020505)
+    assert record.provider_response_id == "resp-1"
+
+
+def test_malformed_usage_is_rejected_without_partial_numeric_audit() -> None:
+    response = _response()
+    response["status"] = "incomplete"
+    response["incomplete_details"] = {"reason": "max_output_tokens"}
+    response["usage"] = {
+        "input_tokens": 220,
+        "output_tokens": 1000,
+        "total_tokens": 1220,
+        "output_tokens_details": {
+            "reasoning_tokens": "provider-text-must-not-survive"
+        },
+    }
+    provider, audit = _provider(FakeTransport(response))
+
+    with pytest.raises(PilotDispatchError):
+        provider.generate(_approved_request(provider))
+
+    record = audit.records[-1]
+    assert record.usage_metadata_valid is False
+    assert record.input_tokens is None
+    assert record.output_tokens is None
+    assert record.total_tokens is None
+    assert record.actual_estimated_cost_usd is None
+    assert "provider-text-must-not-survive" not in json.dumps(record.to_dict())
+
+
+def test_http_provider_error_records_status_without_body_or_headers() -> None:
+    class HTTPFailureTransport(FakeTransport):
+        def post(
+            self, payload: dict[str, object], *, api_key: str
+        ) -> dict[str, object]:
+            del payload, api_key
+            raise PilotDispatchError(ProviderFailureCode.QUOTA, http_status=429)
+
+    provider, audit = _provider(HTTPFailureTransport(_response()))
+    with pytest.raises(PilotDispatchError):
+        provider.generate(_approved_request(provider))
+    record = audit.records[-1]
+    assert record.http_status == 429
+    assert record.provider_response_status is None
+    assert record.usage_metadata_valid is None
+
+
+def test_configured_output_ceiling_is_sent_exactly_not_derived_from_items() -> None:
+    payload = _request_payload(
+        _real_request(),
+        "gpt-5-mini-2025-08-07",
+        max_output_tokens=1_000,
+    )
+    assert payload["max_output_tokens"] == 1_000
 
 
 def test_request_uses_closed_strict_schema_for_every_statement_type() -> None:
@@ -343,7 +479,11 @@ def test_valid_response_accepts_every_supported_statement_type() -> None:
         ("provider_echo", "request_echo", "provider_echo_mismatch"),
         ("model_echo", "request_echo", "model_echo_mismatch"),
         ("policy_echo", "request_echo", "policy_echo_mismatch"),
-        ("incomplete", "responses_output_envelope", "responses_result_incomplete"),
+        (
+            "incomplete",
+            "responses_output_envelope",
+            "responses_incomplete_max_output_tokens",
+        ),
         (
             "missing_output",
             "responses_output_envelope",

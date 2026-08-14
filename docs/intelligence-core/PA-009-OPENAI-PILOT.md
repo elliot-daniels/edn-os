@@ -49,6 +49,32 @@ there is insufficient retained content-free evidence to claim whether the real
 response failed at echo, output extraction, JSON/schema, semantic or citation
 validation.
 
+## Incomplete-response metadata
+
+Transport metadata and numeric usage are extracted before structured-response
+parsing. Audit can therefore retain an allowlisted HTTP status, top-level
+Responses status, provider response ID, `input_tokens`, `output_tokens`,
+`total_tokens`, input cached tokens, output reasoning tokens and usage-derived
+cost even when the result is terminally incomplete or otherwise invalid.
+Malformed usage is rejected as a whole rather than partially retained.
+
+Incomplete results preserve external `invalid_response` while distinguishing
+`max_output_tokens`, `content_filter`, unknown reasons and missing/malformed
+incomplete metadata. The audit separately records whether returned output usage
+reached the configured ceiling and whether that ceiling is implicated. Provider
+text, refusal text, partial structured output, headers, prompts and evidence are
+never copied into diagnostics.
+
+The Responses request now takes `max_output_tokens` directly from
+`OpenAIPilotConfig.max_output_tokens`. It previously derived the value as 200
+tokens per requested statement; that happened to equal the approved 1,000-token
+ceiling for five statements but did not faithfully enforce configuration. The
+ceiling remains 1,000. GPT-5 mini supports a much larger technical maximum, but
+reasoning tokens are included in output usage, so 1,000 may be implicated in an
+incomplete result. The prior pilot's exact cause and the ceiling's empirical
+sufficiency remain indeterminate because the necessary numeric metadata was not
+retained.
+
 ## Proposed first-pilot disclosure policy
 
 The source `edn:confidential` classification does not imply external disclosure. A separate `external-model-approved` policy is required. The initial allowlist is limited to projected Calendar metadata, bounded Inbox metadata/sanitised subjects, Local Files metadata/status labels and explicitly approved EDN-owned non-secret engineering labels. Email bodies, arbitrary document content, names/contact details, personal, financial, security-sensitive, Defence/classified, customer-restricted, client and credential material are prohibited by default.

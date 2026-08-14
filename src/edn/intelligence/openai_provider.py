@@ -36,6 +36,7 @@ OPENAI_MODEL_SNAPSHOT = "gpt-5-mini-2025-08-07"
 OPENAI_INPUT_USD_PER_MILLION = 0.25
 OPENAI_OUTPUT_USD_PER_MILLION = 2.0
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
+_HTTP_STATUS_KEY = "_edn_http_status"
 
 
 class ProviderFailureCode(StrEnum):
@@ -80,7 +81,12 @@ class ProviderValidationReason(StrEnum):
     POLICY_ECHO_MISMATCH = "policy_echo_mismatch"
     OUTPUT_ENVELOPE_MISSING = "responses_output_envelope_missing"
     OUTPUT_ENVELOPE_INVALID = "responses_output_envelope_invalid"
-    RESPONSE_INCOMPLETE = "responses_result_incomplete"
+    RESPONSE_INCOMPLETE_MAX_OUTPUT = "responses_incomplete_max_output_tokens"
+    RESPONSE_INCOMPLETE_CONTENT_FILTER = "responses_incomplete_content_filter"
+    RESPONSE_INCOMPLETE_UNKNOWN = "responses_incomplete_unknown_reason"
+    RESPONSE_INCOMPLETE_METADATA_INVALID = (
+        "responses_incomplete_metadata_missing_or_malformed"
+    )
     RESPONSE_REFUSED = "responses_result_refused"
     UNSUPPORTED_RESPONSE_SHAPE = "unsupported_responses_api_shape"
     EXTRACTION_FAILED = "structured_output_extraction_failed"
@@ -108,10 +114,12 @@ class PilotDispatchError(RuntimeError):
         *,
         validation_stage: ProviderValidationStage | None = None,
         validation_reason: ProviderValidationReason | None = None,
+        http_status: int | None = None,
     ) -> None:
         self.code = code
         self.validation_stage = validation_stage
         self.validation_reason = validation_reason
+        self.http_status = http_status
         super().__init__(f"{code.value}{(': ' + detail) if detail else ''}")
 
 
@@ -145,6 +153,7 @@ class UrllibOpenAITransport:
         )
         try:
             with request.urlopen(req, timeout=self.timeout_seconds) as response:
+                http_status = response.status
                 value = json.loads(response.read().decode("utf-8"))
         except TimeoutError as exc:
             raise PilotDispatchError(ProviderFailureCode.TIMEOUT) from exc
@@ -156,7 +165,7 @@ class UrllibOpenAITransport:
                 if exc.code in {408, 409, 429}
                 else ProviderFailureCode.PROVIDER_UNAVAILABLE
             )
-            raise PilotDispatchError(code) from exc
+            raise PilotDispatchError(code, http_status=exc.code) from exc
         except error.URLError as exc:
             raise PilotDispatchError(ProviderFailureCode.NETWORK) from exc
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -171,7 +180,9 @@ class UrllibOpenAITransport:
                 validation_stage=ProviderValidationStage.PROVIDER_ENVELOPE,
                 validation_reason=ProviderValidationReason.PROVIDER_ENVELOPE_REJECTED,
             )
-        return value
+        result = dict(value)
+        result[_HTTP_STATUS_KEY] = http_status
+        return result
 
 
 class AuditSink(Protocol):
@@ -203,6 +214,17 @@ class ProviderAuditRecord:
     final_outcome: str | None = None
     validation_stage: str | None = None
     validation_reason_code: str | None = None
+    http_status: int | None = None
+    provider_response_status: str | None = None
+    incomplete_reason: str | None = None
+    total_tokens: int | None = None
+    cached_input_tokens: int | None = None
+    reasoning_output_tokens: int | None = None
+    usage_metadata_valid: bool | None = None
+    actual_estimated_cost_usd: float | None = None
+    output_token_ceiling_reached: bool | None = None
+    output_token_ceiling_implicated: bool | None = None
+    provider_response_id: str | None = None
 
     def __post_init__(self) -> None:
         if self.timestamp.tzinfo is None:
@@ -222,6 +244,27 @@ class ProviderAuditRecord:
             ProviderValidationStage(self.validation_stage)
         if self.validation_reason_code is not None:
             ProviderValidationReason(self.validation_reason_code)
+        if self.http_status is not None and not 100 <= self.http_status <= 599:
+            raise ValueError("audit HTTP status is invalid")
+        if self.provider_response_status not in {
+            None,
+            "completed",
+            "incomplete",
+            "failed",
+            "cancelled",
+            "queued",
+            "in_progress",
+            "unknown",
+        }:
+            raise ValueError("audit provider response status is invalid")
+        if self.incomplete_reason not in {
+            None,
+            "max_output_tokens",
+            "content_filter",
+            "unknown",
+            "missing_or_malformed",
+        }:
+            raise ValueError("audit incomplete reason is invalid")
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -248,7 +291,35 @@ class ProviderAuditRecord:
             "final_outcome": self.final_outcome,
             "validation_stage": self.validation_stage,
             "validation_reason_code": self.validation_reason_code,
+            "http_status": self.http_status,
+            "provider_response_status": self.provider_response_status,
+            "incomplete_reason": self.incomplete_reason,
+            "total_tokens": self.total_tokens,
+            "cached_input_tokens": self.cached_input_tokens,
+            "reasoning_output_tokens": self.reasoning_output_tokens,
+            "usage_metadata_valid": self.usage_metadata_valid,
+            "actual_estimated_cost_usd": self.actual_estimated_cost_usd,
+            "output_token_ceiling_reached": self.output_token_ceiling_reached,
+            "output_token_ceiling_implicated": self.output_token_ceiling_implicated,
+            "provider_response_id": self.provider_response_id,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class _ResponseMetadata:
+    http_status: int | None = None
+    status: str | None = None
+    incomplete_reason: str | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    total_tokens: int | None = None
+    cached_input_tokens: int | None = None
+    reasoning_output_tokens: int | None = None
+    usage_valid: bool | None = None
+    actual_estimated_cost_usd: float | None = None
+    output_ceiling_reached: bool | None = None
+    output_ceiling_implicated: bool | None = None
+    response_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -728,6 +799,7 @@ class OpenAIProvider:
     ) -> ModelResponse:
         now = datetime.now(UTC)
         transport_attempted = False
+        response_metadata = _ResponseMetadata()
         projection = request.projection
         categories = (
             tuple(sorted(self.policy.allowed_categories)) if self.policy else ()
@@ -787,28 +859,49 @@ class OpenAIProvider:
                 is_retry=is_retry,
             )
             payload = _request_payload(
-                request, self.config.model, self.config.policy_id
+                request,
+                self.config.model,
+                self.config.policy_id,
+                self.config.max_output_tokens,
             )
             transport_attempted = True
             response = self.transport.post(payload, api_key=api_key)
+            response_metadata = _response_metadata(
+                response, output_token_ceiling=self.config.max_output_tokens
+            )
             parsed = _parse_response(
                 response, request, self.config.model, self.config.policy_id
             )
-            usage = response.get("usage")
-            input_used, output_used = _usage(usage)
             self.budget.record_success(now=now)
             self.audit.append(
                 replace(
                     base,
                     disclosure_decision="allowed",
                     dispatch_status="completed",
-                    input_tokens=input_used,
-                    output_tokens=output_used,
+                    input_tokens=response_metadata.input_tokens,
+                    output_tokens=response_metadata.output_tokens,
                     estimated_cost_usd=estimated,
                     transport_attempted=transport_attempted,
                     final_outcome="completed",
                     validation_stage=ProviderValidationStage.COMPLETED.value,
                     validation_reason_code=ProviderValidationReason.VALIDATION_ACCEPTED.value,
+                    http_status=response_metadata.http_status,
+                    provider_response_status=response_metadata.status,
+                    incomplete_reason=response_metadata.incomplete_reason,
+                    total_tokens=response_metadata.total_tokens,
+                    cached_input_tokens=response_metadata.cached_input_tokens,
+                    reasoning_output_tokens=response_metadata.reasoning_output_tokens,
+                    usage_metadata_valid=response_metadata.usage_valid,
+                    actual_estimated_cost_usd=(
+                        response_metadata.actual_estimated_cost_usd
+                    ),
+                    output_token_ceiling_reached=(
+                        response_metadata.output_ceiling_reached
+                    ),
+                    output_token_ceiling_implicated=(
+                        response_metadata.output_ceiling_implicated
+                    ),
+                    provider_response_id=response_metadata.response_id,
                 )
             )
             return parsed
@@ -836,6 +929,29 @@ class OpenAIProvider:
                     validation_reason_code=(
                         exc.validation_reason.value if exc.validation_reason else None
                     ),
+                    input_tokens=response_metadata.input_tokens,
+                    output_tokens=response_metadata.output_tokens,
+                    http_status=(
+                        exc.http_status
+                        if exc.http_status is not None
+                        else response_metadata.http_status
+                    ),
+                    provider_response_status=response_metadata.status,
+                    incomplete_reason=response_metadata.incomplete_reason,
+                    total_tokens=response_metadata.total_tokens,
+                    cached_input_tokens=response_metadata.cached_input_tokens,
+                    reasoning_output_tokens=response_metadata.reasoning_output_tokens,
+                    usage_metadata_valid=response_metadata.usage_valid,
+                    actual_estimated_cost_usd=(
+                        response_metadata.actual_estimated_cost_usd
+                    ),
+                    output_token_ceiling_reached=(
+                        response_metadata.output_ceiling_reached
+                    ),
+                    output_token_ceiling_implicated=(
+                        response_metadata.output_ceiling_implicated
+                    ),
+                    provider_response_id=response_metadata.response_id,
                 )
             )
             raise
@@ -879,6 +995,7 @@ def _request_payload(
     request: ModelRequest,
     model: str,
     policy_id: str = "openai-daily-brief-pilot-v1",
+    max_output_tokens: int = 1_000,
 ) -> dict[str, object]:
     evidence = [
         {
@@ -985,7 +1102,7 @@ def _request_payload(
                 ),
             },
         ],
-        "max_output_tokens": request.max_output_items * 200,
+        "max_output_tokens": max_output_tokens,
         "text": {
             "format": {
                 "type": "json_schema",
@@ -1058,9 +1175,18 @@ def _parse_response(
             raise invalid(ProviderValidationStage.ECHO, reason)
     status = value.get("status")
     if status == "incomplete":
+        details = value.get("incomplete_details")
+        if not isinstance(details, dict) or not isinstance(details.get("reason"), str):
+            reason = ProviderValidationReason.RESPONSE_INCOMPLETE_METADATA_INVALID
+        elif details["reason"] == "max_output_tokens":
+            reason = ProviderValidationReason.RESPONSE_INCOMPLETE_MAX_OUTPUT
+        elif details["reason"] == "content_filter":
+            reason = ProviderValidationReason.RESPONSE_INCOMPLETE_CONTENT_FILTER
+        else:
+            reason = ProviderValidationReason.RESPONSE_INCOMPLETE_UNKNOWN
         raise invalid(
             ProviderValidationStage.OUTPUT_ENVELOPE,
-            ProviderValidationReason.RESPONSE_INCOMPLETE,
+            reason,
         )
     if status != "completed":
         raise invalid(
@@ -1235,15 +1361,141 @@ def _parse_response(
     )
 
 
-def _usage(value: object) -> tuple[int | None, int | None]:
+def _response_metadata(
+    value: Mapping[str, object], *, output_token_ceiling: int
+) -> _ResponseMetadata:
+    raw_http = value.get(_HTTP_STATUS_KEY)
+    http_status = (
+        raw_http
+        if type(raw_http) is int and 100 <= raw_http <= 599
+        else None
+    )
+    raw_status = value.get("status")
+    status = (
+        raw_status
+        if raw_status
+        in {"completed", "incomplete", "failed", "cancelled", "queued", "in_progress"}
+        else "unknown"
+        if raw_status is not None
+        else None
+    )
+    incomplete_reason: str | None = None
+    if status == "incomplete":
+        details = value.get("incomplete_details")
+        if not isinstance(details, dict) or not isinstance(details.get("reason"), str):
+            incomplete_reason = "missing_or_malformed"
+        elif details["reason"] in {"max_output_tokens", "content_filter"}:
+            incomplete_reason = str(details["reason"])
+        else:
+            incomplete_reason = "unknown"
+
+    usage = value.get("usage")
+    parsed_usage = _usage_metadata(usage)
+    (
+        input_tokens,
+        output_tokens,
+        total_tokens,
+        cached_tokens,
+        reasoning_tokens,
+        valid,
+    ) = parsed_usage
+    actual_cost = None
+    if valid and input_tokens is not None and output_tokens is not None:
+        cached = cached_tokens or 0
+        actual_cost = (
+            (input_tokens - cached) / 1_000_000 * OPENAI_INPUT_USD_PER_MILLION
+            + cached / 1_000_000 * 0.025
+            + output_tokens / 1_000_000 * OPENAI_OUTPUT_USD_PER_MILLION
+        )
+    ceiling_reached = (
+        None if output_tokens is None else output_tokens >= output_token_ceiling
+    )
+    ceiling_implicated = (
+        True
+        if incomplete_reason == "max_output_tokens"
+        else False
+        if incomplete_reason == "content_filter"
+        else True
+        if ceiling_reached is True
+        else None
+    )
+    raw_response_id = value.get("id")
+    response_id = (
+        raw_response_id
+        if isinstance(raw_response_id, str)
+        and re.fullmatch(r"resp[-_][A-Za-z0-9_-]{1,128}", raw_response_id)
+        else None
+    )
+    return _ResponseMetadata(
+        http_status,
+        status,
+        incomplete_reason,
+        input_tokens,
+        output_tokens,
+        total_tokens,
+        cached_tokens,
+        reasoning_tokens,
+        valid,
+        actual_cost,
+        ceiling_reached,
+        ceiling_implicated,
+        response_id,
+    )
+
+
+def _usage_metadata(
+    value: object,
+) -> tuple[int | None, int | None, int | None, int | None, int | None, bool]:
     if not isinstance(value, dict):
-        return None, None
+        return None, None, None, None, None, False
 
-    def integer(name: str) -> int | None:
-        raw = value.get(name)
-        return raw if isinstance(raw, int) and raw >= 0 else None
+    def integer(container: Mapping[str, object], name: str) -> int | None:
+        raw = container.get(name)
+        return raw if type(raw) is int and raw >= 0 else None
 
-    return integer("input_tokens"), integer("output_tokens")
+    input_tokens = integer(value, "input_tokens")
+    output_tokens = integer(value, "output_tokens")
+    total_tokens = integer(value, "total_tokens")
+    input_details = value.get("input_tokens_details")
+    output_details = value.get("output_tokens_details")
+    cached_tokens = (
+        integer(input_details, "cached_tokens")
+        if isinstance(input_details, dict)
+        else None
+    )
+    reasoning_tokens = (
+        integer(output_details, "reasoning_tokens")
+        if isinstance(output_details, dict)
+        else None
+    )
+    cached_present = (
+        isinstance(input_details, dict) and "cached_tokens" in input_details
+    )
+    reasoning_present = (
+        isinstance(output_details, dict) and "reasoning_tokens" in output_details
+    )
+    valid = (
+        input_tokens is not None
+        and output_tokens is not None
+        and total_tokens is not None
+        and total_tokens == input_tokens + output_tokens
+        and (cached_tokens is None or cached_tokens <= input_tokens)
+        and (reasoning_tokens is None or reasoning_tokens <= output_tokens)
+        and (not cached_present or cached_tokens is not None)
+        and (not reasoning_present or reasoning_tokens is not None)
+        and (input_details is None or isinstance(input_details, dict))
+        and (output_details is None or isinstance(output_details, dict))
+    )
+    if not valid:
+        return None, None, None, None, None, False
+    return (
+        input_tokens,
+        output_tokens,
+        total_tokens,
+        cached_tokens,
+        reasoning_tokens,
+        True,
+    )
 
 
 _PROHIBITED_CONTENT = re.compile(
