@@ -332,7 +332,7 @@ class OpenAIProvider:
             + self.config.max_output_tokens
             / 1_000_000
             * OPENAI_OUTPUT_USD_PER_MILLION
-        ) * self.config.usd_to_aud
+        )
         reason: str | None = None
         if request.synthetic_fixture:
             reason = ProviderFailureCode.INVALID_AUTHORITY.value
@@ -361,6 +361,24 @@ class OpenAIProvider:
                     "categories": categories,
                     "size": projection.total_chars,
                     "classification": request.classification.level_id,
+                    "projection": [
+                        {
+                            "disclosure_id": item.disclosure_id,
+                            "source_family": item.source_family,
+                            "title": item.title,
+                            "excerpt": item.excerpt,
+                            "freshness": item.freshness.value,
+                            "provenance_digest": item.provenance_digest,
+                            "source_timestamp": (
+                                None
+                                if item.source_timestamp is None
+                                else item.source_timestamp.isoformat()
+                            ),
+                            "field_category": item.field_category,
+                            "provider_approved": item.provider_approved,
+                        }
+                        for item in projection.items
+                    ],
                 },
                 sort_keys=True,
                 separators=(",", ":"),

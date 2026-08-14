@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
@@ -249,6 +250,28 @@ def test_approval_hash_request_and_expiry_are_bound() -> None:
 
     with pytest.raises(PilotDispatchError):
         provider.approve(provider.preflight(request), expires_at=datetime(2020, 1, 1, tzinfo=UTC))
+
+
+def test_preflight_hash_binds_exact_projected_values() -> None:
+    request = _real_request()
+    provider, _ = _provider(FakeTransport(_response()))
+    original = provider.preflight(request)
+    first = request.projection.items[0]
+    replacement = replace(first, excerpt="x" * len(first.excerpt))
+    changed_projection = replace(request.projection, items=(replacement,))
+    changed = provider.preflight(replace(request, projection=changed_projection))
+
+    assert changed.projected_payload_size == original.projected_payload_size
+    assert changed.projected_categories == original.projected_categories
+    assert changed.preflight_hash != original.preflight_hash
+
+
+def test_preflight_cost_is_reported_in_usd() -> None:
+    provider, _ = _provider(FakeTransport(_response()))
+    preflight = provider.preflight(_real_request())
+
+    expected = (5 / 1_000_000 * 0.25) + (1_000 / 1_000_000 * 2.0)
+    assert preflight.estimated_cost_usd == pytest.approx(expected)
 
 
 def test_budget_exhaustion_is_local_and_deterministic() -> None:
