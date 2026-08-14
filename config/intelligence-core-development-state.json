@@ -3,7 +3,7 @@
   "product": "EDN Intelligence Core",
   "version": "0.1.0-alpha",
   "current_branch": "feature/intelligence-core-v0.1",
-  "current_milestone": "PA-009 provider preflight and field-level disclosure hardening validated; genuine dispatch remains owner-gated",
+  "current_milestone": "PA-009 exact-projection preflight hash and USD cost corrections validated and checkpointed; genuine dispatch remains exact-hash owner-gated",
   "completed_increments": [
     "IC-001",
     "IC-002",
@@ -67,11 +67,11 @@
       "python -m json.tool (state, roadmap, policy and each audit JSONL record)",
       "git diff --check"
     ],
-    "passed": 350,
+    "passed": 352,
     "failed": 0,
     "focused_pa009_synthetic": 8,
     "focused_pa009_openai": 8,
-    "focused_pa009_preflight": 14,
+    "focused_pa009_preflight": 16,
     "boundary_regressions": 35,
     "mypy_files": 101,
     "commands": [
@@ -81,13 +81,13 @@
       "JSON/JSONL validation",
       "git diff --check"
     ],
-    "validated_at": "2026-08-13T16:30:00+09:30"
+    "validated_at": "2026-08-14T10:49:56+09:30"
   },
   "repository_status": "clean-checkpoint-except-protected-pa005-pack",
   "expected_dirty_paths": [
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
-  "last_validated_commit": "7f32d96",
+  "last_validated_commit": "6ba0954",
   "next_recommended_increment": null,
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
@@ -120,6 +120,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-13T13:10:00+09:30",
+  "updated_at": "2026-08-14T10:49:56+09:30",
   "provenance": "PA-008 repository validation passed: 328 tests cover Adelaide timezone-aware scheduling, deterministic run lifecycle, duplicate suppression, safe retry, missed runs, structured local status, allowlisted backup manifests, integrity/schema failure, isolated restore, and prohibited-material exclusion without production activation or live access."
 }
