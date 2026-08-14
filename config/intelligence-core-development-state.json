@@ -3,7 +3,7 @@
   "product": "EDN Intelligence Core",
   "version": "0.1.0-alpha",
   "current_branch": "feature/intelligence-core-v0.1",
-  "current_milestone": "PA-009 strict Structured Outputs schema hardened, validated and checkpointed; genuine dispatch remains fresh exact-hash owner-gated",
+  "current_milestone": "PA-009 retry admission, budget accounting and metadata-only failure lineage repaired, validated and checkpointed; any new dispatch requires a fresh protected exact-hash owner approval",
   "completed_increments": [
     "IC-001",
     "IC-002",
@@ -36,7 +36,8 @@
     "PA-009-ADAPTER",
     "PA-009-PREFLIGHT",
     "PA-009-PROTECTED-HANDOFF",
-    "PA-009-SCHEMA-HARDENING"
+    "PA-009-SCHEMA-HARDENING",
+    "PA-009-RETRY-CONTROL-REPAIR"
   ],
   "active_increment": null,
   "blocked_increments": [
@@ -51,10 +52,10 @@
     "Daily Intelligence freshness and ranking are deterministic, but owner usefulness over a representative live day remains unreviewed.",
     "Registry, policy and onboarding value-profile composition remain manual.",
     "No production scheduler/service, automatic morning delivery, external notification, or mixed-source benchmark exists; PA-008 scheduling remains a local activation-ready abstraction.",
-    "No approved model/global provider exists.",
-    "Synthetic model intelligence has no real provider, network dispatch or genuine EDN evidence disclosure; PA-009 remains separately gated.",
-    "OpenAI adapter is activation-ready but disabled by default; no genuine EDN evidence has been disclosed.",
-    "First genuine PA-009 dispatch requires safe credential verification, a fresh protected metadata-only preflight and a hash-bound expiring owner approval token.",
+    "No standing model/global provider authority exists; PA-009 remains exact-request owner-gated.",
+    "The first genuine PA-009 attempt disclosed only its approved protected projection but produced no valid provider result; the discovered retry-control defect is repaired and a fresh preflight is required.",
+    "OpenAI adapter remains disabled by default and every genuine dispatch requires a fresh protected projection and exact owner approval.",
+    "Any subsequent genuine PA-009 dispatch requires safe credential verification, a fresh protected metadata-only preflight and a hash-bound expiring owner approval token.",
     "Proposals cannot execute.",
     "PDF/DOCX extraction is deliberately bounded and fails closed on unsupported PDF filters or ambiguous structures; live owner roots remain unauthorised.",
     "Current Outlook and Calendar live validation passed, but exact EDN category admission yielded zero retained records in both sources.",
@@ -69,11 +70,12 @@
       "python -m json.tool (state, roadmap, policy and each audit JSONL record)",
       "git diff --check"
     ],
-    "passed": 380,
+    "passed": 388,
     "failed": 0,
     "focused_pa009_synthetic": 8,
     "focused_pa009_openai": 32,
     "focused_pa009_preflight": 28,
+    "focused_pa009_retry_repair": 60,
     "boundary_regressions": 71,
     "mypy_files": 102,
     "commands": [
@@ -83,18 +85,18 @@
       "JSON/JSONL validation",
       "git diff --check"
     ],
-    "validated_at": "2026-08-14T12:08:14+09:30"
+    "validated_at": "2026-08-14T14:14:45+09:30"
   },
   "repository_status": "clean-checkpoint-except-protected-pa005-pack",
   "expected_dirty_paths": [
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
-  "last_validated_commit": "2938767ae346248283c0f4366dbb3b9cff47f905",
+  "last_validated_commit": "b0c606fbe29403aa1c1321d7922b9ac36c8d12d6",
   "next_recommended_increment": null,
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
     "Approve a named model provider, genuine evidence disclosure categories, retention/cost policy and threat model before PA-009.",
-    "Before first real request: approve exact OpenAI model snapshot, field-level disclosure policy, retention/residency terms, credential installation, pilot duration and kill switch.",
+    "Before any subsequent real request: approve the exact fresh preflight hash and expiry; model, disclosure, retention/residency, credential, pilot-duration and kill-switch boundaries remain unchanged unless separately approved.",
     "Approve future SharePoint content or external execution separately."
   ],
   "external_capability_blockers": [
@@ -123,6 +125,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-14T12:30:35+09:30",
-  "provenance": "PA-008 repository validation passed: 328 tests cover Adelaide timezone-aware scheduling, deterministic run lifecycle, duplicate suppression, safe retry, missed runs, structured local status, allowlisted backup manifests, integrity/schema failure, isolated restore, and prohibited-material exclusion without production activation or live access."
+  "updated_at": "2026-08-14T14:14:45+09:30",
+  "provenance": "PA-009-RETRY-CONTROL-REPAIR repository validation passed: 388 tests and 60 focused PA-009 boundary tests prove one additional retry, admission-before-consumption, exact two-call ceilings, terminal no-retry behavior, authority/tamper/budget blocking, replay protection and metadata-only failure lineage without live access, credentials or protected evidence."
 }
