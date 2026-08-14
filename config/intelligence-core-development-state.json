@@ -3,7 +3,7 @@
   "product": "EDN Intelligence Core",
   "version": "0.1.0-alpha",
   "current_branch": "feature/intelligence-core-v0.1",
-  "current_milestone": "PA-009 incomplete-response diagnostics capture allowlisted HTTP and usage/cost metadata before terminal parsing; any new dispatch requires a fresh protected exact-hash owner approval",
+  "current_milestone": "PA-009 provider lifecycles now have owner-local durable metadata-only recovery and the owner-approved output ceiling is 2,000 tokens; any new dispatch requires a fresh protected exact-hash owner approval",
   "completed_increments": [
     "IC-001",
     "IC-002",
@@ -39,7 +39,8 @@
     "PA-009-SCHEMA-HARDENING",
     "PA-009-RETRY-CONTROL-REPAIR",
     "PA-009-INVALID-RESPONSE-DIAGNOSTICS",
-    "PA-009-INCOMPLETE-RESPONSE-DIAGNOSTICS"
+    "PA-009-INCOMPLETE-RESPONSE-DIAGNOSTICS",
+    "PA-009-DURABLE-PROVIDER-AUDIT-AND-OUTPUT-CEILING"
   ],
   "active_increment": null,
   "blocked_increments": [
@@ -55,7 +56,8 @@
     "Registry, policy and onboarding value-profile composition remain manual.",
     "No production scheduler/service, automatic morning delivery, external notification, or mixed-source benchmark exists; PA-008 scheduling remains a local activation-ready abstraction.",
     "No standing model/global provider authority exists; PA-009 remains exact-request owner-gated.",
-    "The latest genuine PA-009 attempt returned an incomplete Responses result; historical metadata cannot distinguish output-token exhaustion from content filtering, while future attempts now retain allowlisted incomplete reason and numeric usage/cost metadata.",
+    "The latest genuine PA-009 attempt exhausted the former 1,000-token output ceiling; transcript-visible metadata retained the closed reason and USD $0.0022085 cost but not unavailable token counts.",
+    "Durable PA-009 audit is metadata-only and crash-safe, but a crash after transport-started and before transport-returned remains an intentionally unknown terminal state that cannot be replayed.",
     "OpenAI adapter remains disabled by default and every genuine dispatch requires a fresh protected projection and exact owner approval.",
     "Any subsequent genuine PA-009 dispatch requires safe credential verification, a fresh protected metadata-only preflight and a hash-bound expiring owner approval token.",
     "Proposals cannot execute.",
@@ -72,13 +74,14 @@
       "python -m json.tool (state, roadmap, policy and each audit JSONL record)",
       "git diff --check"
     ],
-    "passed": 416,
+    "passed": 423,
     "failed": 0,
     "focused_pa009_synthetic": 8,
-    "focused_pa009_openai": 60,
+    "focused_pa009_openai": 63,
     "focused_pa009_preflight": 28,
     "focused_pa009_retry_repair": 60,
-    "focused_pa009_diagnostics_and_handoff": 80,
+    "focused_pa009_diagnostics_and_handoff": 87,
+    "focused_pa009_durable_audit": 3,
     "boundary_regressions": 71,
     "mypy_files": 102,
     "commands": [
@@ -88,13 +91,13 @@
       "JSON/JSONL validation",
       "git diff --check"
     ],
-    "validated_at": "2026-08-14T16:52:36+09:30"
+    "validated_at": "2026-08-14T18:02:51+09:30"
   },
   "repository_status": "clean-checkpoint-except-protected-pa005-pack",
   "expected_dirty_paths": [
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
-  "last_validated_commit": "d1c02828f1c77eaac61c2e3d54d16261b75da17f",
+  "last_validated_commit": "1a42bcc8c835b60edc9a27419e0d00ceccf169ae",
   "next_recommended_increment": null,
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
@@ -128,6 +131,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-14T16:52:36+09:30",
-  "provenance": "PA-009-INCOMPLETE-RESPONSE-DIAGNOSTICS repository validation passed: 416 tests and 60 focused OpenAI adapter tests prove allowlisted incomplete reasons, pre-parse HTTP/usage/cost capture, exact configured output ceiling and content-free audit without provider, live-source, credential or protected-envelope access."
+  "updated_at": "2026-08-14T18:02:51+09:30",
+  "provenance": "PA-009-DURABLE-PROVIDER-AUDIT-AND-OUTPUT-CEILING validation passed: 423 tests, 87 focused PA-009 tests and 3 dedicated durable-audit tests prove owner-only atomic hash-chained lifecycle recovery, crash/replay separation, exact 2,000-token request construction, unchanged disclosure scope and fail-closed spend controls without provider, live-source, credential or protected-envelope access."
 }
