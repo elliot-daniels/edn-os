@@ -1,6 +1,6 @@
 # PA-009 — OpenAI Pilot (Activation-Ready, Not Activated)
 
-Status: implementation and synthetic/provider-boundary validation complete. No genuine EDN evidence has been sent to OpenAI. PA-009 remains owner-gated at the first real request.
+Status: implementation and synthetic/provider-boundary validation complete. A genuine owner-approved pilot transport occurred but did not yield a locally valid result. Further genuine dispatch remains fresh-preflight and exact-owner-approval gated.
 
 ## Proposed model
 
@@ -22,6 +22,32 @@ the pinned snapshot. The local parser independently enforces these constraints
 so invalid provider output fails closed even if it bypasses schema enforcement.
 
 The adapter refuses synthetic requests, disabled providers, missing credentials, disclosure denial, unknown authority, oversized context and local budget exhaustion. Failures normalize to deterministic codes and preserve the caller's local fallback.
+
+## Invalid-response diagnostics
+
+The raw Responses API contract returns generated structured JSON as serialized
+text in an assistant `message` output item whose content type is `output_text`.
+The SDK-only `output_parsed` convenience and the repository's former synthetic
+top-level `structured_output` fixture are not raw HTTP response fields. Synthetic
+fixtures now exercise the documented raw envelope, including `object`, `status`,
+`output`, message/content and serialized JSON boundaries.
+
+`invalid_response` remains the external failure class. A closed metadata-only
+diagnostic pair records the validation stage and an allowlisted reason code for
+provider envelope acceptance, identity/model matching, request/provider/model/
+policy echoes, Responses output shape and status, structured extraction, JSON
+parsing, top-level and statement schemas, statement semantics, disclosed-evidence
+references and response ID validity. Exceptions and audit records never include
+provider text, parsed statement text, evidence values, prompts or credentials.
+Incomplete and refusal responses remain terminal invalid results and are not
+retried.
+
+The historical genuine result pre-dates these stage codes, so its exact rejecting
+branch cannot be recovered from metadata-only audit. The repository defect was
+the collapsed diagnostic boundary and contract-inaccurate successful fixtures;
+there is insufficient retained content-free evidence to claim whether the real
+response failed at echo, output extraction, JSON/schema, semantic or citation
+validation.
 
 ## Proposed first-pilot disclosure policy
 

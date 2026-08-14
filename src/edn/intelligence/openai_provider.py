@@ -54,9 +54,64 @@ class ProviderFailureCode(StrEnum):
     PROHIBITED_CONTENT = "prohibited_content"
 
 
+class ProviderValidationStage(StrEnum):
+    PROVIDER_ENVELOPE = "provider_envelope"
+    IDENTITY = "provider_identity"
+    ECHO = "request_echo"
+    OUTPUT_ENVELOPE = "responses_output_envelope"
+    STRUCTURED_EXTRACTION = "structured_output_extraction"
+    STRUCTURED_PAYLOAD = "structured_payload"
+    TOP_LEVEL_SCHEMA = "top_level_schema"
+    STATEMENT_SCHEMA = "statement_schema"
+    STATEMENT_SEMANTICS = "statement_semantics"
+    CITATION = "evidence_reference_validation"
+    COMPLETED = "validation_completed"
+
+
+class ProviderValidationReason(StrEnum):
+    PROVIDER_ENVELOPE_ACCEPTED = "provider_envelope_accepted"
+    PROVIDER_ENVELOPE_REJECTED = "provider_envelope_rejected"
+    PROVIDER_ENVELOPE_JSON_INVALID = "provider_envelope_json_invalid"
+    EXPECTED_PROVIDER_MISMATCH = "expected_provider_identity_mismatch"
+    PINNED_MODEL_MISMATCH = "pinned_model_mismatch"
+    REQUEST_ECHO_MISMATCH = "request_id_echo_mismatch"
+    PROVIDER_ECHO_MISMATCH = "provider_echo_mismatch"
+    MODEL_ECHO_MISMATCH = "model_echo_mismatch"
+    POLICY_ECHO_MISMATCH = "policy_echo_mismatch"
+    OUTPUT_ENVELOPE_MISSING = "responses_output_envelope_missing"
+    OUTPUT_ENVELOPE_INVALID = "responses_output_envelope_invalid"
+    RESPONSE_INCOMPLETE = "responses_result_incomplete"
+    RESPONSE_REFUSED = "responses_result_refused"
+    UNSUPPORTED_RESPONSE_SHAPE = "unsupported_responses_api_shape"
+    EXTRACTION_FAILED = "structured_output_extraction_failed"
+    STRUCTURED_PAYLOAD_MISSING = "structured_payload_missing"
+    JSON_PARSE_FAILED = "structured_payload_json_parse_failed"
+    TOP_LEVEL_REQUIRED_FIELD_MISSING = "top_level_required_field_missing"
+    TOP_LEVEL_ADDITIONAL_PROPERTY = "top_level_additional_property"
+    TOP_LEVEL_SCHEMA_INVALID = "top_level_schema_invalid"
+    STATEMENT_REQUIRED_FIELD_MISSING = "statement_required_field_missing"
+    STATEMENT_ADDITIONAL_PROPERTY = "statement_additional_property"
+    STATEMENT_VARIANT_INVALID = "statement_variant_schema_invalid"
+    STATEMENT_SCHEMA_INVALID = "statement_schema_invalid"
+    STATEMENT_SEMANTIC_INVALID = "statement_semantic_invalid"
+    EVIDENCE_REFERENCE_INVALID = "disclosed_evidence_reference_invalid"
+    RESPONSE_ID_INVALID = "provider_response_id_invalid"
+    VALIDATION_ACCEPTED = "provider_response_validated"
+    OTHER_INVALID_RESPONSE = "other_invalid_response_stage"
+
+
 class PilotDispatchError(RuntimeError):
-    def __init__(self, code: ProviderFailureCode, detail: str = "") -> None:
+    def __init__(
+        self,
+        code: ProviderFailureCode,
+        detail: str = "",
+        *,
+        validation_stage: ProviderValidationStage | None = None,
+        validation_reason: ProviderValidationReason | None = None,
+    ) -> None:
         self.code = code
+        self.validation_stage = validation_stage
+        self.validation_reason = validation_reason
         super().__init__(f"{code.value}{(': ' + detail) if detail else ''}")
 
 
@@ -105,9 +160,17 @@ class UrllibOpenAITransport:
         except error.URLError as exc:
             raise PilotDispatchError(ProviderFailureCode.NETWORK) from exc
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise PilotDispatchError(ProviderFailureCode.INVALID_RESPONSE) from exc
+            raise PilotDispatchError(
+                ProviderFailureCode.INVALID_RESPONSE,
+                validation_stage=ProviderValidationStage.PROVIDER_ENVELOPE,
+                validation_reason=ProviderValidationReason.PROVIDER_ENVELOPE_JSON_INVALID,
+            ) from exc
         if not isinstance(value, dict):
-            raise PilotDispatchError(ProviderFailureCode.INVALID_RESPONSE)
+            raise PilotDispatchError(
+                ProviderFailureCode.INVALID_RESPONSE,
+                validation_stage=ProviderValidationStage.PROVIDER_ENVELOPE,
+                validation_reason=ProviderValidationReason.PROVIDER_ENVELOPE_REJECTED,
+            )
         return value
 
 
@@ -138,6 +201,8 @@ class ProviderAuditRecord:
     retry_admission_decision: str = "not_applicable"
     initial_failure_code: str | None = None
     final_outcome: str | None = None
+    validation_stage: str | None = None
+    validation_reason_code: str | None = None
 
     def __post_init__(self) -> None:
         if self.timestamp.tzinfo is None:
@@ -153,6 +218,10 @@ class ProviderAuditRecord:
             "blocked",
         }:
             raise ValueError("audit retry admission decision is invalid")
+        if self.validation_stage is not None:
+            ProviderValidationStage(self.validation_stage)
+        if self.validation_reason_code is not None:
+            ProviderValidationReason(self.validation_reason_code)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -177,6 +246,8 @@ class ProviderAuditRecord:
             "retry_admission_decision": self.retry_admission_decision,
             "initial_failure_code": self.initial_failure_code,
             "final_outcome": self.final_outcome,
+            "validation_stage": self.validation_stage,
+            "validation_reason_code": self.validation_reason_code,
         }
 
 
@@ -715,10 +786,14 @@ class OpenAIProvider:
                 input_tokens=input_tokens,
                 is_retry=is_retry,
             )
-            payload = _request_payload(request, self.config.model)
+            payload = _request_payload(
+                request, self.config.model, self.config.policy_id
+            )
             transport_attempted = True
             response = self.transport.post(payload, api_key=api_key)
-            parsed = _parse_response(response, request, self.config.model)
+            parsed = _parse_response(
+                response, request, self.config.model, self.config.policy_id
+            )
             usage = response.get("usage")
             input_used, output_used = _usage(usage)
             self.budget.record_success(now=now)
@@ -732,6 +807,8 @@ class OpenAIProvider:
                     estimated_cost_usd=estimated,
                     transport_attempted=transport_attempted,
                     final_outcome="completed",
+                    validation_stage=ProviderValidationStage.COMPLETED.value,
+                    validation_reason_code=ProviderValidationReason.VALIDATION_ACCEPTED.value,
                 )
             )
             return parsed
@@ -753,6 +830,12 @@ class OpenAIProvider:
                         else base.retry_admission_decision
                     ),
                     final_outcome="failed",
+                    validation_stage=(
+                        exc.validation_stage.value if exc.validation_stage else None
+                    ),
+                    validation_reason_code=(
+                        exc.validation_reason.value if exc.validation_reason else None
+                    ),
                 )
             )
             raise
@@ -792,7 +875,11 @@ class OpenAIProvider:
         )
 
 
-def _request_payload(request: ModelRequest, model: str) -> dict[str, object]:
+def _request_payload(
+    request: ModelRequest,
+    model: str,
+    policy_id: str = "openai-daily-brief-pilot-v1",
+) -> dict[str, object]:
     evidence = [
         {
             "ref": item.disclosure_id,
@@ -885,6 +972,8 @@ def _request_payload(request: ModelRequest, model: str) -> dict[str, object]:
         "metadata": {
             "edn_request_id": request.request_id,
             "edn_provider_id": "openai.api",
+            "edn_model": model,
+            "edn_policy_id": policy_id,
         },
         "input": [
             {"role": "system", "content": instructions},
@@ -909,57 +998,195 @@ def _request_payload(request: ModelRequest, model: str) -> dict[str, object]:
 
 
 def _parse_response(
-    value: Mapping[str, object], request: ModelRequest, expected_model: str
+    value: Mapping[str, object],
+    request: ModelRequest,
+    expected_model: str,
+    expected_policy: str = "openai-daily-brief-pilot-v1",
 ) -> ModelResponse:
+    def invalid(
+        stage: ProviderValidationStage,
+        reason: ProviderValidationReason,
+    ) -> PilotDispatchError:
+        return PilotDispatchError(
+            ProviderFailureCode.INVALID_RESPONSE,
+            validation_stage=stage,
+            validation_reason=reason,
+        )
+
+    if value.get("object") != "response":
+        raise invalid(
+            ProviderValidationStage.PROVIDER_ENVELOPE,
+            ProviderValidationReason.PROVIDER_ENVELOPE_REJECTED,
+        )
+    if value.get("provider") not in {None, "openai.api"}:
+        raise invalid(
+            ProviderValidationStage.IDENTITY,
+            ProviderValidationReason.EXPECTED_PROVIDER_MISMATCH,
+        )
     response_model = value.get("model")
+    if response_model != expected_model:
+        raise invalid(
+            ProviderValidationStage.IDENTITY,
+            ProviderValidationReason.PINNED_MODEL_MISMATCH,
+        )
     metadata = value.get("metadata")
-    if (
-        str(response_model) != expected_model
-        or not isinstance(metadata, dict)
-        or metadata.get("edn_request_id") != request.request_id
-        or metadata.get("edn_provider_id") != "openai.api"
-    ):
-        raise PilotDispatchError(ProviderFailureCode.INVALID_RESPONSE)
+    if not isinstance(metadata, dict):
+        raise invalid(
+            ProviderValidationStage.ECHO,
+            ProviderValidationReason.REQUEST_ECHO_MISMATCH,
+        )
+    echo_checks = (
+        (
+            "edn_request_id",
+            request.request_id,
+            ProviderValidationReason.REQUEST_ECHO_MISMATCH,
+        ),
+        (
+            "edn_provider_id",
+            "openai.api",
+            ProviderValidationReason.PROVIDER_ECHO_MISMATCH,
+        ),
+        ("edn_model", expected_model, ProviderValidationReason.MODEL_ECHO_MISMATCH),
+        (
+            "edn_policy_id",
+            expected_policy,
+            ProviderValidationReason.POLICY_ECHO_MISMATCH,
+        ),
+    )
+    for key, expected, reason in echo_checks:
+        if metadata.get(key) != expected:
+            raise invalid(ProviderValidationStage.ECHO, reason)
+    status = value.get("status")
+    if status == "incomplete":
+        raise invalid(
+            ProviderValidationStage.OUTPUT_ENVELOPE,
+            ProviderValidationReason.RESPONSE_INCOMPLETE,
+        )
+    if status != "completed":
+        raise invalid(
+            ProviderValidationStage.OUTPUT_ENVELOPE,
+            ProviderValidationReason.OUTPUT_ENVELOPE_INVALID,
+        )
     output = value.get("output")
     if not isinstance(output, list):
-        raise PilotDispatchError(ProviderFailureCode.INVALID_RESPONSE)
-    raw = value.get("structured_output")
-    if raw is None:
-        for item in output:
-            if isinstance(item, dict) and isinstance(item.get("content"), list):
-                for content in item["content"]:
-                    if isinstance(content, dict) and isinstance(
-                        content.get("text"), str
-                    ):
-                        try:
-                            raw = json.loads(content["text"])
-                        except json.JSONDecodeError as exc:
-                            raise PilotDispatchError(
-                                ProviderFailureCode.INVALID_RESPONSE
-                            ) from exc
+        raise invalid(
+            ProviderValidationStage.OUTPUT_ENVELOPE,
+            ProviderValidationReason.OUTPUT_ENVELOPE_MISSING,
+        )
+    output_texts: list[str] = []
+    message_seen = False
+    for item in output:
+        if not isinstance(item, dict):
+            raise invalid(
+                ProviderValidationStage.OUTPUT_ENVELOPE,
+                ProviderValidationReason.UNSUPPORTED_RESPONSE_SHAPE,
+            )
+        if item.get("type") != "message":
+            continue
+        message_seen = True
+        if item.get("role") != "assistant" or not isinstance(item.get("content"), list):
+            raise invalid(
+                ProviderValidationStage.OUTPUT_ENVELOPE,
+                ProviderValidationReason.UNSUPPORTED_RESPONSE_SHAPE,
+            )
+        for content in item["content"]:
+            if not isinstance(content, dict):
+                raise invalid(
+                    ProviderValidationStage.STRUCTURED_EXTRACTION,
+                    ProviderValidationReason.EXTRACTION_FAILED,
+                )
+            if content.get("type") == "refusal":
+                raise invalid(
+                    ProviderValidationStage.STRUCTURED_EXTRACTION,
+                    ProviderValidationReason.RESPONSE_REFUSED,
+                )
+            if content.get("type") == "output_text":
+                text = content.get("text")
+                if not isinstance(text, str):
+                    raise invalid(
+                        ProviderValidationStage.STRUCTURED_EXTRACTION,
+                        ProviderValidationReason.EXTRACTION_FAILED,
+                    )
+                output_texts.append(text)
+    if not message_seen:
+        raise invalid(
+            ProviderValidationStage.OUTPUT_ENVELOPE,
+            ProviderValidationReason.UNSUPPORTED_RESPONSE_SHAPE,
+        )
+    if not output_texts:
+        raise invalid(
+            ProviderValidationStage.STRUCTURED_PAYLOAD,
+            ProviderValidationReason.STRUCTURED_PAYLOAD_MISSING,
+        )
+    if len(output_texts) != 1:
+        raise invalid(
+            ProviderValidationStage.STRUCTURED_EXTRACTION,
+            ProviderValidationReason.EXTRACTION_FAILED,
+        )
+    try:
+        raw = json.loads(output_texts[0])
+    except json.JSONDecodeError:
+        raise invalid(
+            ProviderValidationStage.STRUCTURED_PAYLOAD,
+            ProviderValidationReason.JSON_PARSE_FAILED,
+        ) from None
+    if not isinstance(raw, dict):
+        raise invalid(
+            ProviderValidationStage.TOP_LEVEL_SCHEMA,
+            ProviderValidationReason.TOP_LEVEL_SCHEMA_INVALID,
+        )
+    if "statements" not in raw:
+        raise invalid(
+            ProviderValidationStage.TOP_LEVEL_SCHEMA,
+            ProviderValidationReason.TOP_LEVEL_REQUIRED_FIELD_MISSING,
+        )
+    if set(raw) != {"statements"}:
+        raise invalid(
+            ProviderValidationStage.TOP_LEVEL_SCHEMA,
+            ProviderValidationReason.TOP_LEVEL_ADDITIONAL_PROPERTY,
+        )
     if (
-        not isinstance(raw, dict)
-        or set(raw) != {"statements"}
-        or not isinstance(raw.get("statements"), list)
+        not isinstance(raw["statements"], list)
         or not raw["statements"]
         or len(raw["statements"]) > request.max_output_items
     ):
-        raise PilotDispatchError(ProviderFailureCode.INVALID_RESPONSE)
+        raise invalid(
+            ProviderValidationStage.TOP_LEVEL_SCHEMA,
+            ProviderValidationReason.TOP_LEVEL_SCHEMA_INVALID,
+        )
     disclosed = {item.disclosure_id for item in request.projection.items}
     statements: list[ModelStatement] = []
     for item in raw["statements"]:
         if not isinstance(item, dict):
-            raise PilotDispatchError(ProviderFailureCode.INVALID_RESPONSE)
+            raise invalid(
+                ProviderValidationStage.STATEMENT_SCHEMA,
+                ProviderValidationReason.STATEMENT_SCHEMA_INVALID,
+            )
         try:
-            if set(item) != {
+            required_fields = {
                 "kind",
                 "text",
                 "disclosed_evidence_ids",
                 "uncertainty",
                 "proposal_only",
-            }:
-                raise PilotDispatchError(ProviderFailureCode.INVALID_RESPONSE)
-            kind = ModelStatementKind(str(item["kind"]))
+            }
+            if not required_fields <= set(item):
+                raise invalid(
+                    ProviderValidationStage.STATEMENT_SCHEMA,
+                    ProviderValidationReason.STATEMENT_REQUIRED_FIELD_MISSING,
+                )
+            if set(item) != required_fields:
+                raise invalid(
+                    ProviderValidationStage.STATEMENT_SCHEMA,
+                    ProviderValidationReason.STATEMENT_ADDITIONAL_PROPERTY,
+                )
+            try:
+                kind = ModelStatementKind(str(item["kind"]))
+            except ValueError:
+                raise invalid(
+                    ProviderValidationStage.STATEMENT_SCHEMA,
+                    ProviderValidationReason.STATEMENT_VARIANT_INVALID,
+                ) from None
             raw_refs = item["disclosed_evidence_ids"]
             uncertainty = item["uncertainty"]
             proposal_only = item["proposal_only"]
@@ -970,20 +1197,39 @@ def _parse_response(
                 or (uncertainty is not None and not isinstance(uncertainty, str))
                 or not isinstance(proposal_only, bool)
             ):
-                raise PilotDispatchError(ProviderFailureCode.INVALID_RESPONSE)
+                raise invalid(
+                    ProviderValidationStage.STATEMENT_SCHEMA,
+                    ProviderValidationReason.STATEMENT_VARIANT_INVALID,
+                )
             refs = tuple(raw_refs)
             if not set(refs) <= disclosed:
-                raise PilotDispatchError(ProviderFailureCode.INVALID_RESPONSE)
+                raise invalid(
+                    ProviderValidationStage.CITATION,
+                    ProviderValidationReason.EVIDENCE_REFERENCE_INVALID,
+                )
             statements.append(
                 ModelStatement(
                     kind, item["text"], refs, uncertainty, "openai.api", proposal_only
                 )
             )
-        except (KeyError, TypeError, ValueError) as exc:
-            raise PilotDispatchError(ProviderFailureCode.INVALID_RESPONSE) from exc
+        except PilotDispatchError:
+            raise
+        except (KeyError, TypeError) as exc:
+            raise invalid(
+                ProviderValidationStage.STATEMENT_SCHEMA,
+                ProviderValidationReason.STATEMENT_SCHEMA_INVALID,
+            ) from exc
+        except ValueError:
+            raise invalid(
+                ProviderValidationStage.STATEMENT_SEMANTICS,
+                ProviderValidationReason.STATEMENT_SEMANTIC_INVALID,
+            ) from None
     response_id = value.get("id")
     if response_id is not None and not str(response_id).strip():
-        raise PilotDispatchError(ProviderFailureCode.INVALID_RESPONSE)
+        raise invalid(
+            ProviderValidationStage.PROVIDER_ENVELOPE,
+            ProviderValidationReason.RESPONSE_ID_INVALID,
+        )
     return ModelResponse(
         request.request_id, "openai.api", tuple(statements), tuple(sorted(disclosed))
     )

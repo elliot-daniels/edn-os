@@ -65,25 +65,44 @@ class SequenceTransport(FakeTransport):
 
 
 def _response() -> dict[str, object]:
+    payload = {
+        "statements": [
+            {
+                "kind": "model_assertion",
+                "text": "Synthetic inference for owner review.",
+                "disclosed_evidence_ids": ["disclosed-1"],
+                "uncertainty": "synthetic test",
+                "proposal_only": False,
+            }
+        ]
+    }
     return {
         "id": "response-1",
+        "object": "response",
+        "status": "completed",
         "model": "gpt-5-mini-2025-08-07",
         "metadata": {
             "edn_request_id": "protected-request-1",
             "edn_provider_id": "openai.api",
+            "edn_model": "gpt-5-mini-2025-08-07",
+            "edn_policy_id": "openai-daily-brief-pilot-v1",
         },
-        "output": [],
-        "structured_output": {
-            "statements": [
-                {
-                    "kind": "model_assertion",
-                    "text": "Synthetic inference for owner review.",
-                    "disclosed_evidence_ids": ["disclosed-1"],
-                    "uncertainty": "synthetic test",
-                    "proposal_only": False,
-                }
-            ]
-        },
+        "output": [
+            {
+                "id": "message-1",
+                "type": "message",
+                "status": "completed",
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "output_text",
+                        "annotations": [],
+                        "logprobs": [],
+                        "text": json.dumps(payload, separators=(",", ":")),
+                    }
+                ],
+            }
+        ],
         "usage": {"input_tokens": 12, "output_tokens": 7},
     }
 

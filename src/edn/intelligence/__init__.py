@@ -66,6 +66,8 @@ from edn.intelligence.openai_provider import (
     ProviderAuditRecord,
     ProviderFailureCode,
     ProviderPreflight,
+    ProviderValidationReason,
+    ProviderValidationStage,
 )
 from edn.intelligence.operations import (
     EDN_TIMEZONE,
@@ -158,6 +160,8 @@ __all__ = [
     "ProviderAuditRecord",
     "ProviderFailureCode",
     "ProviderPreflight",
+    "ProviderValidationReason",
+    "ProviderValidationStage",
     "RunFailureCode",
     "RunStatus",
     "SQLiteActionProposalStore",

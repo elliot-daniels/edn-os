@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from datetime import UTC, datetime
 
@@ -31,6 +32,8 @@ from edn.intelligence import (
     PilotBudgetLedger,
     PilotDispatchError,
     ProviderFailureCode,
+    ProviderValidationReason,
+    ProviderValidationStage,
 )
 from edn.intelligence.model_boundary import DisclosureProjection, ProjectedEvidence
 from edn.intelligence.openai_provider import (
@@ -140,25 +143,44 @@ def _provider(
 
 
 def _response(*, refs: list[str] | None = None) -> dict[str, object]:
+    payload = {
+        "statements": [
+            {
+                "kind": "model_assertion",
+                "text": "The commitment requires review.",
+                "disclosed_evidence_ids": refs or ["disclosed-1"],
+                "uncertainty": "inference from projected evidence",
+                "proposal_only": False,
+            }
+        ]
+    }
     return {
         "id": "resp-1",
+        "object": "response",
+        "status": "completed",
         "model": "gpt-5-mini-2025-08-07",
         "metadata": {
             "edn_request_id": "request-1",
             "edn_provider_id": "openai.api",
+            "edn_model": "gpt-5-mini-2025-08-07",
+            "edn_policy_id": "openai-daily-brief-pilot-v1",
         },
-        "output": [],
-        "structured_output": {
-            "statements": [
-                {
-                    "kind": "model_assertion",
-                    "text": "The commitment requires review.",
-                    "disclosed_evidence_ids": refs or ["disclosed-1"],
-                    "uncertainty": "inference from projected evidence",
-                    "proposal_only": False,
-                }
-            ]
-        },
+        "output": [
+            {
+                "id": "msg-1",
+                "type": "message",
+                "status": "completed",
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "output_text",
+                        "annotations": [],
+                        "logprobs": [],
+                        "text": json.dumps(payload, separators=(",", ":")),
+                    }
+                ],
+            }
+        ],
         "usage": {"input_tokens": 10, "output_tokens": 8},
     }
 
@@ -181,8 +203,30 @@ def _statement(
 
 def _structured_response(statements: list[object]) -> dict[str, object]:
     response = _response()
-    response["structured_output"] = {"statements": statements}
+    output = response["output"]
+    assert isinstance(output, list)
+    message = output[0]
+    assert isinstance(message, dict)
+    content = message["content"]
+    assert isinstance(content, list)
+    output_text = content[0]
+    assert isinstance(output_text, dict)
+    output_text["text"] = json.dumps(
+        {"statements": statements}, separators=(",", ":")
+    )
     return response
+
+
+def _set_output_text(response: dict[str, object], value: str) -> None:
+    output = response["output"]
+    assert isinstance(output, list)
+    message = output[0]
+    assert isinstance(message, dict)
+    content = message["content"]
+    assert isinstance(content, list)
+    output_text = content[0]
+    assert isinstance(output_text, dict)
+    output_text["text"] = value
 
 
 def test_fake_transport_serializes_safe_responses_request_and_validates_response() -> (
@@ -261,6 +305,8 @@ def test_request_uses_closed_strict_schema_for_every_statement_type() -> None:
     assert payload["metadata"] == {
         "edn_request_id": "request-1",
         "edn_provider_id": "openai.api",
+        "edn_model": "gpt-5-mini-2025-08-07",
+        "edn_policy_id": "openai-daily-brief-pilot-v1",
     }
 
 
@@ -285,6 +331,137 @@ def test_valid_response_accepts_every_supported_statement_type() -> None:
         "proposed_action",
     ]
     assert response.statements[-1].proposal_only
+
+
+@pytest.mark.parametrize(
+    ("case", "stage", "reason"),
+    (
+        ("envelope", "provider_envelope", "provider_envelope_rejected"),
+        ("provider", "provider_identity", "expected_provider_identity_mismatch"),
+        ("model", "provider_identity", "pinned_model_mismatch"),
+        ("request_echo", "request_echo", "request_id_echo_mismatch"),
+        ("provider_echo", "request_echo", "provider_echo_mismatch"),
+        ("model_echo", "request_echo", "model_echo_mismatch"),
+        ("policy_echo", "request_echo", "policy_echo_mismatch"),
+        ("incomplete", "responses_output_envelope", "responses_result_incomplete"),
+        (
+            "missing_output",
+            "responses_output_envelope",
+            "responses_output_envelope_missing",
+        ),
+        (
+            "unsupported_shape",
+            "responses_output_envelope",
+            "unsupported_responses_api_shape",
+        ),
+        ("refusal", "structured_output_extraction", "responses_result_refused"),
+        ("missing_payload", "structured_payload", "structured_payload_missing"),
+        ("json", "structured_payload", "structured_payload_json_parse_failed"),
+        (
+            "top_missing",
+            "top_level_schema",
+            "top_level_required_field_missing",
+        ),
+        (
+            "top_extra",
+            "top_level_schema",
+            "top_level_additional_property",
+        ),
+        (
+            "statement_missing",
+            "statement_schema",
+            "statement_required_field_missing",
+        ),
+        (
+            "statement_extra",
+            "statement_schema",
+            "statement_additional_property",
+        ),
+        (
+            "statement_variant",
+            "statement_schema",
+            "statement_variant_schema_invalid",
+        ),
+        (
+            "statement_semantic",
+            "statement_semantics",
+            "statement_semantic_invalid",
+        ),
+        (
+            "citation",
+            "evidence_reference_validation",
+            "disclosed_evidence_reference_invalid",
+        ),
+    ),
+)
+def test_documented_responses_shapes_emit_content_free_reason_codes(
+    case: str, stage: str, reason: str
+) -> None:
+    response = _response()
+    metadata = response["metadata"]
+    assert isinstance(metadata, dict)
+    if case == "envelope":
+        response.pop("object")
+    elif case == "provider":
+        response["provider"] = "other"
+    elif case == "model":
+        response["model"] = "other"
+    elif case.endswith("_echo"):
+        key = {
+            "request_echo": "edn_request_id",
+            "provider_echo": "edn_provider_id",
+            "model_echo": "edn_model",
+            "policy_echo": "edn_policy_id",
+        }[case]
+        metadata[key] = "other"
+    elif case == "incomplete":
+        response["status"] = "incomplete"
+        response["incomplete_details"] = {"reason": "max_output_tokens"}
+    elif case == "missing_output":
+        response.pop("output")
+    elif case == "unsupported_shape":
+        response["output"] = [{"type": "reasoning", "summary": []}]
+    elif case == "refusal":
+        response["output"] = [
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "refusal", "refusal": "not retained"}],
+            }
+        ]
+    elif case == "missing_payload":
+        response["output"] = [
+            {"type": "message", "role": "assistant", "content": []}
+        ]
+    elif case == "json":
+        _set_output_text(response, "not-json")
+    elif case == "top_missing":
+        _set_output_text(response, "{}")
+    elif case == "top_extra":
+        _set_output_text(response, '{"statements":[],"extra":true}')
+    else:
+        statement = _statement("model_assertion")
+        if case == "statement_missing":
+            statement.pop("uncertainty")
+        elif case == "statement_extra":
+            statement["extra"] = True
+        elif case == "statement_variant":
+            statement["kind"] = "unknown"
+        elif case == "statement_semantic":
+            statement["proposal_only"] = True
+        elif case == "citation":
+            statement["disclosed_evidence_ids"] = ["not-disclosed"]
+        _set_output_text(
+            response,
+            json.dumps({"statements": [statement]}, separators=(",", ":")),
+        )
+
+    with pytest.raises(PilotDispatchError) as exc:
+        _parse_response(response, _real_request(), "gpt-5-mini-2025-08-07")
+    assert exc.value.code is ProviderFailureCode.INVALID_RESPONSE
+    assert exc.value.validation_stage is ProviderValidationStage(stage)
+    assert exc.value.validation_reason is ProviderValidationReason(reason)
+    assert str(exc.value) == "invalid_response"
 
 
 @pytest.mark.parametrize(
@@ -522,6 +699,30 @@ def test_invalid_citation_and_malformed_response_fail_closed() -> None:
     with pytest.raises(PilotDispatchError) as exc:
         provider.generate(real_request)
     assert exc.value.code is ProviderFailureCode.INVALID_RESPONSE
+
+
+def test_invalid_response_audit_retains_only_allowlisted_diagnostics() -> None:
+    response = _response()
+    secret_provider_text = "MODEL-TEXT-MUST-NOT-ENTER-AUDIT"
+    _set_output_text(response, secret_provider_text)
+    provider, audit = _provider(FakeTransport(response))
+    request = _real_request()
+    approval = provider.approve(
+        provider.preflight(request), expires_at=datetime(2099, 1, 1, tzinfo=UTC)
+    )
+    request = replace(request, approval_token=approval.token())
+
+    with pytest.raises(PilotDispatchError):
+        provider.generate(request)
+
+    record = audit.records[-1]
+    assert record.failure_reason == "invalid_response"
+    assert record.validation_stage == "structured_payload"
+    assert record.validation_reason_code == "structured_payload_json_parse_failed"
+    serialized = json.dumps(record.to_dict(), sort_keys=True)
+    assert secret_provider_text not in serialized
+    assert "Review release plan" not in serialized
+    assert "synthetic-key" not in serialized
 
 
 def test_prompt_injection_is_data_and_tools_are_absent() -> None:
