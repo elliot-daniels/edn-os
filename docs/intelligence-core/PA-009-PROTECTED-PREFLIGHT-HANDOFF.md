@@ -36,6 +36,14 @@ retryability, pending/admitted/blocked retry decision, retry attempt number,
 whether transport occurred, initial failure code and final outcome. They contain
 no prompt, response, projected evidence or credential values.
 
+Provider lifecycle audit is durable outside Git in the sibling owner-runtime
+`provider-audits` directory. Hash-chained canonical per-request journals record
+admission, transport-started, transport-returned, retry and terminal states using
+atomic owner-only writes. Terminal audit is persisted before claimed-envelope
+destruction. The journal contains no approval token or projection values, so it
+cannot replay authority; a crash leaving only `transport_started` remains an
+unknown outcome with the protected claim unavailable for reuse.
+
 ## Protected storage
 
 The default location is:

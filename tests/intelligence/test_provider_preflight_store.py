@@ -13,6 +13,7 @@ import pytest
 from edn.core import Classification
 from edn.intelligence import (
     DisclosureProjection,
+    DurableProviderAudit,
     FreshnessState,
     ModelRequest,
     OpenAIDisclosurePolicy,
@@ -62,6 +63,13 @@ class SequenceTransport(FakeTransport):
         if isinstance(outcome, ProviderFailureCode):
             raise PilotDispatchError(outcome)
         return outcome
+
+
+class CrashTransport(FakeTransport):
+    def post(self, payload: dict[str, object], *, api_key: str) -> dict[str, object]:
+        del payload, api_key
+        self.calls += 1
+        raise SystemExit("synthetic process loss")
 
 
 def _response() -> dict[str, object]:
@@ -217,6 +225,33 @@ def test_projection_survives_process_boundary_and_dispatches_once(
         second.generate_protected(approval)
     assert replay.value.code is ProviderFailureCode.INVALID_AUTHORITY
     assert dispatch_transport.calls == 1
+
+
+def test_crash_after_transport_start_is_durably_recoverable_and_not_replayable(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "protected"
+    _, preflight = _persist(root)
+    transport = CrashTransport()
+    provider = _provider(root, transport)
+    approval = provider.approve_protected(
+        request_id=_request().request_id,
+        preflight_hash=preflight.preflight_hash,  # type: ignore[attr-defined]
+        expires_at=EXPIRY,
+    )
+
+    with pytest.raises(SystemExit):
+        provider.generate_protected(approval)
+
+    recovered = DurableProviderAudit(root.parent / "provider-audits").read_lifecycle(
+        _request().request_id
+    )
+    assert recovered[-1].dispatch_status == "transport_started"
+    assert recovered[-1].transport_attempted is True
+    assert transport.calls == 1
+    with pytest.raises(PilotDispatchError):
+        _provider(root, FakeTransport()).generate_protected(approval)
+    assert not ProtectedPreflightStore(root).exists(_request().request_id)
 
 
 @pytest.mark.parametrize(
@@ -448,6 +483,8 @@ def test_retryable_initial_failure_then_success_is_exactly_two_transports(
         record
         for record in provider.audit.records  # type: ignore[attr-defined]
         if record.attempt_number > 0
+        and record.dispatch_status
+        not in {"dispatch_admitted", "transport_started", "transport_returned"}
     ]
     assert records[0].transport_attempted is True
     assert records[0].failure_reason == "network_failure"
@@ -525,7 +562,7 @@ def test_spend_budget_can_block_retry_without_losing_initial_failure(
     root = tmp_path / "protected"
     transport = SequenceTransport([ProviderFailureCode.NETWORK, _response()])
     provider, approval = _approved_provider(root, transport)
-    provider.config = replace(provider.config, max_daily_spend_aud=0.004)
+    provider.config = replace(provider.config, max_daily_spend_aud=0.01)
 
     with pytest.raises(PilotDispatchError) as first:
         provider.generate_protected(approval)

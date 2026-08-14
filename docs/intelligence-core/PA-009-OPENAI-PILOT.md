@@ -67,13 +67,40 @@ never copied into diagnostics.
 
 The Responses request now takes `max_output_tokens` directly from
 `OpenAIPilotConfig.max_output_tokens`. It previously derived the value as 200
-tokens per requested statement; that happened to equal the approved 1,000-token
+tokens per requested statement; that happened to equal the former 1,000-token
 ceiling for five statements but did not faithfully enforce configuration. The
-ceiling remains 1,000. GPT-5 mini supports a much larger technical maximum, but
-reasoning tokens are included in output usage, so 1,000 may be implicated in an
-incomplete result. The prior pilot's exact cause and the ceiling's empirical
-sufficiency remain indeterminate because the necessary numeric metadata was not
-retained.
+owner-approved pilot ceiling is now 2,000 tokens. Transcript-visible metadata
+from the preceding genuine lifecycle recorded
+`responses_incomplete_max_output_tokens` at the former ceiling and an actual
+usage-derived cost of USD $0.0022085. No unavailable token counts are inferred.
+Request construction transmits the configured ceiling directly. Reasoning tokens
+remain included in output usage.
+
+## Durable lifecycle audit
+
+Protected dispatch uses an owner-local durable audit by default. The store lives
+under `$XDG_STATE_HOME/edn-intelligence-core/provider-audits/`, or
+`$HOME/.local/state/edn-intelligence-core/provider-audits/` when XDG state is
+unset. Its directory is mode `0700`; canonical per-request journals and lock files
+are mode `0600`, effective-user owned, opened without following symlinks and
+updated through a locked, fsynced atomic replacement. Each entry is sequence- and
+hash-bound to its predecessor, so malformed, truncated, reordered or edited
+records fail readback.
+
+The lifecycle records preflight, dispatch admission, transport start, transport
+return, retry admission and terminal success/failure before terminal protected
+claim destruction wherever sequencing permits. A last state of transport-started
+means the outcome is unknown after a crash and never grants replay. Audit records
+contain metadata only: exact request/preflight/provider/model/policy binding,
+projection counts/categories/size, classification/domain, attempt and transport
+state, allowlisted status/failure/validation metadata, numeric usage/cost,
+schema/citation outcomes, typed statement counts, retry/fallback outcome and
+timestamps. They contain no approval token or provider authority and cannot be
+used to reconstruct a projection or dispatch.
+
+Prompts, complete or partial provider response content, structured output text,
+statement text, evidence/projection values, source content, credentials,
+authorization headers and secrets are prohibited from the durable schema.
 
 ## Proposed first-pilot disclosure policy
 
@@ -89,7 +116,7 @@ An owner must install a least-privilege project credential as `EDN_OPENAI_API_KE
 - one successful brief per day;
 - one retry per day;
 - 4,000 projected context characters;
-- 1,000 output tokens;
+- 2,000 output tokens;
 - AUD 2 estimated daily spend;
 - AUD 20 estimated monthly spend.
 

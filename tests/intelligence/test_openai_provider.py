@@ -218,9 +218,7 @@ def _structured_response(statements: list[object]) -> dict[str, object]:
     assert isinstance(content, list)
     output_text = content[0]
     assert isinstance(output_text, dict)
-    output_text["text"] = json.dumps(
-        {"statements": statements}, separators=(",", ":")
-    )
+    output_text["text"] = json.dumps({"statements": statements}, separators=(",", ":"))
     return response
 
 
@@ -312,8 +310,8 @@ def test_incomplete_response_preserves_allowlisted_http_usage_and_reason(
     response["status"] = "incomplete"
     response["usage"] = {
         "input_tokens": 220,
-        "output_tokens": 1000,
-        "total_tokens": 1220,
+        "output_tokens": 2000,
+        "total_tokens": 2220,
         "input_tokens_details": {"cached_tokens": 20},
         "output_tokens_details": {"reasoning_tokens": 900},
     }
@@ -336,14 +334,14 @@ def test_incomplete_response_preserves_allowlisted_http_usage_and_reason(
         else "unknown"
     )
     assert record.input_tokens == 220
-    assert record.output_tokens == 1000
-    assert record.total_tokens == 1220
+    assert record.output_tokens == 2000
+    assert record.total_tokens == 2220
     assert record.cached_input_tokens == 20
     assert record.reasoning_output_tokens == 900
     assert record.usage_metadata_valid is True
     assert record.output_token_ceiling_reached is True
     assert record.output_token_ceiling_implicated is implicated or implicated is None
-    assert record.actual_estimated_cost_usd == pytest.approx(0.0020505)
+    assert record.actual_estimated_cost_usd == pytest.approx(0.0040505)
     assert record.provider_response_id == "resp-1"
 
 
@@ -355,9 +353,7 @@ def test_malformed_usage_is_rejected_without_partial_numeric_audit() -> None:
         "input_tokens": 220,
         "output_tokens": 1000,
         "total_tokens": 1220,
-        "output_tokens_details": {
-            "reasoning_tokens": "provider-text-must-not-survive"
-        },
+        "output_tokens_details": {"reasoning_tokens": "provider-text-must-not-survive"},
     }
     provider, audit = _provider(FakeTransport(response))
 
@@ -394,9 +390,24 @@ def test_configured_output_ceiling_is_sent_exactly_not_derived_from_items() -> N
     payload = _request_payload(
         _real_request(),
         "gpt-5-mini-2025-08-07",
-        max_output_tokens=1_000,
+        max_output_tokens=2_000,
     )
-    assert payload["max_output_tokens"] == 1_000
+    assert payload["max_output_tokens"] == 2_000
+
+
+def test_output_ceiling_change_does_not_change_disclosed_projection() -> None:
+    lower = _request_payload(
+        _real_request(), "gpt-5-mini-2025-08-07", max_output_tokens=1_000
+    )
+    approved = _request_payload(
+        _real_request(), "gpt-5-mini-2025-08-07", max_output_tokens=2_000
+    )
+    assert lower["input"] == approved["input"]
+    assert lower["text"] == approved["text"]
+    assert lower["metadata"] == approved["metadata"]
+    assert {key for key in lower if lower[key] != approved[key]} == {
+        "max_output_tokens"
+    }
 
 
 def test_request_uses_closed_strict_schema_for_every_statement_type() -> None:
@@ -570,9 +581,7 @@ def test_documented_responses_shapes_emit_content_free_reason_codes(
             }
         ]
     elif case == "missing_payload":
-        response["output"] = [
-            {"type": "message", "role": "assistant", "content": []}
-        ]
+        response["output"] = [{"type": "message", "role": "assistant", "content": []}]
     elif case == "json":
         _set_output_text(response, "not-json")
     elif case == "top_missing":
@@ -994,7 +1003,7 @@ def test_preflight_cost_is_reported_in_usd() -> None:
     provider, _ = _provider(FakeTransport(_response()))
     preflight = provider.preflight(_real_request())
 
-    expected = (5 / 1_000_000 * 0.25) + (1_000 / 1_000_000 * 2.0)
+    expected = (5 / 1_000_000 * 0.25) + (2_000 / 1_000_000 * 2.0)
     assert preflight.estimated_cost_usd == pytest.approx(expected)
 
 
@@ -1023,4 +1032,23 @@ def test_budget_exhaustion_is_local_and_deterministic() -> None:
     provider.generate(real_request)
     with pytest.raises(PilotDispatchError) as exc:
         provider.generate(real_request)
+    assert exc.value.code is ProviderFailureCode.BUDGET_EXCEEDED
+
+
+@pytest.mark.parametrize("limit", ("daily", "monthly"))
+def test_two_thousand_token_spend_limits_still_fail_closed(limit: str) -> None:
+    ledger = PilotBudgetLedger()
+    values = {
+        "max_requests_per_day": 2,
+        "max_successful_briefs_per_day": 1,
+        "max_retries_per_day": 1,
+        "max_daily_spend_aud": 0.007 if limit == "daily" else 2.0,
+        "max_monthly_spend_aud": 0.007 if limit == "monthly" else 20.0,
+    }
+    config = OpenAIPilotConfig(enabled=True, **values)
+    now = datetime(2026, 8, 14, tzinfo=UTC)
+    first = ledger.admit(now=now, config=config, input_tokens=1_000)
+    assert first == pytest.approx(0.00425)
+    with pytest.raises(PilotDispatchError) as exc:
+        ledger.admit(now=now, config=config, input_tokens=1_000)
     assert exc.value.code is ProviderFailureCode.BUDGET_EXCEEDED

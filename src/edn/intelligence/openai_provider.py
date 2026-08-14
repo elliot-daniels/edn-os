@@ -11,10 +11,14 @@ import hashlib
 import json
 import os
 import re
+import secrets
+import stat
 from collections.abc import Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from enum import StrEnum
+from pathlib import Path
 from typing import Protocol
 from urllib import error, request
 
@@ -53,6 +57,7 @@ class ProviderFailureCode(StrEnum):
     INVALID_RESPONSE = "invalid_response"
     PROJECTION_NOT_APPROVED = "projection_not_approved"
     PROHIBITED_CONTENT = "prohibited_content"
+    AUDIT_PERSISTENCE = "audit_persistence_failure"
 
 
 class ProviderValidationStage(StrEnum):
@@ -200,8 +205,10 @@ class ProviderAuditRecord:
     projected_categories: tuple[str, ...]
     projected_payload_size: int
     classification_ceiling: str
+    security_domain: str
     disclosure_decision: str
     dispatch_status: str
+    preflight_hash: str | None = None
     failure_reason: str | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
@@ -225,6 +232,10 @@ class ProviderAuditRecord:
     output_token_ceiling_reached: bool | None = None
     output_token_ceiling_implicated: bool | None = None
     provider_response_id: str | None = None
+    schema_validation: str | None = None
+    citation_validation: str | None = None
+    statement_counts: tuple[tuple[str, int], ...] = ()
+    fallback_required: bool | None = None
 
     def __post_init__(self) -> None:
         if self.timestamp.tzinfo is None:
@@ -233,6 +244,23 @@ class ProviderAuditRecord:
             raise ValueError("audit sizes must not be negative")
         if self.attempt_number < 0 or self.attempt_number > 2:
             raise ValueError("audit attempt number is invalid")
+        identifier = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}")
+        if not all(
+            identifier.fullmatch(value)
+            for value in (
+                self.request_id,
+                self.provider_id,
+                self.model,
+                self.disclosure_policy,
+                self.classification_ceiling,
+                self.security_domain,
+            )
+        ):
+            raise ValueError("audit identifier is invalid")
+        if any(
+            not identifier.fullmatch(category) for category in self.projected_categories
+        ):
+            raise ValueError("audit category is invalid")
         if self.retry_admission_decision not in {
             "not_applicable",
             "pending",
@@ -265,6 +293,56 @@ class ProviderAuditRecord:
             "missing_or_malformed",
         }:
             raise ValueError("audit incomplete reason is invalid")
+        if self.schema_validation not in {None, "not_reached", "passed", "failed"}:
+            raise ValueError("audit schema validation outcome is invalid")
+        if self.citation_validation not in {None, "not_reached", "passed", "failed"}:
+            raise ValueError("audit citation validation outcome is invalid")
+        if any(count < 0 for _, count in self.statement_counts):
+            raise ValueError("audit statement count is invalid")
+        if any(
+            kind not in {item.value for item in ModelStatementKind}
+            for kind, _ in self.statement_counts
+        ):
+            raise ValueError("audit statement kind is invalid")
+        if self.failure_reason is not None:
+            ProviderFailureCode(self.failure_reason)
+        if self.initial_failure_code is not None:
+            ProviderFailureCode(self.initial_failure_code)
+        if self.disclosure_decision not in {
+            "unknown",
+            "allowed",
+            "denied",
+            "not_dispatched",
+        }:
+            raise ValueError("audit disclosure decision is invalid")
+        if self.dispatch_status not in {
+            "preflight_generated",
+            "dispatch_admitted",
+            "transport_started",
+            "transport_returned",
+            "retry_admission",
+            "completed",
+            "refused",
+        }:
+            raise ValueError("audit dispatch status is invalid")
+        if self.final_outcome not in {
+            None,
+            "admitted",
+            "transport_started",
+            "transport_returned",
+            "retry_pending",
+            "completed",
+            "failed",
+        }:
+            raise ValueError("audit final outcome is invalid")
+        if self.preflight_hash is not None and not re.fullmatch(
+            r"[0-9a-f]{64}", self.preflight_hash
+        ):
+            raise ValueError("audit preflight hash is invalid")
+        if self.provider_response_id is not None and not re.fullmatch(
+            r"[A-Za-z0-9_-]{1,128}", self.provider_response_id
+        ):
+            raise ValueError("audit provider response ID is invalid")
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -277,8 +355,10 @@ class ProviderAuditRecord:
             "projected_categories": list(self.projected_categories),
             "projected_payload_size": self.projected_payload_size,
             "classification_ceiling": self.classification_ceiling,
+            "security_domain": self.security_domain,
             "disclosure_decision": self.disclosure_decision,
             "dispatch_status": self.dispatch_status,
+            "preflight_hash": self.preflight_hash,
             "failure_reason": self.failure_reason,
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
@@ -302,6 +382,10 @@ class ProviderAuditRecord:
             "output_token_ceiling_reached": self.output_token_ceiling_reached,
             "output_token_ceiling_implicated": self.output_token_ceiling_implicated,
             "provider_response_id": self.provider_response_id,
+            "schema_validation": self.schema_validation,
+            "citation_validation": self.citation_validation,
+            "statement_counts": dict(self.statement_counts),
+            "fallback_required": self.fallback_required,
         }
 
 
@@ -381,6 +465,218 @@ class InMemoryProviderAudit:
         self.records.append(record)
 
 
+class DurableProviderAuditError(RuntimeError):
+    """A provider lifecycle audit cannot be persisted or verified safely."""
+
+
+class DurableProviderAudit:
+    """Owner-only, atomic, hash-chained PA-009 lifecycle journal."""
+
+    directory_mode = 0o700
+    file_mode = 0o600
+    schema_version = "1.0.0"
+
+    def __init__(self, root: Path | None = None) -> None:
+        self.root = root or _default_provider_audit_root()
+
+    @property
+    def records(self) -> list[ProviderAuditRecord]:
+        records: list[ProviderAuditRecord] = []
+        if not self.root.exists():
+            return records
+        self._secure_directory(create=False)
+        for path in sorted(self.root.glob("*.json")):
+            records.extend(self._read_file(path))
+        return records
+
+    def read_lifecycle(self, request_id: str) -> tuple[ProviderAuditRecord, ...]:
+        self._secure_directory(create=False)
+        return tuple(self._read_file(self._path(request_id)))
+
+    def append(self, record: ProviderAuditRecord) -> None:
+        self._secure_directory(create=True)
+        path = self._path(record.request_id)
+        lock_path = path.with_suffix(".lock")
+        with self._lock(lock_path):
+            entries = self._read_entries(path) if path.exists() else []
+            previous_hash = entries[-1]["entry_hash"] if entries else None
+            sequence = len(entries) + 1
+            payload = {
+                "sequence": sequence,
+                "previous_hash": previous_hash,
+                "record": record.to_dict(),
+            }
+            entry_hash = hashlib.sha256(canonical_json(payload)).hexdigest()
+            entries.append({**payload, "entry_hash": entry_hash})
+            document = {
+                "schema_version": self.schema_version,
+                "request_id": record.request_id,
+                "entries": entries,
+            }
+            self._atomic_write(path, canonical_json(document))
+
+    @contextmanager
+    def _lock(self, path: Path):  # type: ignore[no-untyped-def]
+        import fcntl
+
+        flags = os.O_RDWR | os.O_CREAT
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        descriptor = os.open(path, flags, self.file_mode)
+        try:
+            os.fchmod(descriptor, self.file_mode)
+            self._validate_stat(os.fstat(descriptor), self.file_mode, regular=True)
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            yield
+        finally:
+            os.close(descriptor)
+
+    def _read_file(self, path: Path) -> list[ProviderAuditRecord]:
+        return [self._record(entry["record"]) for entry in self._read_entries(path)]
+
+    def _read_entries(self, path: Path) -> list[dict[str, object]]:
+        descriptor = self._open_read(path)
+        try:
+            data = os.read(descriptor, 4 * 1024 * 1024 + 1)
+        finally:
+            os.close(descriptor)
+        if len(data) > 4 * 1024 * 1024:
+            raise DurableProviderAuditError("provider audit exceeds size limit")
+        try:
+            document = json.loads(data)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise DurableProviderAuditError("provider audit is invalid") from exc
+        if not isinstance(document, dict) or canonical_json(document) != data:
+            raise DurableProviderAuditError("provider audit is not canonical")
+        if document.get("schema_version") != self.schema_version:
+            raise DurableProviderAuditError("provider audit schema is unsupported")
+        document_request_id = document.get("request_id")
+        if (
+            not isinstance(document_request_id, str)
+            or self._path(document_request_id) != path
+        ):
+            raise DurableProviderAuditError("provider audit request is invalid")
+        raw_entries = document.get("entries")
+        if not isinstance(raw_entries, list):
+            raise DurableProviderAuditError("provider audit entries are invalid")
+        previous: str | None = None
+        entries: list[dict[str, object]] = []
+        request_id = document_request_id
+        for index, raw in enumerate(raw_entries, start=1):
+            if not isinstance(raw, dict):
+                raise DurableProviderAuditError("provider audit entry is invalid")
+            candidate = dict(raw)
+            entry_hash = candidate.pop("entry_hash", None)
+            if (
+                candidate.get("sequence") != index
+                or candidate.get("previous_hash") != previous
+                or not isinstance(entry_hash, str)
+                or hashlib.sha256(canonical_json(candidate)).hexdigest() != entry_hash
+            ):
+                raise DurableProviderAuditError("provider audit chain is invalid")
+            record = candidate.get("record")
+            if not isinstance(record, dict) or record.get("request_id") != request_id:
+                raise DurableProviderAuditError("provider audit request is invalid")
+            entries.append(raw)
+            previous = entry_hash
+        return entries
+
+    def _record(self, value: object) -> ProviderAuditRecord:
+        if not isinstance(value, dict):
+            raise DurableProviderAuditError("provider audit record is invalid")
+        allowed = set(ProviderAuditRecord.__dataclass_fields__)
+        if set(value) != allowed:
+            raise DurableProviderAuditError("provider audit record fields are invalid")
+        converted = dict(value)
+        converted["timestamp"] = datetime.fromisoformat(str(value["timestamp"]))
+        converted["projected_categories"] = tuple(value["projected_categories"])
+        counts = value["statement_counts"]
+        if not isinstance(counts, dict):
+            raise DurableProviderAuditError(
+                "provider audit statement counts are invalid"
+            )
+        converted["statement_counts"] = tuple(sorted(counts.items()))
+        try:
+            return ProviderAuditRecord(**converted)
+        except (TypeError, ValueError) as exc:
+            raise DurableProviderAuditError("provider audit record is invalid") from exc
+
+    def _atomic_write(self, path: Path, data: bytes) -> None:
+        if len(data) > 4 * 1024 * 1024:
+            raise DurableProviderAuditError("provider audit exceeds size limit")
+        temporary = path.with_suffix(f".{os.getpid()}.{secrets.token_hex(8)}.tmp")
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        descriptor = os.open(temporary, flags, self.file_mode)
+        try:
+            remaining = memoryview(data)
+            while remaining:
+                written = os.write(descriptor, remaining)
+                if written < 1:
+                    raise DurableProviderAuditError("provider audit write failed")
+                remaining = remaining[written:]
+            os.fsync(descriptor)
+            os.fchmod(descriptor, self.file_mode)
+        finally:
+            os.close(descriptor)
+        os.replace(temporary, path)
+        self._validate_stat(
+            path.stat(follow_symlinks=False), self.file_mode, regular=True
+        )
+        directory_flags = os.O_RDONLY
+        if hasattr(os, "O_DIRECTORY"):
+            directory_flags |= os.O_DIRECTORY
+        if hasattr(os, "O_NOFOLLOW"):
+            directory_flags |= os.O_NOFOLLOW
+        directory = os.open(self.root, directory_flags)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+
+    def _open_read(self, path: Path) -> int:
+        flags = os.O_RDONLY
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        try:
+            descriptor = os.open(path, flags)
+        except OSError as exc:
+            raise DurableProviderAuditError("provider audit is unavailable") from exc
+        self._validate_stat(os.fstat(descriptor), self.file_mode, regular=True)
+        return descriptor
+
+    def _secure_directory(self, *, create: bool) -> None:
+        if create:
+            self.root.mkdir(mode=self.directory_mode, parents=True, exist_ok=True)
+        try:
+            value = self.root.stat(follow_symlinks=False)
+        except FileNotFoundError as exc:
+            raise DurableProviderAuditError(
+                "provider audit directory is missing"
+            ) from exc
+        self._validate_stat(value, self.directory_mode, regular=False)
+
+    @staticmethod
+    def _validate_stat(value: os.stat_result, mode: int, *, regular: bool) -> None:
+        expected = stat.S_ISREG if regular else stat.S_ISDIR
+        if not expected(value.st_mode):
+            raise DurableProviderAuditError("provider audit path type is unsafe")
+        if value.st_uid != os.geteuid() or stat.S_IMODE(value.st_mode) != mode:
+            raise DurableProviderAuditError(
+                "provider audit ownership or mode is unsafe"
+            )
+
+    def _path(self, request_id: str) -> Path:
+        return self.root / f"{hashlib.sha256(request_id.encode()).hexdigest()}.json"
+
+
+def _default_provider_audit_root() -> Path:
+    base = os.environ.get("XDG_STATE_HOME")
+    state = Path(base) if base else Path.home() / ".local" / "state"
+    return state / "edn-intelligence-core" / "provider-audits"
+
+
 @dataclass(frozen=True, slots=True)
 class OpenAIPilotConfig:
     enabled: bool = False
@@ -391,7 +687,7 @@ class OpenAIPilotConfig:
     max_successful_briefs_per_day: int = 1
     max_retries_per_day: int = 1
     max_context_chars: int = 4_000
-    max_output_tokens: int = 1_000
+    max_output_tokens: int = 2_000
     max_daily_spend_aud: float = 2.0
     max_monthly_spend_aud: float = 20.0
     usd_to_aud: float = 1.6
@@ -490,6 +786,7 @@ class PilotBudgetLedger:
     def record_success(self, *, now: datetime) -> None:
         self.daily.setdefault(now.date(), _BudgetDay()).successful_briefs += 1
 
+
 class OpenAIProvider:
     provider_id = "openai.api"
 
@@ -507,7 +804,14 @@ class OpenAIProvider:
         self.config = config or OpenAIPilotConfig()
         self.policy = policy
         self.transport = transport or UrllibOpenAITransport()
-        self.audit = audit or InMemoryProviderAudit()
+        if audit is not None:
+            self.audit = audit
+        elif preflight_store is not None:
+            self.audit = DurableProviderAudit(
+                preflight_store.root.parent / "provider-audits"
+            )
+        else:
+            self.audit = InMemoryProviderAudit()
         self.budget = budget or PilotBudgetLedger()
         self.environment = os.environ if environment is None else environment
         self.preflight_store = preflight_store
@@ -646,8 +950,10 @@ class OpenAIProvider:
                 projected_categories=result.projected_categories,
                 projected_payload_size=result.projected_payload_size,
                 classification_ceiling=result.classification_ceiling,
+                security_domain=request.security_domain,
                 disclosure_decision=result.disclosure_decision,
                 dispatch_status="preflight_generated",
+                preflight_hash=result.preflight_hash,
                 failure_reason=result.refusal_reason,
                 estimated_cost_usd=result.estimated_cost_usd,
             )
@@ -774,14 +1080,10 @@ class OpenAIProvider:
                     self.preflight_store.restore_retry(
                         envelope, failure_code=exc.code.value
                     )
-                    self._audit_retry_admission(
-                        request, exc.code, decision="pending"
-                    )
+                    self._audit_retry_admission(request, exc.code, decision="pending")
                 except ProtectedPreflightError:
                     self.preflight_store.destroy_claim(approval.request_id)
-                    self._audit_retry_admission(
-                        request, exc.code, decision="blocked"
-                    )
+                    self._audit_retry_admission(request, exc.code, decision="blocked")
             else:
                 self.preflight_store.destroy_claim(approval.request_id)
             raise
@@ -801,9 +1103,7 @@ class OpenAIProvider:
         transport_attempted = False
         response_metadata = _ResponseMetadata()
         projection = request.projection
-        categories = (
-            tuple(sorted(self.policy.allowed_categories)) if self.policy else ()
-        )
+        categories = tuple(sorted({item.field_category for item in projection.items}))
         base = ProviderAuditRecord(
             timestamp=now,
             request_id=request.request_id,
@@ -814,8 +1114,10 @@ class OpenAIProvider:
             projected_categories=categories,
             projected_payload_size=projection.total_chars,
             classification_ceiling=request.classification.level_id,
+            security_domain=request.security_domain,
             disclosure_decision="unknown",
             dispatch_status="refused",
+            preflight_hash=None if preflight is None else preflight.preflight_hash,
             attempt_number=attempt_number,
             retry_admission_decision=("admitted" if is_retry else "not_applicable"),
             initial_failure_code=initial_failure_code,
@@ -858,16 +1160,64 @@ class OpenAIProvider:
                 input_tokens=input_tokens,
                 is_retry=is_retry,
             )
+            self.audit.append(
+                replace(
+                    base,
+                    timestamp=datetime.now(UTC),
+                    disclosure_decision="allowed",
+                    dispatch_status="dispatch_admitted",
+                    estimated_cost_usd=estimated,
+                    retryable=False,
+                    final_outcome="admitted",
+                )
+            )
             payload = _request_payload(
                 request,
                 self.config.model,
                 self.config.policy_id,
                 self.config.max_output_tokens,
             )
+            self.audit.append(
+                replace(
+                    base,
+                    timestamp=datetime.now(UTC),
+                    disclosure_decision="allowed",
+                    dispatch_status="transport_started",
+                    estimated_cost_usd=estimated,
+                    transport_attempted=True,
+                    final_outcome="transport_started",
+                )
+            )
             transport_attempted = True
             response = self.transport.post(payload, api_key=api_key)
             response_metadata = _response_metadata(
                 response, output_token_ceiling=self.config.max_output_tokens
+            )
+            self.audit.append(
+                replace(
+                    base,
+                    timestamp=datetime.now(UTC),
+                    disclosure_decision="allowed",
+                    dispatch_status="transport_returned",
+                    estimated_cost_usd=estimated,
+                    transport_attempted=True,
+                    final_outcome="transport_returned",
+                    input_tokens=response_metadata.input_tokens,
+                    output_tokens=response_metadata.output_tokens,
+                    http_status=response_metadata.http_status,
+                    provider_response_status=response_metadata.status,
+                    incomplete_reason=response_metadata.incomplete_reason,
+                    total_tokens=response_metadata.total_tokens,
+                    cached_input_tokens=response_metadata.cached_input_tokens,
+                    reasoning_output_tokens=response_metadata.reasoning_output_tokens,
+                    usage_metadata_valid=response_metadata.usage_valid,
+                    actual_estimated_cost_usd=response_metadata.actual_estimated_cost_usd,
+                    output_token_ceiling_reached=response_metadata.output_ceiling_reached,
+                    output_token_ceiling_implicated=response_metadata.output_ceiling_implicated,
+                    provider_response_id=response_metadata.response_id,
+                    schema_validation="not_reached",
+                    citation_validation="not_reached",
+                )
             )
             parsed = _parse_response(
                 response, request, self.config.model, self.config.policy_id
@@ -902,6 +1252,24 @@ class OpenAIProvider:
                         response_metadata.output_ceiling_implicated
                     ),
                     provider_response_id=response_metadata.response_id,
+                    schema_validation="passed",
+                    citation_validation="passed",
+                    statement_counts=tuple(
+                        sorted(
+                            {
+                                kind.value: sum(
+                                    statement.kind is kind
+                                    for statement in parsed.statements
+                                )
+                                for kind in ModelStatementKind
+                                if any(
+                                    statement.kind is kind
+                                    for statement in parsed.statements
+                                )
+                            }.items()
+                        )
+                    ),
+                    fallback_required=False,
                 )
             )
             return parsed
@@ -952,6 +1320,26 @@ class OpenAIProvider:
                         response_metadata.output_ceiling_implicated
                     ),
                     provider_response_id=response_metadata.response_id,
+                    schema_validation=(
+                        "passed"
+                        if exc.validation_stage is ProviderValidationStage.CITATION
+                        else "failed"
+                        if exc.validation_stage
+                        in {
+                            ProviderValidationStage.STRUCTURED_EXTRACTION,
+                            ProviderValidationStage.STRUCTURED_PAYLOAD,
+                            ProviderValidationStage.TOP_LEVEL_SCHEMA,
+                            ProviderValidationStage.STATEMENT_SCHEMA,
+                            ProviderValidationStage.STATEMENT_SEMANTICS,
+                        }
+                        else "not_reached"
+                    ),
+                    citation_validation=(
+                        "failed"
+                        if exc.validation_stage is ProviderValidationStage.CITATION
+                        else "not_reached"
+                    ),
+                    fallback_required=(is_retry or exc.code not in _RETRYABLE_FAILURES),
                 )
             )
             raise
@@ -963,6 +1351,7 @@ class OpenAIProvider:
         *,
         decision: str,
     ) -> None:
+        approval = self._approvals.get(request.approval_token or "")
         self.audit.append(
             ProviderAuditRecord(
                 timestamp=datetime.now(UTC),
@@ -976,17 +1365,18 @@ class OpenAIProvider:
                 ),
                 projected_payload_size=request.projection.total_chars,
                 classification_ceiling=request.classification.level_id,
+                security_domain=request.security_domain,
                 disclosure_decision="allowed",
                 dispatch_status="retry_admission",
+                preflight_hash=(None if approval is None else approval.preflight_hash),
                 failure_reason=failure.value,
                 attempt_number=1,
                 transport_attempted=True,
                 retryable=True,
                 retry_admission_decision=decision,
                 initial_failure_code=failure.value,
-                final_outcome=(
-                    "retry_pending" if decision == "pending" else "failed"
-                ),
+                final_outcome=("retry_pending" if decision == "pending" else "failed"),
+                fallback_required=decision == "blocked",
             )
         )
 
@@ -995,7 +1385,7 @@ def _request_payload(
     request: ModelRequest,
     model: str,
     policy_id: str = "openai-daily-brief-pilot-v1",
-    max_output_tokens: int = 1_000,
+    max_output_tokens: int = 2_000,
 ) -> dict[str, object]:
     evidence = [
         {
@@ -1365,11 +1755,7 @@ def _response_metadata(
     value: Mapping[str, object], *, output_token_ceiling: int
 ) -> _ResponseMetadata:
     raw_http = value.get(_HTTP_STATUS_KEY)
-    http_status = (
-        raw_http
-        if type(raw_http) is int and 100 <= raw_http <= 599
-        else None
-    )
+    http_status = raw_http if type(raw_http) is int and 100 <= raw_http <= 599 else None
     raw_status = value.get("status")
     status = (
         raw_status
