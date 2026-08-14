@@ -1057,13 +1057,28 @@
       "successor_tasks": ["PA-009"]
     },
     {
+      "task_id": "PA-009-PROTECTED-HANDOFF",
+      "objective": "Persist only the exact sanitised provider projection in a protected short-lived envelope across the owner-review boundary.",
+      "prerequisites": ["PA-009-PREFLIGHT"],
+      "authority_actions": ["repository.read", "code.development.write", "test.development.write", "documentation.write", "synthetic.fixture.write", "validation.pytest", "validation.ruff", "validation.mypy", "validation.whitespace", "git.commit.prepare", "config.development.write", "state.development.write"],
+      "risk": "critical",
+      "expected_components": ["src/edn/intelligence", "tests/intelligence", "docs/intelligence-core", "config"],
+      "acceptance_criteria": ["Protected projection survives process boundary", "Exact owner-approved hash is revalidated before dispatch", "Expiry, tampering, unsafe permissions and replay fail closed", "Preflight makes zero provider transport calls"],
+      "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy src/edn", "git diff --check"],
+      "stop_conditions": ["Genuine provider dispatch", "Live source access", "Disclosure broadening", "Credential persistence", "PA-010 scope"],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": ["PA-009"]
+    },
+    {
       "task_id": "PA-009",
       "objective": "Integrate an approved global/model provider behind a private-evidence disclosure boundary.",
       "prerequisites": [
         "PA-008",
         "PA-009-SYNTHETIC",
         "PA-009-ADAPTER"
-        ,"PA-009-PREFLIGHT"
+        ,"PA-009-PREFLIGHT",
+        "PA-009-PROTECTED-HANDOFF"
       ],
       "authority_actions": [
         "external.permission.new",

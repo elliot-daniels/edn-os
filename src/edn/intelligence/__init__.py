@@ -78,6 +78,11 @@ from edn.intelligence.operations import (
     RunFailureCode,
     RunStatus,
 )
+from edn.intelligence.provider_preflight_store import (
+    ProtectedPreflightError,
+    ProtectedPreflightStore,
+    ProtectedProjectionEnvelope,
+)
 from edn.intelligence.service import IntelligenceService
 from edn.intelligence.session import (
     InMemorySessionStore,
@@ -146,6 +151,9 @@ __all__ = [
     "PilotBudgetLedger",
     "PilotDispatchError",
     "ProjectedEvidence",
+    "ProtectedPreflightError",
+    "ProtectedPreflightStore",
+    "ProtectedProjectionEnvelope",
     "ProviderApproval",
     "ProviderAuditRecord",
     "ProviderFailureCode",

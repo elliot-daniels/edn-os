@@ -27,6 +27,12 @@ from edn.intelligence.model_boundary import (
     ModelStatement,
     ModelStatementKind,
 )
+from edn.intelligence.provider_preflight_store import (
+    ProtectedPreflightError,
+    ProtectedPreflightStore,
+    ProtectedProjectionEnvelope,
+    canonical_json,
+)
 
 OPENAI_MODEL_SNAPSHOT = "gpt-5-mini-2025-08-07"
 OPENAI_INPUT_USD_PER_MILLION = 0.25
@@ -168,6 +174,8 @@ class ProviderPreflight:
     refused_field_count: int = 0
     prohibited_categories_absent: bool = True
     provider_approval_explicit: bool = False
+    created_at: datetime | None = None
+    expires_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -313,16 +321,68 @@ class OpenAIProvider:
         audit: AuditSink | None = None,
         budget: PilotBudgetLedger | None = None,
         environment: Mapping[str, str] | None = None,
+        preflight_store: ProtectedPreflightStore | None = None,
     ) -> None:
         self.config = config or OpenAIPilotConfig()
         self.policy = policy
         self.transport = transport or UrllibOpenAITransport()
         self.audit = audit or InMemoryProviderAudit()
         self.budget = budget or PilotBudgetLedger()
-        self.environment = environment or os.environ
+        self.environment = os.environ if environment is None else environment
+        self.preflight_store = preflight_store
         self._approvals: dict[str, ProviderApproval] = {}
 
     def preflight(self, request: ModelRequest) -> ProviderPreflight:
+        return self._preflight(request)
+
+    def protected_preflight(
+        self,
+        request: ModelRequest,
+        *,
+        expires_at: datetime,
+        now: datetime | None = None,
+    ) -> ProviderPreflight:
+        if self.preflight_store is None:
+            raise PilotDispatchError(
+                ProviderFailureCode.INVALID_AUTHORITY,
+                "protected preflight store is required",
+            )
+        created_at = now or datetime.now(UTC)
+        if expires_at.tzinfo is None or expires_at <= created_at:
+            raise PilotDispatchError(ProviderFailureCode.DISCLOSURE_DENIED)
+        result = self._preflight(
+            request, created_at=created_at, expires_at=expires_at
+        )
+        if not result.dispatch_permitted:
+            return result
+        envelope = ProtectedProjectionEnvelope(
+            replace(request, approval_token=None),
+            result.preflight_hash,
+            result.provider_id,
+            result.model,
+            result.disclosure_policy,
+            request.security_domain,
+            result.classification_ceiling,
+            result.projected_categories,
+            result.evidence_item_count,
+            created_at,
+            expires_at,
+        )
+        try:
+            self.preflight_store.persist(envelope)
+        except ProtectedPreflightError as exc:
+            raise PilotDispatchError(
+                ProviderFailureCode.INVALID_AUTHORITY, str(exc)
+            ) from exc
+        return result
+
+    def _preflight(
+        self,
+        request: ModelRequest,
+        *,
+        created_at: datetime | None = None,
+        expires_at: datetime | None = None,
+    ) -> ProviderPreflight:
         projection = request.projection
         categories = tuple(sorted({item.field_category for item in projection.items}))
         estimated = (
@@ -352,37 +412,17 @@ class OpenAIProvider:
         elif projection.total_chars > min(self.config.max_context_chars, self.policy.max_context_chars):
             reason = ProviderFailureCode.BUDGET_EXCEEDED.value
         digest = hashlib.sha256(
-            json.dumps(
-                {
-                    "request_id": request.request_id,
-                    "provider": self.provider_id,
-                    "model": self.config.model,
-                    "policy": self.config.policy_id,
-                    "categories": categories,
-                    "size": projection.total_chars,
-                    "classification": request.classification.level_id,
-                    "projection": [
-                        {
-                            "disclosure_id": item.disclosure_id,
-                            "source_family": item.source_family,
-                            "title": item.title,
-                            "excerpt": item.excerpt,
-                            "freshness": item.freshness.value,
-                            "provenance_digest": item.provenance_digest,
-                            "source_timestamp": (
-                                None
-                                if item.source_timestamp is None
-                                else item.source_timestamp.isoformat()
-                            ),
-                            "field_category": item.field_category,
-                            "provider_approved": item.provider_approved,
-                        }
-                        for item in projection.items
-                    ],
-                },
-                sort_keys=True,
-                separators=(",", ":"),
-            ).encode()
+            canonical_json(
+                _preflight_binding(
+                    request,
+                    provider_id=self.provider_id,
+                    model=self.config.model,
+                    policy_id=self.config.policy_id,
+                    categories=categories,
+                    created_at=created_at,
+                    expires_at=expires_at,
+                )
+            )
         ).hexdigest()
         result = ProviderPreflight(
             request.request_id,
@@ -402,6 +442,8 @@ class OpenAIProvider:
             sum(1 for item in projection.items if not item.provider_approved),
             not any(category in {"credentials", "personal", "financial", "security-sensitive", "defence", "customer-restricted"} for category in categories),
             all(item.provider_approved for item in projection.items),
+            created_at,
+            expires_at,
         )
         self.audit.append(
             ProviderAuditRecord(
@@ -441,7 +483,113 @@ class OpenAIProvider:
         self._approvals[approval.token()] = approval
         return approval
 
+    def approve_protected(
+        self,
+        *,
+        request_id: str,
+        preflight_hash: str,
+        expires_at: datetime,
+    ) -> ProviderApproval:
+        if self.preflight_store is None:
+            raise PilotDispatchError(
+                ProviderFailureCode.INVALID_AUTHORITY,
+                "protected preflight store is required",
+            )
+        try:
+            envelope = self.preflight_store.load(request_id)
+        except ProtectedPreflightError as exc:
+            raise PilotDispatchError(
+                ProviderFailureCode.INVALID_AUTHORITY, str(exc)
+            ) from exc
+        checked = self._preflight(
+            envelope.request,
+            created_at=envelope.created_at,
+            expires_at=envelope.expires_at,
+        )
+        if (
+            preflight_hash != envelope.preflight_hash
+            or checked.preflight_hash != envelope.preflight_hash
+            or expires_at != envelope.expires_at
+            or envelope.provider_id != self.provider_id
+            or envelope.model != self.config.model
+            or envelope.disclosure_policy != self.config.policy_id
+            or envelope.security_domain != envelope.request.security_domain
+            or envelope.classification_ceiling
+            != envelope.request.classification.level_id
+            or envelope.projected_categories != checked.projected_categories
+            or envelope.evidence_count != checked.evidence_item_count
+        ):
+            raise PilotDispatchError(
+                ProviderFailureCode.INVALID_AUTHORITY,
+                "owner approval does not match protected preflight",
+            )
+        return self.approve(checked, expires_at=expires_at)
+
     def generate(self, request: ModelRequest) -> ModelResponse:
+        return self._generate(request)
+
+    def generate_protected(self, approval: ProviderApproval) -> ModelResponse:
+        if self.preflight_store is None:
+            raise PilotDispatchError(
+                ProviderFailureCode.INVALID_AUTHORITY,
+                "protected preflight store is required",
+            )
+        try:
+            envelope = self.preflight_store.claim(approval.request_id)
+        except ProtectedPreflightError as exc:
+            raise PilotDispatchError(
+                ProviderFailureCode.INVALID_AUTHORITY, str(exc)
+            ) from exc
+        request = replace(envelope.request, approval_token=approval.token())
+        try:
+            preflight = self._preflight(
+                request,
+                created_at=envelope.created_at,
+                expires_at=envelope.expires_at,
+            )
+            if (
+                not preflight.dispatch_permitted
+                or envelope.preflight_hash != preflight.preflight_hash
+                or envelope.provider_id != self.provider_id
+                or envelope.model != self.config.model
+                or envelope.disclosure_policy != self.config.policy_id
+                or envelope.security_domain != request.security_domain
+                or envelope.classification_ceiling
+                != request.classification.level_id
+                or envelope.projected_categories != preflight.projected_categories
+                or envelope.evidence_count != preflight.evidence_item_count
+                or approval.expires_at != envelope.expires_at
+                or approval.preflight_hash != envelope.preflight_hash
+                or approval.provider_id != envelope.provider_id
+                or approval.model != envelope.model
+                or approval.disclosure_policy != envelope.disclosure_policy
+                or approval.projected_categories != envelope.projected_categories
+            ):
+                raise PilotDispatchError(
+                    ProviderFailureCode.INVALID_AUTHORITY,
+                    "protected preflight or approval mismatch",
+                )
+            self._approvals[approval.token()] = approval
+            result = self._generate(request, preflight=preflight)
+        except PilotDispatchError as exc:
+            if exc.code in _RETRYABLE_FAILURES and envelope.dispatch_attempts == 0:
+                try:
+                    self.budget.record_retry(now=datetime.now(UTC))
+                    self.preflight_store.restore_retry(envelope)
+                except ProtectedPreflightError:
+                    self.preflight_store.destroy_claim(approval.request_id)
+            else:
+                self.preflight_store.destroy_claim(approval.request_id)
+            raise
+        self.preflight_store.destroy_claim(approval.request_id)
+        return result
+
+    def _generate(
+        self,
+        request: ModelRequest,
+        *,
+        preflight: ProviderPreflight | None = None,
+    ) -> ModelResponse:
         now = datetime.now(UTC)
         projection = request.projection
         categories = tuple(sorted(self.policy.allowed_categories)) if self.policy else ()
@@ -459,10 +607,10 @@ class OpenAIProvider:
             dispatch_status="refused",
         )
         try:
-            preflight = self.preflight(request)
-            if not preflight.dispatch_permitted:
+            checked = preflight or self.preflight(request)
+            if not checked.dispatch_permitted:
                 raise PilotDispatchError(
-                    ProviderFailureCode(preflight.refusal_reason or ProviderFailureCode.DISCLOSURE_DENIED.value)
+                    ProviderFailureCode(checked.refusal_reason or ProviderFailureCode.DISCLOSURE_DENIED.value)
                 )
             if request.approval_token is None:
                 raise PilotDispatchError(ProviderFailureCode.INVALID_AUTHORITY, "preflight approval required")
@@ -470,12 +618,12 @@ class OpenAIProvider:
             if (
                 approval is None
                 or approval.expires_at <= datetime.now(UTC)
-                or approval.preflight_hash != preflight.preflight_hash
+                or approval.preflight_hash != checked.preflight_hash
                 or approval.request_id != request.request_id
                 or approval.provider_id != self.provider_id
                 or approval.model != self.config.model
                 or approval.disclosure_policy != self.config.policy_id
-                or approval.projected_categories != preflight.projected_categories
+                or approval.projected_categories != checked.projected_categories
             ):
                 raise PilotDispatchError(ProviderFailureCode.INVALID_AUTHORITY, "approval token mismatch or expired")
             api_key = self.environment.get(self.config.api_key_env)
@@ -608,3 +756,63 @@ _PROHIBITED_CONTENT = re.compile(
     r"access[_ -]?token|refresh[_ -]?token|phone number|email address|"
     r"financial|defence|classified|customer[- ]restricted|personal data)"
 )
+
+_RETRYABLE_FAILURES = frozenset(
+    {
+        ProviderFailureCode.TIMEOUT,
+        ProviderFailureCode.QUOTA,
+        ProviderFailureCode.PROVIDER_UNAVAILABLE,
+        ProviderFailureCode.NETWORK,
+    }
+)
+
+
+def _preflight_binding(
+    request: ModelRequest,
+    *,
+    provider_id: str,
+    model: str,
+    policy_id: str,
+    categories: tuple[str, ...],
+    created_at: datetime | None,
+    expires_at: datetime | None,
+) -> dict[str, object]:
+    return {
+        "request_id": request.request_id,
+        "provider_id": provider_id,
+        "model": model,
+        "disclosure_policy": policy_id,
+        "security_domain": request.security_domain,
+        "classification": request.classification.to_dict(),
+        "purpose": request.purpose,
+        "max_output_items": request.max_output_items,
+        "categories": list(categories),
+        "evidence_count": len(request.projection.items),
+        "projected_size": request.projection.total_chars,
+        "projection_request_id": request.projection.request_id,
+        "redactions": list(request.projection.redactions),
+        "created_at": (
+            None if created_at is None else created_at.astimezone(UTC).isoformat()
+        ),
+        "expires_at": (
+            None if expires_at is None else expires_at.astimezone(UTC).isoformat()
+        ),
+        "projection": [
+            {
+                "disclosure_id": item.disclosure_id,
+                "source_family": item.source_family,
+                "title": item.title,
+                "excerpt": item.excerpt,
+                "freshness": item.freshness.value,
+                "provenance_digest": item.provenance_digest,
+                "source_timestamp": (
+                    None
+                    if item.source_timestamp is None
+                    else item.source_timestamp.astimezone(UTC).isoformat()
+                ),
+                "field_category": item.field_category,
+                "provider_approved": item.provider_approved,
+            }
+            for item in request.projection.items
+        ],
+    }
