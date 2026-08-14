@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import sqlite3
 import stat
@@ -23,6 +25,59 @@ class DurablePilotBudgetLedger:
         self.root = root
         self.path = root / "provider-budget.sqlite3"
         self._bootstrap_authoritative_from = authoritative_from
+
+    def initialize_owner_opening_balance(
+        self,
+        *,
+        cutover_at: datetime,
+        daily_authority_from: datetime,
+        period: str,
+        carry_in_aud: float,
+        monthly_limit_aud: float,
+        authority_ref: str,
+    ) -> None:
+        if (
+            cutover_at.tzinfo is None
+            or daily_authority_from.tzinfo is None
+            or period != cutover_at.astimezone(UTC).strftime("%Y-%m")
+            or carry_in_aud != 1.0
+            or monthly_limit_aud != 20.0
+            or daily_authority_from.astimezone(UTC).date()
+            <= cutover_at.astimezone(UTC).date()
+            or not authority_ref
+        ):
+            raise DurableBudgetError("owner opening balance is invalid")
+        values = {
+            "opening_status": "owner_attested",
+            "cutover_at": cutover_at.astimezone(UTC).isoformat(),
+            "authoritative_from": daily_authority_from.astimezone(UTC).isoformat(),
+            "opening_period": period,
+            "historical_counters": "unknown_pre_ledger",
+            "carry_in_aud": "1.00",
+            "monthly_limit_aud": "20.00",
+            "remaining_monthly_aud": "19.00",
+            "authority_ref": authority_ref,
+        }
+        digest = hashlib.sha256(
+            json.dumps(values, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        with closing(self._connection()) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if connection.execute(
+                "SELECT 1 FROM metadata WHERE key='opening_status'"
+            ).fetchone():
+                raise DurableBudgetError("owner opening balance already exists")
+            connection.executemany(
+                "INSERT INTO metadata(key,value) VALUES(?,?)",
+                [*values.items(), ("opening_digest", digest)],
+            )
+            connection.commit()
+
+    def opening_balance(self) -> dict[str, str]:
+        with closing(self._connection()) as connection:
+            rows = dict(connection.execute("SELECT key,value FROM metadata"))
+        self._validate_opening(rows)
+        return rows
 
     def admit(
         self,
@@ -53,6 +108,13 @@ class DurablePilotBudgetLedger:
                 raise DurableBudgetError("historical provider activity is unresolved")
             day = now.astimezone(UTC).date().isoformat()
             month = day[:7]
+            metadata = dict(connection.execute("SELECT key,value FROM metadata"))
+            self._validate_opening(metadata)
+            carry_aud = (
+                float(metadata["carry_in_aud"])
+                if metadata.get("opening_period") == month
+                else 0.0
+            )
             requests, retries, successes, daily_usd = connection.execute(
                 "SELECT COUNT(*), COALESCE(SUM(is_retry),0), "
                 "COALESCE(SUM(success),0), COALESCE(SUM(estimated_usd),0) "
@@ -69,7 +131,7 @@ class DurablePilotBudgetLedger:
                 or successes >= config.max_successful_briefs_per_day
                 or (daily_usd + estimated) * config.usd_to_aud
                 > config.max_daily_spend_aud
-                or (monthly_usd + estimated) * config.usd_to_aud
+                or carry_aud + (monthly_usd + estimated) * config.usd_to_aud
                 > config.max_monthly_spend_aud
             ):
                 raise DurableBudgetError("durable provider budget exceeded")
@@ -136,6 +198,36 @@ class DurablePilotBudgetLedger:
         connection.commit()
         connection.execute("BEGIN IMMEDIATE")
         return cutoff.astimezone(UTC).isoformat()
+
+    @staticmethod
+    def _validate_opening(values: dict[str, str]) -> None:
+        if values.get("opening_status") != "owner_attested":
+            raise DurableBudgetError("owner opening balance is unavailable")
+        fields = {
+            key: values[key]
+            for key in (
+                "opening_status",
+                "cutover_at",
+                "authoritative_from",
+                "opening_period",
+                "historical_counters",
+                "carry_in_aud",
+                "monthly_limit_aud",
+                "remaining_monthly_aud",
+                "authority_ref",
+            )
+        }
+        expected = hashlib.sha256(
+            json.dumps(fields, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        if (
+            values.get("opening_digest") != expected
+            or fields["historical_counters"] != "unknown_pre_ledger"
+            or fields["carry_in_aud"] != "1.00"
+            or fields["monthly_limit_aud"] != "20.00"
+            or fields["remaining_monthly_aud"] != "19.00"
+        ):
+            raise DurableBudgetError("owner opening balance is corrupt")
 
     def _connection(self) -> sqlite3.Connection:
         self.root.mkdir(mode=0o700, parents=True, exist_ok=True)

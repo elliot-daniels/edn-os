@@ -17,7 +17,17 @@ NOW = datetime(2026, 9, 1, tzinfo=UTC)
 
 
 def ledger(root: Path) -> DurablePilotBudgetLedger:
-    return DurablePilotBudgetLedger(root, authoritative_from=NOW)
+    value = DurablePilotBudgetLedger(root, authoritative_from=NOW)
+    if not value.path.exists():
+        value.initialize_owner_opening_balance(
+            cutover_at=datetime(2026, 8, 31, tzinfo=UTC),
+            daily_authority_from=NOW,
+            period="2026-08",
+            carry_in_aud=1.0,
+            monthly_limit_aud=20.0,
+            authority_ref="synthetic-owner-test",
+        )
+    return value
 
 
 def admit(
@@ -75,10 +85,15 @@ def test_daily_monthly_spend_and_rollovers(tmp_path: Path) -> None:
 
 def test_concurrent_admission_cannot_double_spend(tmp_path: Path) -> None:
     config = OpenAIPilotConfig(enabled=True, max_requests_per_day=1)
+    ledger(tmp_path)
 
     def run(number: int) -> bool:
         try:
-            admit(ledger(tmp_path), f"race-{number}", config=config)
+            admit(
+                DurablePilotBudgetLedger(tmp_path),
+                f"race-{number}",
+                config=config,
+            )
             return True
         except DurableBudgetError:
             return False
@@ -102,9 +117,61 @@ def test_historical_activity_bootstrap_fails_closed_until_next_month(
     tmp_path: Path,
 ) -> None:
     value = DurablePilotBudgetLedger(tmp_path)
-    with pytest.raises(DurableBudgetError, match="historical"):
+    with pytest.raises(DurableBudgetError):
         admit(value, "august", now=datetime(2026, 8, 14, tzinfo=UTC))
+
+
+def test_owner_opening_balance_blocks_today_persists_and_rolls_month(
+    tmp_path: Path,
+) -> None:
+    value = DurablePilotBudgetLedger(tmp_path)
+    value.initialize_owner_opening_balance(
+        cutover_at=datetime(2026, 8, 14, 10, tzinfo=UTC),
+        daily_authority_from=datetime(2026, 8, 15, tzinfo=UTC),
+        period="2026-08",
+        carry_in_aud=1.0,
+        monthly_limit_aud=20.0,
+        authority_ref="owner-pa009-opening-balance-20260814",
+    )
+    with pytest.raises(DurableBudgetError, match="historical"):
+        admit(value, "today", now=datetime(2026, 8, 14, 12, tzinfo=UTC))
+    metadata = DurablePilotBudgetLedger(tmp_path).opening_balance()
+    assert metadata["carry_in_aud"] == "1.00"
+    assert metadata["historical_counters"] == "unknown_pre_ledger"
+    admit(value, "tomorrow", now=datetime(2026, 8, 15, tzinfo=UTC))
     admit(value, "september", now=NOW)
+    with pytest.raises(DurableBudgetError, match="already"):
+        value.initialize_owner_opening_balance(
+            cutover_at=datetime(2026, 8, 14, 10, tzinfo=UTC),
+            daily_authority_from=datetime(2026, 8, 15, tzinfo=UTC),
+            period="2026-08",
+            carry_in_aud=1.0,
+            monthly_limit_aud=20.0,
+            authority_ref="different-authority",
+        )
+
+
+def test_opening_carry_is_charged_and_tampering_fails_closed(tmp_path: Path) -> None:
+    value = DurablePilotBudgetLedger(tmp_path)
+    value.initialize_owner_opening_balance(
+        cutover_at=datetime(2026, 8, 14, 10, tzinfo=UTC),
+        daily_authority_from=datetime(2026, 8, 15, tzinfo=UTC),
+        period="2026-08",
+        carry_in_aud=1.0,
+        monthly_limit_aud=20.0,
+        authority_ref="owner-pa009-opening-balance-20260814",
+    )
+    config = OpenAIPilotConfig(enabled=True, max_monthly_spend_aud=1.001)
+    with pytest.raises(DurableBudgetError):
+        admit(
+            value, "carry-blocks", now=datetime(2026, 8, 15, tzinfo=UTC), config=config
+        )
+    connection = sqlite3.connect(value.path)
+    connection.execute("UPDATE metadata SET value='0.50' WHERE key='carry_in_aud'")
+    connection.commit()
+    connection.close()
+    with pytest.raises(DurableBudgetError, match="corrupt"):
+        value.opening_balance()
 
 
 def test_permissions_symlink_and_corruption_fail_closed(tmp_path: Path) -> None:

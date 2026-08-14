@@ -131,10 +131,14 @@ Lifecycle audit is evidence, while disagreement resolves to the conservative
 budget reservation and cannot add authority.
 
 Periods use the existing UTC semantics: calendar day and calendar month. A new
-ledger cannot fabricate earlier pilot counters. On first bootstrap it records an
-`authoritative_from` boundary at the next UTC month and fails closed before that
-boundary. This makes historical activity explicit and prevents an empty database
-from resetting current-day or current-month authority.
+ledger cannot fabricate earlier pilot counters. An explicit owner-attested
+opening balance records historical counters as `unknown_pre_ledger`, a digest-
+bound AUD $1.00 August carry-in against the unchanged AUD $20 ceiling, and a
+next-day `authoritative_from` boundary. Current-day requests remain blocked;
+post-cutover daily counters start at zero only after their natural UTC reset. The
+carry-in remains charged throughout August and rolls off naturally in September.
+Duplicate or modified opening balances fail closed and require distinct owner
+authority rather than an in-place reduction.
 
 Every attempted dispatch emits metadata-only audit information: request ID, provider/model, policy, item count, projected categories/size, classification ceiling, decision, status, failure code and usage/cost when available. Prompt and response bodies are not stored.
 

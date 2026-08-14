@@ -49,8 +49,10 @@ ledger. Admission and reservation occur atomically before credential loading.
 Reserved, transport-started and outcome-unknown attempts continue to count, so a
 crash cannot restore request or spend authority. The lifecycle audit is
 reconciliatory evidence only; missing audit completion never removes a durable
-reservation. Unknown historical activity closes admission until the recorded UTC
-month boundary rather than being reconstructed or reset.
+reservation. Unknown historical counters may be reconciled only through a
+digest-bound owner-attested opening balance: current-day authority stays closed,
+daily counters begin after the next UTC boundary, and conservative monthly
+carry-in remains charged until natural month rollover.
 
 ## Protected storage
 
