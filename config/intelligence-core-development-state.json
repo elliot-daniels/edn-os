@@ -105,7 +105,7 @@
     ".venv-wsl/",
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
-  "last_validated_commit": "246b13c34c5e6e9ab133f531efb820878708ed42",
+  "last_validated_commit": "020572dd54f35fae44bf9665cb02a399aa44dacd",
   "next_recommended_increment": null,
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
@@ -140,6 +140,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-15T20:39:39+09:30",
+  "updated_at": "2026-08-15T20:47:47+09:30",
   "provenance": "Owner-authorised repository-only PA-009 hardening adds a closed 30-day protected typed-result handoff after strict validation and metadata-only envelope reconciliation; two unrelated expired active envelopes were safely invalidated, zero claims remained, and 448 tests plus 119 focused PA-009 boundaries passed with Ruff and strict mypy over 104 source files, with zero provider, live-source or credential access."
 }
