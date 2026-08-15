@@ -102,7 +102,7 @@
     ".venv-wsl/",
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
-  "last_validated_commit": "8a986252fdb2d7efa2e98d460a7c8a18c328817e",
+  "last_validated_commit": "246b13c34c5e6e9ab133f531efb820878708ed42",
   "next_recommended_increment": null,
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
@@ -136,6 +136,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-15T19:45:46+09:30",
+  "updated_at": "2026-08-15T19:53:13+09:30",
   "provenance": "Repository-state reconciliation recognizes only .venv-wsl/ as the existing owner-authorized native Linux development and validation environment, while preserving the protected PA-005 activation pack and fail-closed handling for every other unexpected path; 432 tests, Ruff, strict mypy over 103 source files, JSON/JSONL validation and whitespace validation passed with zero provider, live-source, credential or protected-preflight access."
 }
