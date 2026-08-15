@@ -20,6 +20,7 @@ from edn.development import (
     ReviewResult,
     RunLimits,
     ValidationResult,
+    validate_repository,
 )
 from edn.development import (
     TestStatus as DevelopmentTestStatus,
@@ -284,3 +285,28 @@ def test_real_policy_state_and_roadmap_reconstruct_current_project() -> None:
         assert roadmap.task(task_id).status is DevelopmentTaskStatus.COMPLETED
     selected = roadmap.select_next(state, policy)
     assert selected is None
+
+
+def test_real_state_accepts_only_declared_local_runtime_paths() -> None:
+    root = Path(__file__).parents[2]
+    state = DevelopmentStateStore(
+        root / "config/intelligence-core-development-state.json"
+    ).load()
+    expected = (
+        ".venv-wsl/",
+        "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
+    )
+
+    assert state.expected_dirty_paths == expected
+    assert validate_repository(
+        state,
+        RepositorySnapshot(state.current_branch, state.last_validated_commit, expected),
+    ) == ()
+    assert validate_repository(
+        state,
+        RepositorySnapshot(
+            state.current_branch,
+            state.last_validated_commit,
+            (".venv-wsl-copy/",),
+        ),
+    ) == ("unexpected_dirty_paths:.venv-wsl-copy/",)

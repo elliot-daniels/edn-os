@@ -77,7 +77,7 @@
       "python -m json.tool (state, roadmap, policy and each audit JSONL record)",
       "git diff --check"
     ],
-    "passed": 431,
+    "passed": 432,
     "failed": 0,
     "focused_pa009_synthetic": 8,
     "focused_pa009_openai": 63,
@@ -95,10 +95,11 @@
       "JSON/JSONL validation",
       "git diff --check"
     ],
-    "validated_at": "2026-08-14T19:55:15+09:30"
+    "validated_at": "2026-08-15T19:45:46+09:30"
   },
-  "repository_status": "clean-checkpoint-except-protected-pa005-pack",
+  "repository_status": "clean-checkpoint-except-protected-pa005-pack-and-local-wsl-validation-environment",
   "expected_dirty_paths": [
+    ".venv-wsl/",
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
   "last_validated_commit": "8a986252fdb2d7efa2e98d460a7c8a18c328817e",
@@ -135,6 +136,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-14T19:55:15+09:30",
-  "provenance": "PA-009 owner-attested opening balance validation passed: 431 tests, 95 focused PA-009 tests and 8 durable-budget tests; runtime initialization records unknown historical counters, immutable AUD 1 August carry-in and next-day UTC authority with zero provider/live-source/credential/protected-envelope access."
+  "updated_at": "2026-08-15T19:45:46+09:30",
+  "provenance": "Repository-state reconciliation recognizes only .venv-wsl/ as the existing owner-authorized native Linux development and validation environment, while preserving the protected PA-005 activation pack and fail-closed handling for every other unexpected path; 432 tests, Ruff, strict mypy over 103 source files, JSON/JSONL validation and whitespace validation passed with zero provider, live-source, credential or protected-preflight access."
 }

@@ -144,3 +144,7 @@ No test contacts an external service or production data.
 - Git checkpoint evaluation is deterministic; the shell adapter must still
   resolve the real current branch/upstream and exact changed paths before acting.
 - The expected-dirty-path list must be intentionally updated as pre-existing work changes.
+- `.venv-wsl/` is the explicitly recognized untracked native Linux validation
+  environment for this repository. This exact path is local tooling only: it is
+  never inspected for protected content, staged, committed, or treated as a
+  wildcard exemption for other virtual-environment or untracked paths.
