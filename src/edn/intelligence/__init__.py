@@ -87,9 +87,16 @@ from edn.intelligence.provider_budget_store import (
     DurablePilotBudgetLedger,
 )
 from edn.intelligence.provider_preflight_store import (
+    PreflightReconciliationRecord,
+    PreflightReconciliationStatus,
     ProtectedPreflightError,
     ProtectedPreflightStore,
     ProtectedProjectionEnvelope,
+)
+from edn.intelligence.provider_result_store import (
+    OwnerReviewResultStore,
+    ProviderResultStoreError,
+    ValidatedProviderResult,
 )
 from edn.intelligence.service import IntelligenceService
 from edn.intelligence.session import (
@@ -160,8 +167,11 @@ __all__ = [
     "OpenAIProvider",
     "OperationalBackup",
     "OutlookEvidenceAdapter",
+    "OwnerReviewResultStore",
     "PilotBudgetLedger",
     "PilotDispatchError",
+    "PreflightReconciliationRecord",
+    "PreflightReconciliationStatus",
     "ProjectedEvidence",
     "ProtectedPreflightError",
     "ProtectedPreflightStore",
@@ -170,6 +180,7 @@ __all__ = [
     "ProviderAuditRecord",
     "ProviderFailureCode",
     "ProviderPreflight",
+    "ProviderResultStoreError",
     "ProviderValidationReason",
     "ProviderValidationStage",
     "RunFailureCode",
@@ -183,5 +194,6 @@ __all__ = [
     "SourceBriefPolicy",
     "StatementKind",
     "SyntheticModelProvider",
+    "ValidatedProviderResult",
     "proposal_fingerprint",
 ]

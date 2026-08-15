@@ -39,6 +39,10 @@ from edn.intelligence.provider_preflight_store import (
     ProtectedProjectionEnvelope,
     canonical_json,
 )
+from edn.intelligence.provider_result_store import (
+    OwnerReviewResultStore,
+    ProviderResultStoreError,
+)
 
 OPENAI_MODEL_SNAPSHOT = "gpt-5-mini-2025-08-07"
 OPENAI_INPUT_USD_PER_MILLION = 0.25
@@ -62,6 +66,7 @@ class ProviderFailureCode(StrEnum):
     PROJECTION_NOT_APPROVED = "projection_not_approved"
     PROHIBITED_CONTENT = "prohibited_content"
     AUDIT_PERSISTENCE = "audit_persistence_failure"
+    RESULT_PERSISTENCE = "result_persistence_failure"
 
 
 class ProviderValidationStage(StrEnum):
@@ -804,6 +809,7 @@ class OpenAIProvider:
         budget: PilotBudgetLedger | DurablePilotBudgetLedger | None = None,
         environment: Mapping[str, str] | None = None,
         preflight_store: ProtectedPreflightStore | None = None,
+        result_store: OwnerReviewResultStore | None = None,
     ) -> None:
         self.config = config or OpenAIPilotConfig()
         self.policy = policy
@@ -823,6 +829,11 @@ class OpenAIProvider:
         )
         self.environment = os.environ if environment is None else environment
         self.preflight_store = preflight_store
+        self.result_store = result_store or (
+            OwnerReviewResultStore(preflight_store.root.parent / "provider-results")
+            if preflight_store is not None
+            else None
+        )
         self._approvals: dict[str, ProviderApproval] = {}
 
     def preflight(self, request: ModelRequest) -> ProviderPreflight:
@@ -1246,6 +1257,25 @@ class OpenAIProvider:
             parsed = _parse_response(
                 response, request, self.config.model, self.config.policy_id
             )
+            if self.result_store is not None:
+                try:
+                    self.result_store.persist_validated(
+                        parsed,
+                        preflight_hash=checked.preflight_hash,
+                        model=self.config.model,
+                        disclosure_policy=self.config.policy_id,
+                        security_domain=request.security_domain,
+                        classification=request.classification,
+                        validated_evidence_ids=frozenset(
+                            item.disclosure_id for item in projection.items
+                        ),
+                    )
+                except ProviderResultStoreError as exc:
+                    raise PilotDispatchError(
+                        ProviderFailureCode.RESULT_PERSISTENCE,
+                        validation_stage=ProviderValidationStage.COMPLETED,
+                        validation_reason=ProviderValidationReason.VALIDATION_ACCEPTED,
+                    ) from exc
             if isinstance(self.budget, DurablePilotBudgetLedger):
                 self.budget.record_success(
                     now=now,
@@ -1353,7 +1383,11 @@ class OpenAIProvider:
                     provider_response_id=response_metadata.response_id,
                     schema_validation=(
                         "passed"
-                        if exc.validation_stage is ProviderValidationStage.CITATION
+                        if exc.validation_stage
+                        in {
+                            ProviderValidationStage.CITATION,
+                            ProviderValidationStage.COMPLETED,
+                        }
                         else "failed"
                         if exc.validation_stage
                         in {
@@ -1368,6 +1402,8 @@ class OpenAIProvider:
                     citation_validation=(
                         "failed"
                         if exc.validation_stage is ProviderValidationStage.CITATION
+                        else "passed"
+                        if exc.validation_stage is ProviderValidationStage.COMPLETED
                         else "not_reached"
                     ),
                     fallback_required=(is_retry or exc.code not in _RETRYABLE_FAILURES),

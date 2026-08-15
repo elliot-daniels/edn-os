@@ -101,3 +101,9 @@ value/request/model/policy/category/count tampering, expiry, unsafe directory an
 file permissions, missing files, prohibited content, kill switch, successful
 single use, replay denial, terminal failure deletion and the single retry path.
 No automated test authenticates, reads live evidence or contacts OpenAI.
+
+`ProtectedPreflightStore.reconcile()` adds metadata-only hygiene without adding
+dispatch authority. Valid active envelopes remain untouched, expired envelopes
+are invalidated, terminal orphans require durable terminal evidence, claimed
+unknown outcomes remain claimed, and corrupt/ambiguous files remain fail closed.
+The operation never returns projection values or recreates approval.

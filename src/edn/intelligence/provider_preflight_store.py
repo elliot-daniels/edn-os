@@ -6,9 +6,11 @@ import hashlib
 import json
 import os
 import stat
+from collections.abc import Set
 from contextlib import suppress
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, Self
 
@@ -31,6 +33,26 @@ RETRYABLE_INITIAL_FAILURE_CODES = frozenset(
 
 class ProtectedPreflightError(RuntimeError):
     """A protected envelope cannot be safely stored, loaded, or consumed."""
+
+
+class PreflightReconciliationStatus(StrEnum):
+    ACTIVE_VALID = "active_valid"
+    EXPIRED_REMOVED = "expired_removed"
+    CLAIMED_IN_FLIGHT = "claimed_in_flight"
+    TERMINAL_ORPHAN_REMOVED = "terminal_orphan_removed"
+    CORRUPT_UNKNOWN = "corrupt_unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class PreflightReconciliationRecord:
+    """Projection-free protected-envelope lifecycle metadata."""
+
+    status: PreflightReconciliationStatus
+    request_id: str | None
+    created_at: datetime | None
+    expires_at: datetime | None
+    claimed: bool
+    removed: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -216,6 +238,91 @@ class ProtectedPreflightStore:
     def exists(self, request_id: str) -> bool:
         return self._path(request_id, claimed=False).exists()
 
+    def reconcile(
+        self,
+        *,
+        terminal_request_ids: Set[str] = frozenset(),
+        now: datetime | None = None,
+    ) -> tuple[PreflightReconciliationRecord, ...]:
+        """Reconcile state without exposing projections or adding authority."""
+        self._secure_directory(create=False)
+        current = now or datetime.now(UTC)
+        records: list[PreflightReconciliationRecord] = []
+        removed_any = False
+        paths = sorted((*self.root.glob("*.json"), *self.root.glob("*.claimed")))
+        for path in paths:
+            claimed = path.suffix == ".claimed"
+            try:
+                envelope = self._read(path)
+                if path != self._path(envelope.request.request_id, claimed=claimed):
+                    raise ProtectedPreflightError(
+                        "protected preflight request mismatch"
+                    )
+            except ProtectedPreflightError:
+                records.append(
+                    PreflightReconciliationRecord(
+                        PreflightReconciliationStatus.CORRUPT_UNKNOWN,
+                        None,
+                        None,
+                        None,
+                        claimed,
+                        False,
+                    )
+                )
+                continue
+            request_id = envelope.request.request_id
+            if request_id in terminal_request_ids:
+                self._unlink(path)
+                removed_any = True
+                records.append(
+                    PreflightReconciliationRecord(
+                        PreflightReconciliationStatus.TERMINAL_ORPHAN_REMOVED,
+                        request_id,
+                        envelope.created_at,
+                        envelope.expires_at,
+                        claimed,
+                        True,
+                    )
+                )
+            elif claimed:
+                records.append(
+                    PreflightReconciliationRecord(
+                        PreflightReconciliationStatus.CLAIMED_IN_FLIGHT,
+                        request_id,
+                        envelope.created_at,
+                        envelope.expires_at,
+                        True,
+                        False,
+                    )
+                )
+            elif envelope.expires_at <= current:
+                self.cancel(request_id)
+                removed_any = True
+                records.append(
+                    PreflightReconciliationRecord(
+                        PreflightReconciliationStatus.EXPIRED_REMOVED,
+                        request_id,
+                        envelope.created_at,
+                        envelope.expires_at,
+                        False,
+                        True,
+                    )
+                )
+            else:
+                records.append(
+                    PreflightReconciliationRecord(
+                        PreflightReconciliationStatus.ACTIVE_VALID,
+                        request_id,
+                        envelope.created_at,
+                        envelope.expires_at,
+                        False,
+                        False,
+                    )
+                )
+        if removed_any:
+            self._fsync_directory()
+        return tuple(records)
+
     def _rewrite_claimed(
         self, path: Path, envelope: ProtectedProjectionEnvelope
     ) -> None:
@@ -283,6 +390,18 @@ class ProtectedPreflightStore:
                 "protected preflight directory is missing"
             ) from exc
         self._validate_stat(directory_stat, DIRECTORY_MODE, regular=False)
+
+    def _fsync_directory(self) -> None:
+        flags = os.O_RDONLY
+        if hasattr(os, "O_DIRECTORY"):
+            flags |= os.O_DIRECTORY
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        descriptor = os.open(self.root, flags)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
 
     @staticmethod
     def _validate_stat(value: os.stat_result, mode: int, *, regular: bool) -> None:

@@ -1,6 +1,10 @@
-# PA-009 — OpenAI Pilot (Activation-Ready, Not Activated)
+# PA-009 — OpenAI Pilot (First Valid Result, Routine Use Not Activated)
 
-Status: implementation and synthetic/provider-boundary validation complete. A genuine owner-approved pilot transport occurred but did not yield a locally valid result. Further genuine dispatch remains fresh-preflight and exact-owner-approval gated.
+Status: implementation and synthetic/provider-boundary validation complete. A
+genuine owner-approved lifecycle produced the first locally valid typed result;
+it pre-dated protected typed-result retention, so owner usefulness review remains
+incomplete. Further genuine dispatch remains fresh-preflight and exact-owner-
+approval gated, and routine use is not activated.
 
 ## Proposed model
 
@@ -101,6 +105,12 @@ used to reconstruct a projection or dispatch.
 Prompts, complete or partial provider response content, structured output text,
 statement text, evidence/projection values, source content, credentials,
 authorization headers and secrets are prohibited from the durable schema.
+
+A separate owner-review result handoff may retain only the fully validated,
+bounded typed statement fields described in
+`PA-009-OWNER-RESULT-HANDOFF.md`. It remains outside the metadata-only lifecycle
+audit and cannot retain raw/partial provider responses, projection values or
+provider authority.
 
 ## Proposed first-pilot disclosure policy
 

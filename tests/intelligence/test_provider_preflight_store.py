@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 from dataclasses import replace
@@ -19,6 +20,7 @@ from edn.intelligence import (
     OpenAIDisclosurePolicy,
     OpenAIPilotConfig,
     OpenAIProvider,
+    OwnerReviewResultStore,
     PilotBudgetLedger,
     PilotDispatchError,
     ProjectedEvidence,
@@ -221,6 +223,11 @@ def test_projection_survives_process_boundary_and_dispatches_once(
     response = second.generate_protected(approval)
 
     assert response.request_id == _request().request_id
+    reviewed = OwnerReviewResultStore(root.parent / "provider-results").load(
+        _request().request_id
+    )
+    assert reviewed.statements == response.statements
+    assert reviewed.preflight_hash == preflight.preflight_hash  # type: ignore[attr-defined]
     assert dispatch_transport.calls == 1
     assert not ProtectedPreflightStore(root).exists(_request().request_id)
     with pytest.raises(PilotDispatchError) as replay:
@@ -402,6 +409,7 @@ def test_terminal_failure_destroys_envelope_and_preserves_fallback(
     assert exc.value.code is ProviderFailureCode.INVALID_RESPONSE
     assert transport.calls == 1
     assert not ProtectedPreflightStore(root).exists(_request().request_id)
+    assert not (root.parent / "provider-results").exists()
     record = provider.audit.records[-1]  # type: ignore[attr-defined]
     assert record.dispatch_status == "refused"
     assert record.transport_attempted is True
@@ -450,6 +458,104 @@ def _approved_provider(
         expires_at=EXPIRY,
     )
     return provider, approval
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        lambda value: value.update(
+            {
+                "status": "incomplete",
+                "incomplete_details": {"reason": "max_output_tokens"},
+            }
+        ),
+        lambda value: value["output"][0]["content"].__setitem__(
+            0, {"type": "refusal", "refusal": "not retained"}
+        ),
+        lambda value: value["output"][0]["content"][0].__setitem__(
+            "text",
+            json.dumps(
+                {
+                    "statements": [
+                        {
+                            "kind": "model_assertion",
+                            "text": "invalid citation",
+                            "disclosed_evidence_ids": ["not-disclosed"],
+                            "uncertainty": None,
+                            "proposal_only": False,
+                        }
+                    ]
+                }
+            ),
+        ),
+        lambda value: value["output"][0]["content"][0].__setitem__(
+            "text",
+            json.dumps(
+                {
+                    "statements": [
+                        {
+                            "kind": "model_assertion",
+                            "text": "invalid schema",
+                            "disclosed_evidence_ids": ["disclosed-1"],
+                            "uncertainty": None,
+                            "proposal_only": False,
+                            "extra": "prohibited",
+                        }
+                    ]
+                }
+            ),
+        ),
+    ),
+    ids=("incomplete", "refusal", "citation", "schema"),
+)
+def test_non_valid_provider_results_never_persist(
+    tmp_path: Path, mutation: object
+) -> None:
+    response = copy.deepcopy(_response())
+    assert callable(mutation)
+    mutation(response)
+    root = tmp_path / "protected"
+    provider, approval = _approved_provider(root, FakeTransport(response))
+
+    with pytest.raises(PilotDispatchError):
+        provider.generate_protected(approval)
+
+    assert not (root.parent / "provider-results").exists()
+
+
+def test_terminal_authentication_failure_never_persists_result(tmp_path: Path) -> None:
+    root = tmp_path / "protected"
+    provider, approval = _approved_provider(
+        root, SequenceTransport([ProviderFailureCode.AUTHENTICATION])
+    )
+
+    with pytest.raises(PilotDispatchError) as failure:
+        provider.generate_protected(approval)
+
+    assert failure.value.code is ProviderFailureCode.AUTHENTICATION
+    assert not (root.parent / "provider-results").exists()
+
+
+def test_result_handoff_failure_is_terminal_and_does_not_strand_claim(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "protected"
+    results = root.parent / "provider-results"
+    results.mkdir(mode=0o755)
+    provider, approval = _approved_provider(root, FakeTransport())
+
+    with pytest.raises(PilotDispatchError) as failure:
+        provider.generate_protected(approval)
+
+    assert failure.value.code is ProviderFailureCode.RESULT_PERSISTENCE
+    assert provider.transport.calls == 1  # type: ignore[attr-defined]
+    assert not ProtectedPreflightStore(root).exists(_request().request_id)
+    assert not tuple(root.glob("*.claimed"))
+    record = provider.audit.records[-1]  # type: ignore[attr-defined]
+    assert record.schema_validation == "passed"
+    assert record.citation_validation == "passed"
+    assert record.fallback_required is True
+    assert record.retryable is False
 
 
 def test_initial_success_is_one_transport_and_zero_retries(tmp_path: Path) -> None:
