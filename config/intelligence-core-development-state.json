@@ -3,7 +3,7 @@
   "product": "EDN Intelligence Core",
   "version": "0.1.0-alpha",
   "current_branch": "feature/intelligence-core-v0.1",
-  "current_milestone": "Bounded delegation grant delegation-20260816T035831Z-d4cb82b652f5 is active until 2026-08-16T23:59:00+09:30 with fresh-session discovery and a stable non-executing claim-lifecycle CLI; PA-009 temporal proof awaits the next admissible UTC day",
+  "current_milestone": "Successor bounded delegation grant delegation-20260816T052449Z-f63f04a5e648 is active until 2026-08-17T23:59:00+09:30; the outstanding genuine PA-009 temporal proof awaits the 2026-08-17 UTC budget reset",
   "completed_increments": [
     "IC-001",
     "IC-002",
@@ -69,8 +69,8 @@
     "OpenAI adapter remains disabled by default and every genuine dispatch requires a fresh protected projection and exact owner approval.",
     "Any subsequent genuine PA-009 dispatch requires safe credential verification, a fresh protected metadata-only preflight and a hash-bound expiring owner approval token.",
     "PA-009 is provisionally accepted for continued development; one genuine retained-result temporal-validity proof remains outstanding technical debt and must run only when the unchanged daily budget permits it.",
-    "Bounded grant delegation-20260816T035831Z-d4cb82b652f5 is active only until 2026-08-16T23:59:00+09:30; it does not bypass host/sandbox approvals or independently execute operations.",
-    "The active grant expires before the 2026-08-17 UTC budget reset, so it cannot complete the outstanding genuine PA-009 temporal proof unless a later separately approved grant covers an admissible window.",
+    "Successor grant delegation-20260816T052449Z-f63f04a5e648 is active only until 2026-08-17T23:59:00+09:30; it does not bypass host/sandbox approvals or independently execute operations.",
+    "The successor grant spans the 2026-08-17 UTC budget reset, but the unchanged durable ledger remains the independent authority for the outstanding genuine PA-009 temporal proof.",
     "The stable delegation lifecycle CLI manages authority metadata only; callers remain responsible for executing and independently validating each claimed operation.",
     "Proposals cannot execute.",
     "PDF/DOCX extraction is deliberately bounded and fails closed on unsupported PDF filters or ambiguous structures; live owner roots remain unauthorised.",
@@ -122,7 +122,7 @@
     "Separately authorise IC-009-LIVE when ready.",
     "Approve a named model provider, genuine evidence disclosure categories, retention/cost policy and threat model before PA-009.",
     "Before any subsequent real request: approve the exact fresh preflight hash and expiry; model, disclosure, retention/residency, credential, pilot-duration and kill-switch boundaries remain unchanged unless separately approved.",
-    "After the active grant expires, separately approve any successor grant needed to reach an admissible UTC day for the outstanding genuine PA-009 temporal proof.",
+    "After the active successor grant expires, separately approve any later delegation still required for unfinished eligible work.",
     "Approve future SharePoint content or external execution separately."
   ],
   "external_capability_blockers": [
@@ -154,6 +154,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-16T14:18:40+09:30",
-  "provenance": "Owner activated exact bounded grant delegation-20260816T035831Z-d4cb82b652f5; IC-DEV-004 adds integrity-validated fresh-session discovery and IC-DEV-005 adds a stable non-executing lifecycle CLI, while the unchanged 2026-08-16 successful-brief ceiling blocks the genuine PA-009 temporal proof until after this grant expires."
+  "updated_at": "2026-08-17T06:52:15+09:30",
+  "provenance": "Owner activated exact successor grant delegation-20260816T052449Z-f63f04a5e648 with hash a5dd0fdadcc5f3cfb52c0cf0667a898b3a42f171797b09679f96b9e54de9aba4 after the predecessor expired; unchanged durable PA-009 controls still govern the outstanding genuine temporal proof."
 }
