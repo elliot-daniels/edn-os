@@ -148,6 +148,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-16T13:15:44+09:30",
+  "updated_at": "2026-08-16T13:18:13+09:30",
   "provenance": "Owner provisionally accepted PA-009 while explicitly retaining one genuine temporal proof as debt; repository-only IC-DEV-003 adds a protected, hash-bound, expiring, revocable and replay-safe delegated operation boundary without creating a grant or weakening independent Git, PA-005 or PA-009 controls."
 }
