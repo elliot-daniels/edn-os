@@ -18,6 +18,7 @@ connector reuses. Security-domain enforcement precedes multi-source context.
 | IC-008 | Source-neutral retrieval, bounded context, response semantics and Alpha sessions; wrap email/graph | IC-001–007 | **High: first governed multi-source answer** | High |
 | IC-009 | **Implemented; awaiting live approval:** controlled Microsoft 365 calendar read adapter and conversation UI | IC-004–005, IC-008 patterns | High: current weekly context | High |
 | IC-DEV-001 | **Implemented:** bounded autonomous development control, standing authority, persisted state and reconstruction skill | IC-001–009 architecture | High developer leverage | Medium |
+| IC-DEV-003 | **Implemented; no grant active:** protected time-bounded owner delegation and replay-safe operation claims | IC-DEV-001, PA-009 temporal hardening | High owner/developer leverage | High |
 | IC-010 | **Implemented:** deterministic Daily Intelligence brief | IC-008–009 | **Very high daily value** | Medium |
 | IC-011 | **Implemented:** durable authority-bound session reference store | IC-008–010 | High conversational continuity | Medium |
 | IC-012 | **Implemented:** internal draft/action planning with human review state | IC-003, IC-009–011 | High administrative value | High |

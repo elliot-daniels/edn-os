@@ -134,7 +134,10 @@ No test contacts an external service or production data.
 
 ## Current next increment
 
-`IC-012` is complete and validated under its exact owner-approved internal-only scope. No subsequent roadmap task is machine-defined and autonomously eligible. `IC-009-LIVE` remains blocked on owner-accessible authentication.
+`IC-DEV-003-BOUNDED-DELEGATED-AUTHORITY` now adds an optional protected,
+expiring owner grant and per-operation claim layer over this standing development
+control. No grant is active by default. `IC-009-LIVE` remains separately bounded,
+and PA-009's genuine retained-result temporal proof remains outstanding debt.
 
 ## Limitations
 

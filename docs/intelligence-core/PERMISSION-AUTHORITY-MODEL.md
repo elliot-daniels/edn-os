@@ -52,6 +52,13 @@ operation, manifest/plan hash, principal, purpose, window, usage count and outpu
 location. Scope drift or expiry returns `approval_required`; it is never silently
 renewed.
 
+For bounded development sessions, `IC-DEV-003-BOUNDED-DELEGATED-AUTHORITY.md`
+applies this model to an owner identity, exact repository/feature branch, closed
+operations, absolute expiry and existing PA-005/PA-009 boundaries. Each operation
+uses a durable unique claim and must be revalidated immediately before acting.
+Revocation and the kill switch only reduce authority and cannot be disengaged by
+the delegated session.
+
 ## Alpha policy storage
 
 Use versioned tenant configuration for rules and a local append-only decision
@@ -98,4 +105,3 @@ purpose constraints so it cannot be reused in a broader session.
 - fail closed on missing classification or principal;
 - preserve reason/audit ID for allow and deny; and
 - ensure an administrator's source permission does not create platform authority.
-

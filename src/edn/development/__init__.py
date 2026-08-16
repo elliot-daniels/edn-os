@@ -15,6 +15,19 @@ from edn.development.authority import (
     GitCheckpointAuthority,
     GitCheckpointRequest,
 )
+from edn.development.delegation import (
+    APPROVED_CREDENTIAL_MECHANISMS,
+    APPROVED_DELEGATED_CATEGORIES,
+    APPROVED_DELEGATED_SOURCE_SCOPES,
+    PROHIBITED_DELEGATED_OPERATIONS,
+    DelegatedAuthorityStore,
+    DelegatedClaim,
+    DelegatedGrant,
+    DelegatedOperation,
+    DelegatedOperationRequest,
+    DelegationError,
+    OwnerDelegationApproval,
+)
 from edn.development.models import (
     AgentResult,
     AuditEvent,
@@ -42,12 +55,22 @@ from edn.development.roadmap import DevelopmentRoadmap
 from edn.development.state import DevelopmentStateStore, validate_repository
 
 __all__ = [
+    "APPROVED_CREDENTIAL_MECHANISMS",
+    "APPROVED_DELEGATED_CATEGORIES",
+    "APPROVED_DELEGATED_SOURCE_SCOPES",
+    "PROHIBITED_DELEGATED_OPERATIONS",
     "AgentResult",
     "AuditEvent",
     "AuthorityDecision",
     "AuthorityOutcome",
     "AutonomousDevelopmentOrchestrator",
     "BaselineReviewer",
+    "DelegatedAuthorityStore",
+    "DelegatedClaim",
+    "DelegatedGrant",
+    "DelegatedOperation",
+    "DelegatedOperationRequest",
+    "DelegationError",
     "DevelopmentAgent",
     "DevelopmentAuditSink",
     "DevelopmentAuthorityPolicy",
@@ -64,6 +87,7 @@ __all__ = [
     "InMemoryDevelopmentAudit",
     "JsonlDevelopmentAudit",
     "ManualLocalAgent",
+    "OwnerDelegationApproval",
     "RepositoryInspector",
     "RepositorySnapshot",
     "ReviewDisposition",

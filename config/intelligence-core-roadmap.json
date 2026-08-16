@@ -1141,6 +1141,20 @@
       "successor_tasks": ["PA-009"]
     },
     {
+      "task_id": "IC-DEV-003-BOUNDED-DELEGATED-AUTHORITY",
+      "objective": "Implement a protected, expiring and revocable owner delegation boundary for repetitive repository and already-approved PA-005/PA-009 operations without weakening their independent controls.",
+      "prerequisites": ["IC-DEV-001", "PA-009-EVIDENCE-FRESHNESS-AND-TEMPORAL-VALIDITY"],
+      "authority_actions": ["repository.read", "code.development.write", "test.development.write", "documentation.write", "config.development.write", "state.development.write", "validation.pytest", "validation.ruff", "validation.mypy", "validation.whitespace", "git.commit.prepare"],
+      "risk": "critical",
+      "expected_components": ["src/edn/development", "tests/development", "docs/intelligence-core", "config"],
+      "acceptance_criteria": ["Grant binds owner/repository/branch/time/operations/source/provider/security/budget/kill-switch scope", "Protected durable store fails closed on expiry, revocation, drift, replay, tampering, concurrency and crash", "Existing PA-005, PA-009, budget and Git controls remain independently mandatory", "No grant is created or activated during repository implementation"],
+      "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy", "JSON/JSONL validation", "git diff --check"],
+      "stop_conditions": ["Grant activation", "Provider or live-source access", "Credential access", "External action", "Security/budget/disclosure weakening", "PA-010 scope"],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": []
+    },
+    {
       "task_id": "PA-009",
       "objective": "Integrate an approved global/model provider behind a private-evidence disclosure boundary.",
       "prerequisites": [
