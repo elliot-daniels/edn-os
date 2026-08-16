@@ -143,6 +143,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-16T11:55:55+09:30",
+  "updated_at": "2026-08-16T11:57:30+09:30",
   "provenance": "Owner-authorised repository-only PA-009 temporal hardening derives a closed lifecycle-relative state from already-admitted source timestamps, hash-binds it to protected projections, and rejects expired-event preparation or explicit elapsed deadlines while preserving retrospective use; 465 tests and focused PA-009 temporal boundaries passed with Ruff and strict mypy over 112 source files, with zero provider, live-source or credential access."
 }
