@@ -151,6 +151,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-16T13:41:19+09:30",
+  "updated_at": "2026-08-16T13:44:45+09:30",
   "provenance": "Owner activated exact bounded grant delegation-20260816T035831Z-d4cb82b652f5; repository-only IC-DEV-004 adds integrity-validated fresh-session discovery, while the unchanged 2026-08-16 successful-brief ceiling blocks the genuine PA-009 temporal proof until after this grant expires."
 }
