@@ -1155,6 +1155,20 @@
       "successor_tasks": []
     },
     {
+      "task_id": "IC-DEV-004-DELEGATED-SESSION-ADOPTION",
+      "objective": "Allow a fresh local session to discover exactly one integrity-validated active delegated grant by owner, repository and branch without chat-carried grant identity.",
+      "prerequisites": ["IC-DEV-003-BOUNDED-DELEGATED-AUTHORITY"],
+      "authority_actions": ["repository.read", "code.development.write", "test.development.write", "documentation.write", "config.development.write", "state.development.write", "validation.pytest", "validation.ruff", "validation.mypy", "validation.whitespace", "git.commit.prepare"],
+      "risk": "high",
+      "expected_components": ["src/edn/development", "tests/development", "docs/intelligence-core", "config"],
+      "acceptance_criteria": ["Fresh session resolves exactly one matching active grant", "Expiry, identity/repository/branch drift, ambiguity and tampering fail closed", "Discovery creates no claim and executes no operation"],
+      "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy", "JSON/JSONL validation", "git diff --check"],
+      "stop_conditions": ["Authority broadening", "Grant mutation", "External action", "PA-010 scope"],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": []
+    },
+    {
       "task_id": "PA-009",
       "objective": "Integrate an approved global/model provider behind a private-evidence disclosure boundary.",
       "prerequisites": [

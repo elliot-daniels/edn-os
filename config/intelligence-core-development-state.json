@@ -3,7 +3,7 @@
   "product": "EDN Intelligence Core",
   "version": "0.1.0-alpha",
   "current_branch": "feature/intelligence-core-v0.1",
-  "current_milestone": "PA-009 is provisionally validated with one genuine temporal proof retained as debt; bounded delegated-authority repository controls are implemented pending the first explicit owner grant",
+  "current_milestone": "Bounded delegation grant delegation-20260816T035831Z-d4cb82b652f5 is active until 2026-08-16T23:59:00+09:30 and fresh-session discovery is implemented; PA-009 temporal proof awaits the next admissible UTC day",
   "completed_increments": [
     "IC-001",
     "IC-002",
@@ -45,7 +45,8 @@
     "PA-009-OWNER-ATTESTED-OPENING-BALANCE",
     "PA-009-OWNER-RESULT-HANDOFF",
     "PA-009-EVIDENCE-FRESHNESS-AND-TEMPORAL-VALIDITY",
-    "IC-DEV-003-BOUNDED-DELEGATED-AUTHORITY"
+    "IC-DEV-003-BOUNDED-DELEGATED-AUTHORITY",
+    "IC-DEV-004-DELEGATED-SESSION-ADOPTION"
   ],
   "active_increment": null,
   "blocked_increments": [
@@ -67,7 +68,8 @@
     "OpenAI adapter remains disabled by default and every genuine dispatch requires a fresh protected projection and exact owner approval.",
     "Any subsequent genuine PA-009 dispatch requires safe credential verification, a fresh protected metadata-only preflight and a hash-bound expiring owner approval token.",
     "PA-009 is provisionally accepted for continued development; one genuine retained-result temporal-validity proof remains outstanding technical debt and must run only when the unchanged daily budget permits it.",
-    "No bounded delegated-authority grant has been created or activated; repository-side grant consumers do not bypass host/sandbox approvals or independently execute operations.",
+    "Bounded grant delegation-20260816T035831Z-d4cb82b652f5 is active only until 2026-08-16T23:59:00+09:30; it does not bypass host/sandbox approvals or independently execute operations.",
+    "The active grant expires before the 2026-08-17 UTC budget reset, so it cannot complete the outstanding genuine PA-009 temporal proof unless a later separately approved grant covers an admissible window.",
     "Proposals cannot execute.",
     "PDF/DOCX extraction is deliberately bounded and fails closed on unsupported PDF filters or ambiguous structures; live owner roots remain unauthorised.",
     "Current Outlook and Calendar live validation passed, but exact EDN category admission yielded zero retained records in both sources.",
@@ -82,7 +84,7 @@
       "python -m json.tool (state, roadmap, policy and each audit JSONL record)",
       "git diff --check"
     ],
-    "passed": 499,
+    "passed": 502,
     "failed": 0,
     "focused_pa009_synthetic": 8,
     "focused_pa009_openai": 63,
@@ -94,6 +96,7 @@
     "focused_pa009_result_handoff_and_boundaries": 118,
     "focused_pa009_temporal_validity": 17,
     "focused_bounded_delegated_authority": 34,
+    "focused_delegated_session_adoption": 3,
     "boundary_regressions": 71,
     "mypy_files": 113,
     "commands": [
@@ -103,7 +106,7 @@
       "JSON/JSONL validation",
       "git diff --check"
     ],
-    "validated_at": "2026-08-16T12:52:11+09:30"
+    "validated_at": "2026-08-16T13:37:47+09:30"
   },
   "repository_status": "clean-checkpoint-except-protected-pa005-pack-and-local-wsl-validation-environment",
   "expected_dirty_paths": [
@@ -116,7 +119,7 @@
     "Separately authorise IC-009-LIVE when ready.",
     "Approve a named model provider, genuine evidence disclosure categories, retention/cost policy and threat model before PA-009.",
     "Before any subsequent real request: approve the exact fresh preflight hash and expiry; model, disclosure, retention/residency, credential, pilot-duration and kill-switch boundaries remain unchanged unless separately approved.",
-    "Create the first bounded delegated-authority grant only through an exact owner approval binding owner, repository, branch, operations, start, expiry and integrity hash.",
+    "After the active grant expires, separately approve any successor grant needed to reach an admissible UTC day for the outstanding genuine PA-009 temporal proof.",
     "Approve future SharePoint content or external execution separately."
   ],
   "external_capability_blockers": [
@@ -148,6 +151,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-16T13:18:13+09:30",
-  "provenance": "Owner provisionally accepted PA-009 while explicitly retaining one genuine temporal proof as debt; repository-only IC-DEV-003 adds a protected, hash-bound, expiring, revocable and replay-safe delegated operation boundary without creating a grant or weakening independent Git, PA-005 or PA-009 controls."
+  "updated_at": "2026-08-16T13:37:47+09:30",
+  "provenance": "Owner activated exact bounded grant delegation-20260816T035831Z-d4cb82b652f5; repository-only IC-DEV-004 adds integrity-validated fresh-session discovery, while the unchanged 2026-08-16 successful-brief ceiling blocks the genuine PA-009 temporal proof until after this grant expires."
 }

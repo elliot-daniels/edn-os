@@ -381,6 +381,39 @@ class DelegatedAuthorityStore:
             return "expired"
         return state
 
+    def resolve_active(
+        self,
+        *,
+        owner_id: str,
+        repository_root: str,
+        branch: str,
+        now: datetime,
+    ) -> DelegatedGrant:
+        """Resolve exactly one active grant for fresh-session reconstruction."""
+
+        if now.tzinfo is None:
+            raise DelegationError("delegated resolution time is invalid")
+        matches: list[DelegatedGrant] = []
+        with closing(self._connection()) as connection:
+            grant_ids = tuple(
+                str(row[0]) for row in connection.execute("SELECT grant_id FROM grants")
+            )
+            for grant_id in grant_ids:
+                grant, state = self._load(connection, grant_id)
+                if (
+                    state == "active"
+                    and grant.starts_at <= now < grant.expires_at
+                    and grant.owner_id == owner_id
+                    and grant.repository_root == repository_root
+                    and grant.branch == branch
+                ):
+                    matches.append(grant)
+        if not matches:
+            raise DelegationError("no active delegated grant matches this session")
+        if len(matches) != 1:
+            raise DelegationError("active delegated grant is ambiguous")
+        return matches[0]
+
     def audit_events(self, grant_id: str) -> tuple[tuple[str, str, str], ...]:
         with closing(self._connection()) as connection:
             rows = connection.execute(

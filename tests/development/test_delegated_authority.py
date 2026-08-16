@@ -156,6 +156,76 @@ def test_grant_persists_across_restart_and_audit_is_metadata_only(
     assert grant.provider not in serialized
 
 
+def test_fresh_session_resolves_exact_active_grant(tmp_path: Path) -> None:
+    repository = tmp_path / "repo"
+    repository.mkdir()
+    grant = _grant(repository)
+    _activate(_store(tmp_path), grant)
+
+    resolved = _store(tmp_path).resolve_active(
+        owner_id=grant.owner_id,
+        repository_root=grant.repository_root,
+        branch=grant.branch,
+        now=NOW + timedelta(minutes=1),
+    )
+
+    assert resolved == grant
+    assert resolved.integrity_hash() == grant.integrity_hash()
+
+
+def test_active_grant_resolution_fails_on_expiry_scope_drift_and_ambiguity(
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "repo"
+    repository.mkdir()
+    grant = _grant(repository)
+    store = _store(tmp_path)
+    _activate(store, grant)
+    for changes in (
+        {"owner_id": "other"},
+        {"repository_root": str(tmp_path / "other")},
+        {"branch": "feature/other"},
+        {"now": grant.expires_at},
+    ):
+        request: dict[str, object] = {
+            "owner_id": grant.owner_id,
+            "repository_root": grant.repository_root,
+            "branch": grant.branch,
+            "now": NOW + timedelta(minutes=1),
+        }
+        request.update(changes)
+        with pytest.raises(DelegationError, match="no active"):
+            store.resolve_active(**request)  # type: ignore[arg-type]
+
+    second = _grant(repository, grant_id="delegation-second")
+    _activate(store, second)
+    with pytest.raises(DelegationError, match="ambiguous"):
+        store.resolve_active(
+            owner_id=grant.owner_id,
+            repository_root=grant.repository_root,
+            branch=grant.branch,
+            now=NOW + timedelta(minutes=1),
+        )
+
+
+def test_fresh_session_resolution_fails_on_any_grant_tampering(tmp_path: Path) -> None:
+    repository = tmp_path / "repo"
+    repository.mkdir()
+    grant = _grant(repository)
+    store = _store(tmp_path)
+    _activate(store, grant)
+    with sqlite3.connect(store.path) as connection:
+        connection.execute("UPDATE grants SET integrity_hash='changed'")
+
+    with pytest.raises(DelegationError, match="integrity"):
+        store.resolve_active(
+            owner_id=grant.owner_id,
+            repository_root=grant.repository_root,
+            branch=grant.branch,
+            now=NOW + timedelta(minutes=1),
+        )
+
+
 def test_expiry_revocation_and_kill_switch_fail_closed(tmp_path: Path) -> None:
     repository = tmp_path / "repo"
     repository.mkdir()

@@ -99,6 +99,15 @@ consume a claim at their existing enforcement point before any future delegated
 live use. Until that wiring is invoked under an active owner grant, current
 per-request workflows remain unchanged.
 
+### Fresh-session adoption
+
+`resolve_active(owner_id, repository_root, branch, now)` now reconstructs exactly
+one active grant without requiring chat history or a copied grant ID. It reloads
+and verifies every stored grant, then matches exact owner, repository and branch
+inside the grant window. No match, expiry, tampering or multiple simultaneous
+matches fail closed. The method returns authority metadata only and neither
+claims nor executes an operation.
+
 ## Residual PA-009 validation
 
 The owner provisionally accepts PA-009 for continued development. Repository and
