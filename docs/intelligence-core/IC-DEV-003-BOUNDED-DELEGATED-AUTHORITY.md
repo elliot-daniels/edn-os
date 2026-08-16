@@ -108,6 +108,47 @@ inside the grant window. No match, expiry, tampering or multiple simultaneous
 matches fail closed. The method returns authority metadata only and neither
 claims nor executes an operation.
 
+### Stable lifecycle command boundary
+
+`python -m edn.development.delegation_cli` is the single narrow command prefix
+for routine host approval of delegation-store access. It provides only:
+
+- `resolve`, which identifies the one exact integrity-validated active grant;
+- `claim`, which durably claims one declared operation after the existing grant
+  checks admit its exact paths, source scopes, Git preconditions or PA-009
+  bindings;
+- `validate`, which revalidates one claimed operation immediately before work;
+- `complete`, which terminally completes one exact claim; and
+- `claim-status`, which reads the bounded lifecycle metadata needed for crash or
+  interruption reconciliation.
+
+The command does not activate, broaden, extend, revoke or kill a grant. It also
+does not run Git, tests, source retrieval, credential access, provider transport
+or any claimed operation. PA-005 claims still require an exact approved source
+scope and an explicit assertion that their independent controls passed. PA-009
+claims still require the grant-bound credential mechanism and independent
+control assertion; dispatch additionally requires the exact protected-preflight
+hash. Git claims still require explicit validation and exact-upstream
+preconditions.
+
+Output is canonical metadata-only JSON containing grant or claim identity,
+operation and closed lifecycle outcome. It never returns source scopes,
+categories, paths, provider payloads, credentials or operation inputs. Operation
+IDs use a bounded safe character set. The CLI verifies the grant binding and
+hash-chained audit before every command, and expiry, revocation, kill switch,
+tampering, ambiguity, scope drift and replay continue to fail closed.
+
+Every newly created claim row is also canonically SHA-256 bound across operation
+ID, grant ID, operation, state, claim time and completion time. Both validation
+and completion verify that binding, and completion atomically replaces it with
+the terminal-state binding. The additive migration does not bless legacy rows:
+pre-migration claims remain unbound and therefore cannot become executable under
+the new CLI. At migration time all 25 legacy claims were already completed and
+there were no active or orphaned claims. Dispatch claim input additionally
+requires the preflight hash to be exactly 64 lowercase hexadecimal characters;
+the protected-preflight boundary still independently verifies its meaning and
+byte identity.
+
 ## Residual PA-009 validation
 
 The owner provisionally accepts PA-009 for continued development. Repository and

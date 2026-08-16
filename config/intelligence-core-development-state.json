@@ -3,7 +3,7 @@
   "product": "EDN Intelligence Core",
   "version": "0.1.0-alpha",
   "current_branch": "feature/intelligence-core-v0.1",
-  "current_milestone": "Bounded delegation grant delegation-20260816T035831Z-d4cb82b652f5 is active until 2026-08-16T23:59:00+09:30 and fresh-session discovery is implemented; PA-009 temporal proof awaits the next admissible UTC day",
+  "current_milestone": "Bounded delegation grant delegation-20260816T035831Z-d4cb82b652f5 is active until 2026-08-16T23:59:00+09:30 with fresh-session discovery and a stable non-executing claim-lifecycle CLI; PA-009 temporal proof awaits the next admissible UTC day",
   "completed_increments": [
     "IC-001",
     "IC-002",
@@ -46,7 +46,8 @@
     "PA-009-OWNER-RESULT-HANDOFF",
     "PA-009-EVIDENCE-FRESHNESS-AND-TEMPORAL-VALIDITY",
     "IC-DEV-003-BOUNDED-DELEGATED-AUTHORITY",
-    "IC-DEV-004-DELEGATED-SESSION-ADOPTION"
+    "IC-DEV-004-DELEGATED-SESSION-ADOPTION",
+    "IC-DEV-005-DELEGATION-LIFECYCLE-CLI"
   ],
   "active_increment": null,
   "blocked_increments": [
@@ -70,6 +71,7 @@
     "PA-009 is provisionally accepted for continued development; one genuine retained-result temporal-validity proof remains outstanding technical debt and must run only when the unchanged daily budget permits it.",
     "Bounded grant delegation-20260816T035831Z-d4cb82b652f5 is active only until 2026-08-16T23:59:00+09:30; it does not bypass host/sandbox approvals or independently execute operations.",
     "The active grant expires before the 2026-08-17 UTC budget reset, so it cannot complete the outstanding genuine PA-009 temporal proof unless a later separately approved grant covers an admissible window.",
+    "The stable delegation lifecycle CLI manages authority metadata only; callers remain responsible for executing and independently validating each claimed operation.",
     "Proposals cannot execute.",
     "PDF/DOCX extraction is deliberately bounded and fails closed on unsupported PDF filters or ambiguous structures; live owner roots remain unauthorised.",
     "Current Outlook and Calendar live validation passed, but exact EDN category admission yielded zero retained records in both sources.",
@@ -84,7 +86,7 @@
       "python -m json.tool (state, roadmap, policy and each audit JSONL record)",
       "git diff --check"
     ],
-    "passed": 502,
+    "passed": 511,
     "failed": 0,
     "focused_pa009_synthetic": 8,
     "focused_pa009_openai": 63,
@@ -95,10 +97,11 @@
     "focused_pa009_durable_budget": 8,
     "focused_pa009_result_handoff_and_boundaries": 118,
     "focused_pa009_temporal_validity": 17,
-    "focused_bounded_delegated_authority": 34,
+    "focused_bounded_delegated_authority": 46,
     "focused_delegated_session_adoption": 3,
+    "focused_delegation_lifecycle_cli": 8,
     "boundary_regressions": 71,
-    "mypy_files": 113,
+    "mypy_files": 114,
     "commands": [
       "./.venv-wsl/bin/python -m pytest -q",
       "./.venv-wsl/bin/ruff check .",
@@ -106,7 +109,7 @@
       "JSON/JSONL validation",
       "git diff --check"
     ],
-    "validated_at": "2026-08-16T13:37:47+09:30"
+    "validated_at": "2026-08-16T14:13:14+09:30"
   },
   "repository_status": "clean-checkpoint-except-protected-pa005-pack-and-local-wsl-validation-environment",
   "expected_dirty_paths": [
@@ -151,6 +154,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-16T13:44:45+09:30",
-  "provenance": "Owner activated exact bounded grant delegation-20260816T035831Z-d4cb82b652f5; repository-only IC-DEV-004 adds integrity-validated fresh-session discovery, while the unchanged 2026-08-16 successful-brief ceiling blocks the genuine PA-009 temporal proof until after this grant expires."
+  "updated_at": "2026-08-16T14:13:14+09:30",
+  "provenance": "Owner activated exact bounded grant delegation-20260816T035831Z-d4cb82b652f5; IC-DEV-004 adds integrity-validated fresh-session discovery and IC-DEV-005 adds a stable non-executing lifecycle CLI, while the unchanged 2026-08-16 successful-brief ceiling blocks the genuine PA-009 temporal proof until after this grant expires."
 }

@@ -1169,6 +1169,20 @@
       "successor_tasks": []
     },
     {
+      "task_id": "IC-DEV-005-DELEGATION-LIFECYCLE-CLI",
+      "objective": "Provide one narrow stable command prefix for protected delegated claim resolution and lifecycle reconciliation without adding an operation executor.",
+      "prerequisites": ["IC-DEV-004-DELEGATED-SESSION-ADOPTION"],
+      "authority_actions": ["repository.read", "code.development.write", "test.development.write", "documentation.write", "config.development.write", "state.development.write", "validation.pytest", "validation.ruff", "validation.mypy", "validation.static", "git.commit.prepare"],
+      "risk": "high",
+      "expected_components": ["src/edn/development", "tests/development", "docs/intelligence-core", "config"],
+      "acceptance_criteria": ["Stable CLI resolves, claims, validates, completes and reconciles exact claim metadata", "CLI cannot activate or change grant authority and never executes the claimed operation", "Independent Git, PA-005 and PA-009 controls remain mandatory", "Expiry, revocation, tampering, replay and scope drift fail closed"],
+      "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy src/edn", "JSON/JSONL validation", "git diff --check"],
+      "stop_conditions": ["Authority broadening", "Generic executor", "External action", "PA-010 scope"],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": []
+    },
+    {
       "task_id": "PA-009",
       "objective": "Integrate an approved global/model provider behind a private-evidence disclosure boundary.",
       "prerequisites": [

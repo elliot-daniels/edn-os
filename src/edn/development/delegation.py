@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 import sqlite3
@@ -215,6 +216,15 @@ class DelegatedClaim:
     claimed_at: datetime
 
 
+@dataclass(frozen=True, slots=True)
+class DelegatedClaimRecord:
+    """Read-only durable lifecycle metadata for one delegated claim."""
+
+    claim: DelegatedClaim
+    state: str
+    completed_at: datetime | None
+
+
 _MAX_GRANT_DURATION = timedelta(days=7)
 _PA009_OPERATIONS = frozenset(
     {
@@ -301,16 +311,26 @@ class DelegatedAuthorityStore:
                 connection.commit()
                 raise DelegationError(reason)
             try:
+                claimed_at = _time(request.requested_at)
+                integrity_hash = _claim_hash(
+                    request.operation_id,
+                    request.grant_id,
+                    request.operation,
+                    "claimed",
+                    claimed_at,
+                    None,
+                )
                 connection.execute(
                     "INSERT INTO claims(operation_id,grant_id,operation,state,"
-                    "claimed_at) "
-                    "VALUES(?,?,?,?,?)",
+                    "claimed_at,integrity_hash) "
+                    "VALUES(?,?,?,?,?,?)",
                     (
                         request.operation_id,
                         request.grant_id,
                         request.operation,
                         "claimed",
-                        _time(request.requested_at),
+                        claimed_at,
+                        integrity_hash,
                     ),
                 )
             except sqlite3.IntegrityError as exc:
@@ -336,11 +356,42 @@ class DelegatedAuthorityStore:
             grant, state = self._load(connection, claim.grant_id)
             if state != "active" or not (grant.starts_at <= now < grant.expires_at):
                 raise DelegationError("delegated claim is no longer executable")
+            row = connection.execute(
+                "SELECT operation,state,claimed_at,completed_at,integrity_hash "
+                "FROM claims WHERE operation_id=? AND grant_id=?",
+                (claim.operation_id, claim.grant_id),
+            ).fetchone()
+            if row is None:
+                raise DelegationError("delegated claim is missing or terminal")
+            _verify_claim_integrity(
+                claim.operation_id,
+                claim.grant_id,
+                str(row[0]),
+                str(row[1]),
+                str(row[2]),
+                None if row[3] is None else str(row[3]),
+                None if row[4] is None else str(row[4]),
+            )
+            completed_at = _time(now)
+            integrity_hash = _claim_hash(
+                claim.operation_id,
+                claim.grant_id,
+                claim.operation,
+                "completed",
+                _time(claim.claimed_at),
+                completed_at,
+            )
             changed = connection.execute(
-                "UPDATE claims SET state='completed',completed_at=? "
+                "UPDATE claims SET state='completed',completed_at=?,integrity_hash=? "
                 "WHERE operation_id=? AND grant_id=? AND operation=? "
                 "AND state='claimed'",
-                (_time(now), claim.operation_id, claim.grant_id, claim.operation),
+                (
+                    completed_at,
+                    integrity_hash,
+                    claim.operation_id,
+                    claim.grant_id,
+                    claim.operation,
+                ),
             ).rowcount
             if changed != 1:
                 raise DelegationError("delegated claim is missing or terminal")
@@ -349,16 +400,81 @@ class DelegatedAuthorityStore:
             )
             connection.commit()
 
+    def claim_record(self, operation_id: str) -> DelegatedClaimRecord:
+        """Load one exact claim without creating or changing authority."""
+
+        with closing(self._connection()) as connection:
+            row = connection.execute(
+                "SELECT grant_id,operation,state,claimed_at,completed_at,"
+                "integrity_hash "
+                "FROM claims WHERE operation_id=?",
+                (operation_id,),
+            ).fetchone()
+        if row is None:
+            raise DelegationError("delegated claim is unavailable")
+        grant_id, operation, state, claimed_at, completed_at = (
+            str(row[0]),
+            str(row[1]),
+            str(row[2]),
+            str(row[3]),
+            row[4],
+        )
+        _verify_claim_integrity(
+            operation_id,
+            grant_id,
+            operation,
+            state,
+            claimed_at,
+            None if completed_at is None else str(completed_at),
+            None if row[5] is None else str(row[5]),
+        )
+        if state not in {"claimed", "completed"}:
+            raise DelegationError("delegated claim state is corrupt")
+        try:
+            claimed = datetime.fromisoformat(claimed_at)
+            completed = (
+                None
+                if completed_at is None
+                else datetime.fromisoformat(str(completed_at))
+            )
+        except ValueError as exc:
+            raise DelegationError("delegated claim timestamp is corrupt") from exc
+        if (
+            claimed.tzinfo is None
+            or (state == "claimed" and completed is not None)
+            or (
+                state == "completed"
+                and (completed is None or completed.tzinfo is None)
+            )
+        ):
+            raise DelegationError("delegated claim lifecycle is corrupt")
+        return DelegatedClaimRecord(
+            DelegatedClaim(grant_id, operation_id, operation, claimed),
+            state,
+            completed,
+        )
+
     def validate_claim(self, claim: DelegatedClaim, *, now: datetime) -> None:
         """Recheck a claim immediately before its local or bounded operation."""
 
         with closing(self._connection()) as connection:
             grant, state = self._load(connection, claim.grant_id)
             row = connection.execute(
-                "SELECT operation,state FROM claims WHERE operation_id=? "
+                "SELECT operation,state,claimed_at,completed_at,integrity_hash "
+                "FROM claims WHERE operation_id=? "
                 "AND grant_id=?",
                 (claim.operation_id, claim.grant_id),
             ).fetchone()
+        if row is not None:
+            _verify_claim_integrity(
+                claim.operation_id,
+                claim.grant_id,
+                str(row[0]),
+                str(row[1]),
+                str(row[2]),
+                None if row[3] is None else str(row[3]),
+                None if row[4] is None else str(row[4]),
+            )
         if (
             state != "active"
             or not (grant.starts_at <= now < grant.expires_at)
@@ -648,8 +764,13 @@ class DelegatedAuthorityStore:
         connection.execute(
             "CREATE TABLE IF NOT EXISTS claims(operation_id TEXT PRIMARY KEY,grant_id "
             "TEXT NOT NULL,operation TEXT NOT NULL,state TEXT NOT NULL,claimed_at TEXT "
-            "NOT NULL,completed_at TEXT)"
+            "NOT NULL,completed_at TEXT,integrity_hash TEXT)"
         )
+        claim_columns = {
+            str(row[1]) for row in connection.execute("PRAGMA table_info(claims)")
+        }
+        if "integrity_hash" not in claim_columns:
+            connection.execute("ALTER TABLE claims ADD COLUMN integrity_hash TEXT")
         connection.execute(
             "CREATE TABLE IF NOT EXISTS audit(sequence INTEGER PRIMARY KEY,"
             "grant_id TEXT NOT NULL,event_type TEXT NOT NULL,reason TEXT NOT NULL,"
@@ -697,6 +818,49 @@ def _strings(value: dict[str, Any], key: str) -> tuple[str, ...]:
 
 def _canonical(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+
+
+def _claim_hash(
+    operation_id: str,
+    grant_id: str,
+    operation: str,
+    state: str,
+    claimed_at: str,
+    completed_at: str | None,
+) -> str:
+    return hashlib.sha256(
+        _canonical(
+            {
+                "operation_id": operation_id,
+                "grant_id": grant_id,
+                "operation": operation,
+                "state": state,
+                "claimed_at": claimed_at,
+                "completed_at": completed_at,
+            }
+        )
+    ).hexdigest()
+
+
+def _verify_claim_integrity(
+    operation_id: str,
+    grant_id: str,
+    operation: str,
+    state: str,
+    claimed_at: str,
+    completed_at: str | None,
+    integrity_hash: str | None,
+) -> None:
+    expected = _claim_hash(
+        operation_id,
+        grant_id,
+        operation,
+        state,
+        claimed_at,
+        completed_at,
+    )
+    if integrity_hash is None or not hmac.compare_digest(integrity_hash, expected):
+        raise DelegationError("delegated claim integrity failure")
 
 
 def _time(value: datetime) -> str:

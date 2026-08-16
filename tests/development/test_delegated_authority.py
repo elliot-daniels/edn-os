@@ -341,6 +341,25 @@ def test_metadata_audit_tampering_fails_closed(tmp_path: Path) -> None:
         store.audit_events(grant.grant_id)
 
 
+def test_claim_row_tampering_fails_integrity_validation(tmp_path: Path) -> None:
+    repository = tmp_path / "repo"
+    repository.mkdir()
+    grant = _grant(repository)
+    store = _store(tmp_path)
+    _activate(store, grant)
+    claim = store.claim(_request(grant))
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            "UPDATE claims SET operation='pa010.begin' WHERE operation_id=?",
+            (claim.operation_id,),
+        )
+
+    with pytest.raises(DelegationError, match="claim integrity"):
+        store.validate_claim(claim, now=NOW + timedelta(minutes=2))
+    with pytest.raises(DelegationError, match="claim integrity"):
+        store.claim_record(claim.operation_id)
+
+
 def test_replay_and_concurrent_double_claim_are_denied(tmp_path: Path) -> None:
     repository = tmp_path / "repo"
     repository.mkdir()
