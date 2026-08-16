@@ -110,7 +110,7 @@
     ".venv-wsl/",
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
-  "last_validated_commit": "f33c32694cd137b8d4474758d89eeffce5d3a502",
+  "last_validated_commit": "cf0467e7c972700948c54ca7702c873a7fd04adb",
   "next_recommended_increment": null,
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
@@ -148,6 +148,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-16T12:52:11+09:30",
+  "updated_at": "2026-08-16T13:15:44+09:30",
   "provenance": "Owner provisionally accepted PA-009 while explicitly retaining one genuine temporal proof as debt; repository-only IC-DEV-003 adds a protected, hash-bound, expiring, revocable and replay-safe delegated operation boundary without creating a grant or weakening independent Git, PA-005 or PA-009 controls."
 }
