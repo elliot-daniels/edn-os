@@ -1127,6 +1127,20 @@
       "successor_tasks": ["PA-009"]
     },
     {
+      "task_id": "PA-009-EVIDENCE-FRESHNESS-AND-TEMPORAL-VALIDITY",
+      "objective": "Derive lifecycle-relative temporal state from already-authorised source metadata and reject time-invalid model statements without broadening disclosure.",
+      "prerequisites": ["PA-009-OWNER-RESULT-HANDOFF"],
+      "authority_actions": ["repository.read", "code.development.write", "test.development.write", "documentation.write", "synthetic.fixture.write", "validation.pytest", "validation.ruff", "validation.mypy", "validation.whitespace", "git.commit.prepare", "config.development.write", "state.development.write"],
+      "risk": "critical",
+      "expected_components": ["src/edn/intelligence", "tests/intelligence", "docs/intelligence-core", "config"],
+      "acceptance_criteria": ["Every projected item has a closed lifecycle-relative temporal state", "Calendar past/current/future and Inbox/Local Files old/recent states derive only from admitted metadata", "Expired events cannot support prospective preparation and historical evidence remains retrospectively useful", "Temporal metadata does not broaden provider disclosure or durable audit/result content"],
+      "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy src/edn", "JSON/JSONL validation", "git diff --check"],
+      "stop_conditions": ["Provider or live-source access", "Credential access", "Disclosure broadening", "Audit/result source-content persistence", "PA-010 scope"],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": ["PA-009"]
+    },
+    {
       "task_id": "PA-009",
       "objective": "Integrate an approved global/model provider behind a private-evidence disclosure boundary.",
       "prerequisites": [

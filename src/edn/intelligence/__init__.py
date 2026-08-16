@@ -51,6 +51,7 @@ from edn.intelligence.models import (
     IntelligenceResponse,
     IntelligenceStatement,
     StatementKind,
+    TemporalState,
 )
 from edn.intelligence.openai_provider import (
     OPENAI_INPUT_USD_PER_MILLION,
@@ -194,6 +195,7 @@ __all__ = [
     "SourceBriefPolicy",
     "StatementKind",
     "SyntheticModelProvider",
+    "TemporalState",
     "ValidatedProviderResult",
     "proposal_fingerprint",
 ]

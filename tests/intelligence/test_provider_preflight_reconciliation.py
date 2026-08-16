@@ -16,6 +16,7 @@ from edn.intelligence import (
     ProjectedEvidence,
     ProtectedPreflightStore,
     ProtectedProjectionEnvelope,
+    TemporalState,
 )
 
 NOW = datetime(2026, 8, 15, tzinfo=UTC)
@@ -38,6 +39,7 @@ def _envelope(
         NOW,
         "inbox.metadata",
         True,
+        TemporalState.CURRENT_RECENT,
     )
     request = ModelRequest(
         request_id,
@@ -45,7 +47,7 @@ def _envelope(
         "owner",
         "EDN",
         ("disclosed-1",),
-        DisclosureProjection(request_id, (item,), 42),
+        DisclosureProjection(request_id, (item,), 42, reference_time=created_at),
         CLASSIFICATION,
         "model.summarize",
         5,

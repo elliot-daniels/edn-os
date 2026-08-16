@@ -20,7 +20,7 @@ from edn.intelligence.model_boundary import (
     ModelRequest,
     ProjectedEvidence,
 )
-from edn.intelligence.models import FreshnessState
+from edn.intelligence.models import FreshnessState, TemporalState
 
 SCHEMA_VERSION = "1.0.0"
 DIRECTORY_MODE = 0o700
@@ -441,6 +441,11 @@ def _request_dict(request: ModelRequest) -> dict[str, object]:
             "request_id": request.projection.request_id,
             "total_chars": request.projection.total_chars,
             "redactions": list(request.projection.redactions),
+            "reference_time": (
+                None
+                if request.projection.reference_time is None
+                else _timestamp(request.projection.reference_time)
+            ),
             "items": [_item_dict(item) for item in request.projection.items],
         },
         "classification": request.classification.to_dict(),
@@ -462,11 +467,13 @@ def _item_dict(item: ProjectedEvidence) -> dict[str, object]:
         ),
         "field_category": item.field_category,
         "provider_approved": item.provider_approved,
+        "temporal_state": item.temporal_state.value,
     }
 
 
 def _request(value: dict[str, Any]) -> ModelRequest:
     projection = _object(value.get("projection"))
+    reference_time = projection.get("reference_time")
     return ModelRequest(
         str(value["request_id"]),
         str(value["purpose"]),
@@ -481,6 +488,7 @@ def _request(value: dict[str, Any]) -> ModelRequest:
             tuple(_item(_object(item)) for item in _list(projection.get("items"))),
             int(projection["total_chars"]),
             tuple(str(item) for item in _list(projection.get("redactions"))),
+            None if reference_time is None else _datetime(reference_time),
         ),
         Classification.from_dict(_object(value.get("classification"))),
         "model.summarize",
@@ -501,6 +509,7 @@ def _item(value: dict[str, Any]) -> ProjectedEvidence:
         None if timestamp is None else _datetime(timestamp),
         str(value["field_category"]),
         value.get("provider_approved") is True,
+        TemporalState(str(value["temporal_state"])),
     )
 
 

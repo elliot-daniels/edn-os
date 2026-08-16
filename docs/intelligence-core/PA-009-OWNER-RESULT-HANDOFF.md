@@ -1,8 +1,9 @@
 # PA-009 — Protected Owner-Review Result Handoff
 
-Status: repository implementation complete; synthetic validation passed. A fresh
-owner-approved PA-009 lifecycle is still required to prove post-process owner
-review with a genuine validated result.
+Status: repository implementation and one genuine post-process retained-result
+proof passed. That review exposed a separate temporal-projection defect, now
+addressed by `PA-009-EVIDENCE-FRESHNESS-AND-TEMPORAL-VALIDITY.md`; the handoff
+schema and authority boundary are unchanged.
 
 ## Boundary
 
@@ -93,9 +94,9 @@ first authorised hygiene run found two unrelated active envelopes, proved both
 expired from their protected lifecycle metadata, removed both, and found zero
 claimed envelopes.
 
-## Remaining activation gate
+## Remaining temporal proof gate
 
 Routine PA-009 use remains blocked until one fresh, separately owner-approved
-protected lifecycle succeeds with this implementation and the owner reloads and
-reviews the sanitised typed result after process exit. Delegated or autonomous
-authority remains out of scope.
+protected lifecycle demonstrates genuine historical evidence is labelled and
+cannot generate a time-invalid action. Delegated or autonomous authority remains
+out of scope.

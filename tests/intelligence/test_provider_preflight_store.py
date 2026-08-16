@@ -27,11 +27,13 @@ from edn.intelligence import (
     ProtectedPreflightStore,
     ProviderApproval,
     ProviderFailureCode,
+    TemporalState,
 )
 from edn.intelligence.provider_preflight_store import canonical_json
 
 CLASSIFICATION = Classification("edn", "confidential", "EDN Confidential", 2)
 EXPIRY = datetime(2099, 1, 1, tzinfo=UTC)
+REFERENCE_TIME = datetime(2026, 8, 14, tzinfo=UTC)
 
 
 class FakeTransport:
@@ -129,6 +131,7 @@ def _request(*, excerpt: str = "Synthetic metadata only") -> ModelRequest:
         datetime(2026, 8, 14, tzinfo=UTC),
         "inbox.metadata",
         True,
+        TemporalState.CURRENT_RECENT,
     )
     return ModelRequest(
         "protected-request-1",
@@ -136,7 +139,9 @@ def _request(*, excerpt: str = "Synthetic metadata only") -> ModelRequest:
         "owner",
         "EDN",
         ("disclosed-1",),
-        DisclosureProjection("protected-request-1", (item,), 42),
+        DisclosureProjection(
+            "protected-request-1", (item,), 42, reference_time=REFERENCE_TIME
+        ),
         CLASSIFICATION,
         "model.summarize",
         5,

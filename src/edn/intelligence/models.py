@@ -34,6 +34,16 @@ class FreshnessState(StrEnum):
     UNKNOWN = "unknown_freshness"
 
 
+class TemporalState(StrEnum):
+    """Closed PA-009 interpretation of evidence at one lifecycle time."""
+
+    FUTURE = "future"
+    CURRENT_RECENT = "current_recent"
+    STALE_HISTORICAL = "stale_historical"
+    EXPIRED_PAST_EVENT = "expired_past_event"
+    UNKNOWN_UNDETERMINED = "unknown_undetermined"
+
+
 class BriefSectionKind(StrEnum):
     EXECUTIVE_SUMMARY = "executive_summary"
     IMMEDIATE_ATTENTION = "immediate_attention"
@@ -74,6 +84,8 @@ class ContextEvidence:
     source_timestamp: datetime | None = None
     timestamp_kind: str | None = None
     freshness_state: FreshnessState = FreshnessState.UNKNOWN
+    temporal_start: datetime | None = None
+    temporal_end: datetime | None = None
 
     def __post_init__(self) -> None:
         if not self.context_id or not self.capability_id:
@@ -90,6 +102,17 @@ class ContextEvidence:
             raise ValueError(
                 "source timestamp and timestamp kind must be declared together"
             )
+        for boundary in (self.temporal_start, self.temporal_end):
+            if boundary is not None and boundary.tzinfo is None:
+                raise ValueError("temporal boundaries must be timezone-aware")
+        if (self.temporal_start is None) != (self.temporal_end is None):
+            raise ValueError("temporal start and end must be declared together")
+        if (
+            self.temporal_start is not None
+            and self.temporal_end is not None
+            and self.temporal_end < self.temporal_start
+        ):
+            raise ValueError("temporal end must not precede temporal start")
 
 
 @dataclass(frozen=True, slots=True)

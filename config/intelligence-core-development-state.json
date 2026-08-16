@@ -3,7 +3,7 @@
   "product": "EDN Intelligence Core",
   "version": "0.1.0-alpha",
   "current_branch": "feature/intelligence-core-v0.1",
-  "current_milestone": "PA-009 now has protected 30-day sanitised typed-result handoff and reconciled protected-envelope hygiene; one fresh owner-approved retained-result pilot remains required",
+  "current_milestone": "PA-009 retained-result proof passed; temporal projection now derives fail-closed lifecycle-relative state and blocks time-invalid statements pending one genuine temporal proof",
   "completed_increments": [
     "IC-001",
     "IC-002",
@@ -43,7 +43,8 @@
     "PA-009-DURABLE-PROVIDER-AUDIT-AND-OUTPUT-CEILING",
     "PA-009-DURABLE-BUDGET-LEDGER",
     "PA-009-OWNER-ATTESTED-OPENING-BALANCE",
-    "PA-009-OWNER-RESULT-HANDOFF"
+    "PA-009-OWNER-RESULT-HANDOFF",
+    "PA-009-EVIDENCE-FRESHNESS-AND-TEMPORAL-VALIDITY"
   ],
   "active_increment": null,
   "blocked_increments": [
@@ -61,10 +62,10 @@
     "No standing model/global provider authority exists; PA-009 remains exact-request owner-gated.",
     "The first technically successful real PA-009 lifecycle validated seven typed statements at the 2,000-token ceiling, but pre-dated protected typed-result retention so its statement text is unavailable for owner usefulness review.",
     "Durable PA-009 audit is metadata-only and crash-safe, but a crash after transport-started and before transport-returned remains an intentionally unknown terminal state that cannot be replayed.",
-    "Historical August pilot counters remain unknown_pre_ledger; an owner-attested AUD 1 carry-in preserves monthly conservatism and current-day admission remains closed until 2026-08-15T00:00:00Z.",
+    "Historical August pilot counters remain unknown_pre_ledger; an owner-attested AUD 1 carry-in preserves monthly conservatism.",
     "OpenAI adapter remains disabled by default and every genuine dispatch requires a fresh protected projection and exact owner approval.",
     "Any subsequent genuine PA-009 dispatch requires safe credential verification, a fresh protected metadata-only preflight and a hash-bound expiring owner approval token.",
-    "Routine PA-009 use remains blocked until one fresh successful protected lifecycle persists and reloads its sanitised typed result for owner review after process exit.",
+    "The retained-result proof passed, but routine PA-009 use remains blocked until one fresh genuine proof confirms historical evidence is labelled and cannot generate time-invalid action.",
     "Proposals cannot execute.",
     "PDF/DOCX extraction is deliberately bounded and fails closed on unsupported PDF filters or ambiguous structures; live owner roots remain unauthorised.",
     "Current Outlook and Calendar live validation passed, but exact EDN category admission yielded zero retained records in both sources.",
@@ -79,7 +80,7 @@
       "python -m json.tool (state, roadmap, policy and each audit JSONL record)",
       "git diff --check"
     ],
-    "passed": 448,
+    "passed": 465,
     "failed": 0,
     "focused_pa009_synthetic": 8,
     "focused_pa009_openai": 63,
@@ -88,9 +89,10 @@
     "focused_pa009_diagnostics_and_handoff": 95,
     "focused_pa009_durable_audit": 3,
     "focused_pa009_durable_budget": 8,
-    "focused_pa009_result_handoff_and_boundaries": 119,
+    "focused_pa009_result_handoff_and_boundaries": 118,
+    "focused_pa009_temporal_validity": 17,
     "boundary_regressions": 71,
-    "mypy_files": 104,
+    "mypy_files": 112,
     "commands": [
       "./.venv-wsl/bin/python -m pytest -q",
       "./.venv-wsl/bin/ruff check .",
@@ -98,7 +100,7 @@
       "JSON/JSONL validation",
       "git diff --check"
     ],
-    "validated_at": "2026-08-15T20:39:39+09:30"
+    "validated_at": "2026-08-16T11:49:19+09:30"
   },
   "repository_status": "clean-checkpoint-except-protected-pa005-pack-and-local-wsl-validation-environment",
   "expected_dirty_paths": [
@@ -136,10 +138,11 @@
     "docs/intelligence-core/PA-009-OPENAI-PILOT.md",
     "docs/intelligence-core/PA-009-PROTECTED-PREFLIGHT-HANDOFF.md",
     "docs/intelligence-core/PA-009-OWNER-RESULT-HANDOFF.md",
+    "docs/intelligence-core/PA-009-EVIDENCE-FRESHNESS-AND-TEMPORAL-VALIDITY.md",
     "docs/intelligence-core/IC-DEV-002-VALIDATED-GIT-CHECKPOINTS.md",
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-15T20:47:47+09:30",
-  "provenance": "Owner-authorised repository-only PA-009 hardening adds a closed 30-day protected typed-result handoff after strict validation and metadata-only envelope reconciliation; two unrelated expired active envelopes were safely invalidated, zero claims remained, and 448 tests plus 119 focused PA-009 boundaries passed with Ruff and strict mypy over 104 source files, with zero provider, live-source or credential access."
+  "updated_at": "2026-08-16T11:49:19+09:30",
+  "provenance": "Owner-authorised repository-only PA-009 temporal hardening derives a closed lifecycle-relative state from already-admitted source timestamps, hash-binds it to protected projections, and rejects expired-event preparation or explicit elapsed deadlines while preserving retrospective use; 465 tests and focused PA-009 temporal boundaries passed with Ruff and strict mypy over 112 source files, with zero provider, live-source or credential access."
 }

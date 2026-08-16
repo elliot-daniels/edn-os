@@ -10,12 +10,18 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Protocol
 
 from edn.core import Classification
-from edn.intelligence.models import AssembledContext, ContextEvidence, FreshnessState
+from edn.intelligence.models import (
+    AssembledContext,
+    ContextEvidence,
+    FreshnessState,
+    TemporalState,
+)
+from edn.intelligence.temporal import temporal_state
 
 
 class DisclosureOutcome(StrEnum):
@@ -82,6 +88,7 @@ class ProjectedEvidence:
     source_timestamp: datetime | None = None
     field_category: str = "unknown"
     provider_approved: bool = False
+    temporal_state: TemporalState = TemporalState.UNKNOWN_UNDETERMINED
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +97,7 @@ class DisclosureProjection:
     items: tuple[ProjectedEvidence, ...]
     total_chars: int
     redactions: tuple[str, ...] = ()
+    reference_time: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -234,10 +242,14 @@ class DisclosureProjector:
         *,
         request_id: str,
         policy: DisclosurePolicy,
+        reference_time: datetime | None = None,
     ) -> tuple[DisclosureDecision, DisclosureProjection | None]:
         decision = self.decide(context, request_id=request_id, policy=policy)
         if not decision.is_allowed:
             return decision, None
+        reference = reference_time or datetime.now(UTC)
+        if reference.tzinfo is None:
+            raise ValueError("temporal reference time must be timezone-aware")
         remaining = policy.max_context_chars
         projected: list[ProjectedEvidence] = []
         redactions: list[str] = []
@@ -267,6 +279,7 @@ class DisclosureProjector:
                     _freshness(item),
                     digest,
                     item.source_timestamp,
+                    temporal_state=temporal_state(item, reference),
                 )
             )
             remaining -= len(prefix) + len(excerpt)
@@ -275,6 +288,7 @@ class DisclosureProjector:
             tuple(projected),
             policy.max_context_chars - remaining,
             tuple(redactions),
+            reference,
         )
         if redactions:
             decision = DisclosureDecision(
@@ -352,9 +366,13 @@ class ModelIntelligenceBoundary:
         request_id: str,
         capability: str = "model.summarize",
         max_output_items: int = 5,
+        reference_time: datetime | None = None,
     ) -> BoundaryResult:
         decision, projection = self.projector.project(
-            context, request_id=request_id, policy=policy
+            context,
+            request_id=request_id,
+            policy=policy,
+            reference_time=reference_time,
         )
         if projection is None:
             return BoundaryResult(decision, None, None, True, decision.reason_code)

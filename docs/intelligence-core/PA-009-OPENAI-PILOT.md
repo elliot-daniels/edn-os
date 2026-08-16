@@ -1,10 +1,10 @@
-# PA-009 — OpenAI Pilot (First Valid Result, Routine Use Not Activated)
+# PA-009 — OpenAI Pilot (Retained-Result Proof Passed)
 
-Status: implementation and synthetic/provider-boundary validation complete. A
-genuine owner-approved lifecycle produced the first locally valid typed result;
-it pre-dated protected typed-result retention, so owner usefulness review remains
-incomplete. Further genuine dispatch remains fresh-preflight and exact-owner-
-approval gated, and routine use is not activated.
+Status: implementation, provider-boundary validation and one genuine retained-
+result proof are complete. Owner review identified a time-validity defect in the
+provider projection; `PA-009-EVIDENCE-FRESHNESS-AND-TEMPORAL-VALIDITY.md` now
+hardens that boundary. Further genuine dispatch remains fresh-preflight and
+exact-owner-approval gated pending one temporal proof lifecycle.
 
 ## Proposed model
 
@@ -26,6 +26,13 @@ the pinned snapshot. The local parser independently enforces these constraints
 so invalid provider output fails closed even if it bypasses schema enforcement.
 
 The adapter refuses synthetic requests, disabled providers, missing credentials, disclosure denial, unknown authority, oversized context and local budget exhaustion. Failures normalize to deterministic codes and preserve the caller's local fallback.
+
+PA-009 projections also bind one timezone-aware lifecycle reference time and a
+closed derived temporal state for every evidence item. Missing or ambiguous time
+is unknown rather than current. The response parser rejects claims and proposal-
+only actions that are inconsistent with expired calendar evidence or explicit
+elapsed deadlines; historical evidence remains available for retrospectives and
+unresolved follow-up.
 
 ## Invalid-response diagnostics
 

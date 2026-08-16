@@ -365,6 +365,8 @@ class CalendarEvidenceAdapter:
                 (self.connector.evidence_ref(item),),
                 item.end,
                 "calendar_event_end",
+                temporal_start=item.start,
+                temporal_end=item.end,
             )
             for index, item in enumerate(result.events)
         )

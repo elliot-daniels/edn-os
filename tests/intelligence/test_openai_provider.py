@@ -34,6 +34,7 @@ from edn.intelligence import (
     ProviderFailureCode,
     ProviderValidationReason,
     ProviderValidationStage,
+    TemporalState,
 )
 from edn.intelligence.model_boundary import DisclosureProjection, ProjectedEvidence
 from edn.intelligence.openai_provider import (
@@ -90,11 +91,14 @@ def _real_request() -> ModelRequest:
                     "Review release plan",
                     FreshnessState.CURRENT,
                     "digest",
+                    source_timestamp=NOW,
                     field_category="calendar.metadata",
                     provider_approved=True,
+                    temporal_state=TemporalState.CURRENT_RECENT,
                 ),
             ),
             20,
+            reference_time=NOW,
         ),
         CLASSIFICATION,
         "model.summarize",
