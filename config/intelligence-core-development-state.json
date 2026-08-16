@@ -116,7 +116,7 @@
     ".venv-wsl/",
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
-  "last_validated_commit": "11717c3a006812477757d546b297914b236e1dc2",
+  "last_validated_commit": "74db175cbc9e78e08e113a9bbecf853afdee89f4",
   "next_recommended_increment": null,
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
@@ -154,6 +154,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-16T14:13:14+09:30",
+  "updated_at": "2026-08-16T14:18:40+09:30",
   "provenance": "Owner activated exact bounded grant delegation-20260816T035831Z-d4cb82b652f5; IC-DEV-004 adds integrity-validated fresh-session discovery and IC-DEV-005 adds a stable non-executing lifecycle CLI, while the unchanged 2026-08-16 successful-brief ceiling blocks the genuine PA-009 temporal proof until after this grant expires."
 }
