@@ -1,10 +1,10 @@
 # PA-009 — OpenAI Pilot (Retained-Result Proof Passed)
 
-Status: implementation, provider-boundary validation and one genuine retained-
-result proof are complete. Owner review identified a time-validity defect in the
-provider projection; `PA-009-EVIDENCE-FRESHNESS-AND-TEMPORAL-VALIDITY.md` now
-hardens that boundary. Further genuine dispatch remains fresh-preflight and
-exact-owner-approval gated pending one temporal proof lifecycle.
+Status: implementation, provider-boundary validation and the genuine retained-
+result temporal-validity proof are complete. PA-009 is provisionally ready for
+routine bounded operation under the unchanged grant, disclosure, budget,
+retention, replay and kill-switch controls. Each run still requires a fresh
+protected preflight and independent durable-budget admission.
 
 ## Proposed model
 
@@ -113,11 +113,26 @@ Prompts, complete or partial provider response content, structured output text,
 statement text, evidence/projection values, source content, credentials,
 authorization headers and secrets are prohibited from the durable schema.
 
-A separate owner-review result handoff may retain only the fully validated,
+A separate owner-review result handoff retains only the fully validated,
 bounded typed statement fields described in
 `PA-009-OWNER-RESULT-HANDOFF.md`. It remains outside the metadata-only lifecycle
 audit and cannot retain raw/partial provider responses, projection values or
 provider authority.
+
+## Genuine temporal-validity proof (2026-08-17)
+
+Request `pa009-20260817T091011Z-82e99f295491` dispatched exactly once from
+preflight hash `20e8d2d1754613f136dd138050741580c99a2aff6b55eb42301772dfa541c81c`.
+The 7-item, 1009-character projection contained engineering, inbox and local-file
+metadata with temporal states; no calendar item was admitted. The provider
+returned HTTP 200 / Responses `completed`; usage was 1292 input, 1580 output,
+1024 reasoning and 2872 total tokens, with actual estimated cost USD 0.003483.
+Strict schema and citation validation passed, with 3 model assertions, 2
+evidence gaps, 1 uncertainty and 1 proposal-only action; no rejected
+statements or fallback. The independently reloaded result preserved all typed
+fields, evidence IDs, uncertainty and proposal-only semantics. It contained no
+time-invalid preparation recommendation, so the temporal proof passes. Model
+output remains inference, not verified fact.
 
 ## Proposed first-pilot disclosure policy
 

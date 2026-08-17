@@ -64,15 +64,20 @@ action.
 
 ## Genuine retained-result proof status
 
-The 2026-08-17 UTC durable ledger admitted a fresh initial attempt under the
-unchanged limits. The approved environment-key mechanism passed a presence-only
-check, but the separate Microsoft browser-PKCE flow was not completed within
-either of two 600-second interaction windows. Both attempts stopped before Graph
-or Local Files retrieval, provider projection, protected preflight creation, budget
-reservation, OpenAI transport, or retained-result creation. Durable counters
-therefore remained at zero requests, zero retries, zero successes and zero
-estimated USD for the UTC day.
+The 2026-08-17 UTC ledger admitted one initial attempt after the existing
+Microsoft PKCE callback completed. Exactly one bounded Calendar/Inbox/protected
+Local Files retrieval produced a 7-item, 1009-character metadata-only projection
+at reference time `2026-08-17T09:10:11.301080+00:00`; all projected items were
+explicitly provider-approved and carried derived temporal state. The protected
+preflight hash was
+`20e8d2d1754613f136dd138050741580c99a2aff6b55eb42301772dfa541c81c`.
 
-This is an authentication-interaction dependency, not a temporal-control pass or
-failure. The genuine retained-result proof remains outstanding, and PA-009 has
-not been promoted to routine bounded operation.
+The single OpenAI lifecycle returned HTTP 200 / `completed` and passed strict
+schema, citation-membership and temporal semantic validation. The retained
+owner-review result independently reloaded after dispatch with exact statement
+typing, validated evidence IDs, uncertainty, proposal-only preservation,
+integrity, expiry and owner-only permissions. Its proposal was a request for
+proof confirmation, not an external action; no time-invalid preparation action
+was generated. This genuine proof passes and PA-009 is provisionally ready for
+routine bounded operation under existing controls. The durable audit and budget
+ledger remain authoritative; no limits were changed.

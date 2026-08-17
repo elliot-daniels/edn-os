@@ -149,11 +149,12 @@ requires the preflight hash to be exactly 64 lowercase hexadecimal characters;
 the protected-preflight boundary still independently verifies its meaning and
 byte identity.
 
-## Residual PA-009 validation
+## PA-009 temporal proof reconciliation
 
-The owner provisionally accepts PA-009 for continued development. Repository and
-synthetic temporal validation passed, but one genuine retained-result lifecycle
-must still prove historical evidence is correctly labelled and cannot produce a
-time-invalid action when the unchanged daily PA-009 budget next permits it. This
-is technical debt, not a completed proof and not permission to reset or reinterpret
-the ledger.
+The genuine retained-result lifecycle completed on 2026-08-17 under the
+unchanged durable ledger. Historical/unknown metadata was surfaced as bounded
+uncertainty and evidence gaps, and no time-invalid action was produced. The
+sanitised result survived process exit and independent owner-only reload with
+integrity and proposal-only semantics intact. PA-009 is provisionally ready for
+routine bounded use; every run remains independently budget-, disclosure- and
+preflight-admitted. No delegated authority is added by this result.
