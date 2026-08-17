@@ -3,7 +3,7 @@
   "product": "EDN Intelligence Core",
   "version": "0.1.0-alpha",
   "current_branch": "feature/intelligence-core-v0.1",
-  "current_milestone": "Successor bounded delegation grant delegation-20260816T052449Z-f63f04a5e648 is active until 2026-08-17T23:59:00+09:30; the 2026-08-17 budget admitted the genuine PA-009 temporal proof, but its browser-PKCE authentication timed out before any live-source read or preflight",
+  "current_milestone": "Successor bounded delegation grant delegation-20260816T052449Z-f63f04a5e648 completed the genuine PA-009 temporal proof on 2026-08-17; PA-009 is ready for routine bounded use under unchanged per-run controls",
   "completed_increments": [
     "IC-001",
     "IC-002",
@@ -68,10 +68,10 @@
     "Historical August pilot counters remain unknown_pre_ledger; an owner-attested AUD 1 carry-in preserves monthly conservatism.",
     "OpenAI adapter remains disabled by default and every genuine dispatch requires a fresh protected projection and exact owner approval.",
     "Any subsequent genuine PA-009 dispatch requires safe credential verification, a fresh protected metadata-only preflight and a hash-bound expiring owner approval token.",
-    "PA-009 is provisionally accepted for continued development; one genuine retained-result temporal-validity proof remains outstanding technical debt and must run only when the unchanged daily budget permits it.",
+    "PA-009 is ready for routine bounded use after the genuine retained-result temporal-validity proof; every run still requires exact approved scopes, fresh temporal preflight, durable budget admission, expiring approval, retention and replay controls.",
     "Successor grant delegation-20260816T052449Z-f63f04a5e648 is active only until 2026-08-17T23:59:00+09:30; it does not bypass host/sandbox approvals or independently execute operations.",
-    "The successor grant spans the 2026-08-17 UTC budget reset, but the unchanged durable ledger remains the independent authority for the outstanding genuine PA-009 temporal proof.",
-    "The 2026-08-17 UTC ledger admitted the outstanding proof, but the approved browser-PKCE flow was not completed in either of two 600-second interaction windows; no Graph or Local Files read, protected preflight, provider transport, retained result, budget reservation or spend occurred, so the genuine proof remains outstanding.",
+    "The successor grant spanned the 2026-08-17 UTC budget reset; the unchanged durable ledger admitted one genuine PA-009 temporal proof and remains the independent authority for all future attempts.",
+    "The 2026-08-17 UTC proof used exactly one bounded approved-source retrieval and one provider transport; the retained result independently reloaded with temporal, schema, citation, integrity, expiry, ownership and proposal-only checks passed.",
     "The stable delegation lifecycle CLI manages authority metadata only; callers remain responsible for executing and independently validating each claimed operation.",
     "Proposals cannot execute.",
     "PDF/DOCX extraction is deliberately bounded and fails closed on unsupported PDF filters or ambiguous structures; live owner roots remain unauthorised.",
@@ -110,14 +110,14 @@
       "JSON/JSONL validation",
       "git diff --check"
     ],
-    "validated_at": "2026-08-16T14:13:14+09:30"
+    "validated_at": "2026-08-17T11:20:00+09:30"
   },
   "repository_status": "clean-checkpoint-except-protected-pa005-pack-and-local-wsl-validation-environment",
   "expected_dirty_paths": [
     ".venv-wsl/",
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md"
   ],
-  "last_validated_commit": "74db175cbc9e78e08e113a9bbecf853afdee89f4",
+  "last_validated_commit": "90c88c081da1a8d0f9e4e6927e08cb99a0030b33",
   "next_recommended_increment": null,
   "required_owner_decisions": [
     "Separately authorise IC-009-LIVE when ready.",
@@ -156,5 +156,5 @@
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
   "updated_at": "2026-08-17T10:39:25+09:30",
-  "provenance": "Owner activated exact successor grant delegation-20260816T052449Z-f63f04a5e648 with hash a5dd0fdadcc5f3cfb52c0cf0667a898b3a42f171797b09679f96b9e54de9aba4 after the predecessor expired. The 2026-08-17 budget admitted the genuine temporal proof, but two exact browser-PKCE interaction windows timed out before source access; durable budget state remained unchanged and PA-009 routine readiness was not promoted."
+  "provenance": "Owner activated exact successor grant delegation-20260816T052449Z-f63f04a5e648 after the predecessor expired. The 2026-08-17 budget admitted one genuine retained-result temporal proof; the exact approved retrieval, protected preflight, single provider transport and independent result review passed. PA-009 is ready for routine bounded use; no source, disclosure, budget or execution authority was broadened."
 }

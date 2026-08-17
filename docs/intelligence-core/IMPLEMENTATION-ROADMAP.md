@@ -32,7 +32,10 @@ Machine-readable execution status and successor selection are maintained in
 `config/intelligence-core-development-state.json` and
 `config/intelligence-core-roadmap.json`. IC-012 is implemented and validated under the owner's scoped development approval.
 No subsequent task is machine-defined and autonomously eligible; IC-009 live
-validation remains separately owner-blocked.
+validation remains separately owner-blocked. PA-009 has completed its genuine
+retained-result temporal proof and is ready for routine bounded pilot use under
+the existing exact provider, disclosure, budget, retention and replay controls;
+the broader roadmap PA-009 integration gate remains owner-controlled.
 
 ## Stage gates
 

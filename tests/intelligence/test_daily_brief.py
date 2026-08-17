@@ -177,6 +177,11 @@ def test_brief_has_canonical_sections_and_typed_epistemic_items() -> None:
         for item in response.daily_brief.items
         if item.kind is StatementKind.UNKNOWN
     )
+    assert all(
+        "source_origin=synthetic_fixture" in item.rank_reasons
+        for item in response.daily_brief.items
+        if item.kind is StatementKind.FACT
+    )
 
 
 def test_freshness_is_source_timestamp_and_policy_driven() -> None:

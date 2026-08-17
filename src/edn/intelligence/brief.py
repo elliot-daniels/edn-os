@@ -245,6 +245,7 @@ class DailyIntelligenceComposer:
         )
         reasons = (
             f"freshness={freshness.value}:{freshness_points}",
+            f"source_origin={_source_origin(item)}",
             f"decision_usefulness={decision_usefulness}",
             f"corroborating_source_families={corroborating_sources}",
             f"recurrence={recurrence}",
@@ -360,6 +361,18 @@ def _freshness(
 def _corroboration_key(item: ContextEvidence) -> str:
     normalized = re.sub(r"[^a-z0-9]+", " ", item.title.casefold()).strip()
     return normalized or item.context_id
+
+
+def _source_origin(item: ContextEvidence) -> str:
+    """Expose fixture provenance without treating it as current evidence."""
+    connector_ids = {
+        ref.record.source.connector_id.casefold() for ref in item.provenance
+    }
+    return (
+        "synthetic_fixture"
+        if "synthetic" in connector_ids
+        else "authorised_source"
+    )
 
 
 def _corroboration_counts(

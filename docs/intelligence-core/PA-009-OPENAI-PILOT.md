@@ -134,6 +134,13 @@ fields, evidence IDs, uncertainty and proposal-only semantics. It contained no
 time-invalid preparation recommendation, so the temporal proof passes. Model
 output remains inference, not verified fact.
 
+The follow-on Daily Intelligence review found the deterministic brief useful for
+bounded prioritisation: current/ageing evidence can drive review proposals,
+stale/unknown evidence is surfaced as a gap, and synthetic fixtures are visibly
+labelled as non-live. Calendar completeness remains unverified when the exact
+approved retrieval returns no admitted Calendar items; resolving that gap would
+require a separately approved source or permission change.
+
 ## Proposed first-pilot disclosure policy
 
 The source `edn:confidential` classification does not imply external disclosure. A separate `external-model-approved` policy is required. The initial allowlist is limited to projected Calendar metadata, bounded Inbox metadata/sanitised subjects, Local Files metadata/status labels and explicitly approved EDN-owned non-secret engineering labels. Email bodies, arbitrary document content, names/contact details, personal, financial, security-sensitive, Defence/classified, customer-restricted, client and credential material are prohibited by default.

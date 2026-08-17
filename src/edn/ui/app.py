@@ -397,6 +397,12 @@ with intelligence_tab:
                             st.caption(
                                 f"{item.kind.value.replace('_', ' ').title()} · "
                                 f"Freshness: {item.freshness.value.replace('_', ' ')}"
+                                + (
+                                    " · Synthetic fixture — not live evidence"
+                                    if "source_origin=synthetic_fixture"
+                                    in item.rank_reasons
+                                    else " · Authorised source"
+                                )
                             )
                             st.write(item.text)
                             if item.proposal_only:
