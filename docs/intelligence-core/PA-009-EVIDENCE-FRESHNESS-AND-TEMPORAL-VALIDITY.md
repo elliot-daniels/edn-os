@@ -61,3 +61,18 @@ content to durable audit or retained results. Reference/state tampering changes
 the protected hash. Unknown time fails closed, proposal-only semantics and
 citation membership remain intact, and owner review still cannot cause external
 action.
+
+## Genuine retained-result proof status
+
+The 2026-08-17 UTC durable ledger admitted a fresh initial attempt under the
+unchanged limits. The approved environment-key mechanism passed a presence-only
+check, but the separate Microsoft browser-PKCE flow was not completed within
+its 600-second interaction window. The attempt stopped before Graph or Local
+Files retrieval, provider projection, protected preflight creation, budget
+reservation, OpenAI transport, or retained-result creation. Durable counters
+therefore remained at zero requests, zero retries, zero successes and zero
+estimated USD for the UTC day.
+
+This is an authentication-interaction dependency, not a temporal-control pass or
+failure. The genuine retained-result proof remains outstanding, and PA-009 has
+not been promoted to routine bounded operation.
