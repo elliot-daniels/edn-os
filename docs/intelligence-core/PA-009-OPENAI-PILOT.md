@@ -141,6 +141,10 @@ labelled as non-live. Calendar completeness remains unverified when the exact
 approved retrieval returns no admitted Calendar items; resolving that gap would
 require a separately approved source or permission change.
 
+Calendar admission diagnostics now retain only bounded rejection-reason counts
+for the existing exact retrieval (category mismatch versus outside-window
+objects). They do not retain rejected subjects, event bodies or source values.
+
 ## Proposed first-pilot disclosure policy
 
 The source `edn:confidential` classification does not imply external disclosure. A separate `external-model-approved` policy is required. The initial allowlist is limited to projected Calendar metadata, bounded Inbox metadata/sanitised subjects, Local Files metadata/status labels and explicitly approved EDN-owned non-secret engineering labels. Email bodies, arbitrary document content, names/contact details, personal, financial, security-sensitive, Defence/classified, customer-restricted, client and credential material are prohibited by default.

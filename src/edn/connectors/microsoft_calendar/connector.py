@@ -116,13 +116,28 @@ class MicrosoftCalendarConnector:
             limit=limit,
         )
         events = []
+        rejected: dict[str, int] = {}
         for item in raw:
+            categories = tuple(str(value) for value in item.get("categories", []))
+            if (
+                self.config.scope_mode is CalendarScopeMode.CATEGORY_REQUIRED
+                and self.config.required_category not in categories
+            ):
+                rejected["category_not_admitted"] = (
+                    rejected.get("category_not_admitted", 0) + 1
+                )
+                continue
             event = self._event(item)
             if event is None or event.end < start or event.start >= end:
+                rejected["outside_requested_window"] = (
+                    rejected.get("outside_requested_window", 0) + 1
+                )
                 continue
             events.append(event)
         admitted = tuple(sorted(events, key=lambda item: (item.start, item.event_id)))
-        return CalendarRetrievalResult(len(raw), admitted)
+        return CalendarRetrievalResult(
+            len(raw), admitted, tuple(sorted(rejected.items()))
+        )
 
     def search(self, request: ConnectorRequest) -> SearchResult:
         result = self.search_events(

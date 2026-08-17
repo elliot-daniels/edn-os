@@ -3,7 +3,7 @@
   "product": "EDN Intelligence Core",
   "version": "0.1.0-alpha",
   "current_branch": "feature/intelligence-core-v0.1",
-  "current_milestone": "Successor bounded delegation grant delegation-20260816T052449Z-f63f04a5e648 completed the genuine PA-009 temporal proof on 2026-08-17; PA-009 is ready for routine bounded use under unchanged per-run controls",
+  "current_milestone": "Successor bounded delegation grant delegation-20260817T100201Z-d4e3f987ff39 is active through 2026-08-24T23:59:00+09:30; PA-009 is ready for routine bounded use and Calendar admission now exposes content-free rejection counts",
   "completed_increments": [
     "IC-001",
     "IC-002",
@@ -75,7 +75,7 @@
     "The stable delegation lifecycle CLI manages authority metadata only; callers remain responsible for executing and independently validating each claimed operation.",
     "Proposals cannot execute.",
     "PDF/DOCX extraction is deliberately bounded and fails closed on unsupported PDF filters or ambiguous structures; live owner roots remain unauthorised.",
-    "Current Outlook and Calendar live validation passed, but exact EDN category admission yielded zero retained records in both sources.",
+    "Current Outlook and Calendar live validation passed, but exact EDN category admission yielded zero retained records in both sources; Calendar rejection-reason counts now distinguish category mismatch from outside-window filtering without retaining source content.",
     "SharePoint Business OS retrieval is synthetic-only; no live site or content is authorised."
   ],
   "test_status": {
@@ -155,6 +155,6 @@
     "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
     "docs/intelligence-core/PA-005-BROWSER-AUTHENTICATION.md"
   ],
-  "updated_at": "2026-08-17T10:39:25+09:30",
-  "provenance": "Owner activated exact successor grant delegation-20260816T052449Z-f63f04a5e648 after the predecessor expired. The 2026-08-17 budget admitted one genuine retained-result temporal proof; the exact approved retrieval, protected preflight, single provider transport and independent result review passed. PA-009 is ready for routine bounded use; no source, disclosure, budget or execution authority was broadened."
+  "updated_at": "2026-08-18T07:58:00+09:30",
+  "provenance": "Owner activated exact successor grant delegation-20260817T100201Z-d4e3f987ff39 after predecessor expiry. The operational trial retains unchanged PA-005/PA-009 boundaries; Calendar admission diagnostics now expose only bounded rejection counts for category and window filtering, with no source-content persistence or authority expansion."
 }

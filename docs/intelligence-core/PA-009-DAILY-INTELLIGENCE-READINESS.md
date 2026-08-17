@@ -14,8 +14,11 @@ controls.
 - **Calendar:** the deterministic brief ranks current/upcoming events highly and
   uses event end time for temporal validity. The approved PA-005 retrieval
   yielded no admitted Calendar items in the retained proof, so live agenda
-  completeness remains unverified. A future owner-approved run should treat a
-  missing Calendar result as an explicit gap, not as an empty day.
+  completeness remains unverified. Calendar retrieval now exposes only
+  content-free rejection counts (`category_not_admitted` and
+  `outside_requested_window`) so a future approved run can distinguish an empty
+  qualifying set from a filter/window defect. A missing Calendar result remains
+  an explicit gap, not an empty day.
 - **Inbox:** bounded metadata and sanitised excerpts can surface recent
   communications and missing meeting details. Bodies, arbitrary attachments and
   unapproved fields remain excluded. The retained proof surfaced a useful

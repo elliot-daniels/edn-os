@@ -162,6 +162,7 @@ class CalendarRetrievalResult:
 
     pre_filter_count: int
     events: tuple[CalendarEvent, ...]
+    rejection_reasons: tuple[tuple[str, int], ...] = ()
 
     def __post_init__(self) -> None:
         if self.pre_filter_count < 0:
@@ -183,6 +184,10 @@ class CalendarRetrievalResult:
             "admitted_count": self.admitted_count,
             "rejected_count": self.rejected_count,
         }
+
+    def rejection_reasons_dict(self) -> dict[str, int]:
+        """Return content-free reasons for bounded non-admission."""
+        return dict(self.rejection_reasons)
 
 
 def _mapping(value: object) -> dict[str, Any]:

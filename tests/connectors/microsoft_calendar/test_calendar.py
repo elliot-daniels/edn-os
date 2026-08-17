@@ -327,6 +327,7 @@ def test_category_mode_fails_closed_for_mixed_calendar() -> None:
     assert result.pre_filter_count == 2
     assert result.admitted_count == 1
     assert result.rejected_count == 1
+    assert result.rejection_reasons_dict() == {"category_not_admitted": 1}
     assert tuple(item.event_id for item in result.events) == ("business",)
 
 
@@ -352,6 +353,7 @@ def test_five_graph_events_two_exact_edn_reports_counts_and_two_evidence() -> No
         "admitted_count": 2,
         "rejected_count": 3,
     }
+    assert result.rejection_reasons_dict() == {"category_not_admitted": 3}
     assert len(evidence) == 2
     assert tuple(item.record.source_record_key for item in evidence) == (
         "event-1",

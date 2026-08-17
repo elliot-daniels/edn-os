@@ -109,6 +109,7 @@ def build_validation_report(
         "window": window,
         "permission": "Calendars.Read",
         **retrieval.counts_dict(),
+        "rejection_reasons": retrieval.rejection_reasons_dict(),
         "event_body_reads": 0,
         "calendar_mutations": 0,
         "events": [item.to_dict() for item in retrieval.events],
