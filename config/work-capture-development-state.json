@@ -3,7 +3,7 @@
   "product": "EDN Systems OS Universal Work Capture",
   "branch": "feature/universal-work-capture-v0.1",
   "increment": "UWC-001",
-  "status": "repository-complete-live-activation-owner-gated",
+  "status": "read-only-m365-review-complete-live-test-activation-owner-gated",
   "canonical_owner": "Work Log",
   "live_microsoft_mutation_authorised": false,
   "protected_runtime_access_authorised": false,
@@ -15,11 +15,30 @@
     "docs/intelligence-core/UNIVERSAL-RECORD-MODEL.md"
   ],
   "known_live_binding_gaps": [
-    "Work Log exact list GUID and current fields are not available in Git",
-    "Power Apps and Power Automate definitions were unavailable during approved discovery",
-    "Projects, Actions, Project Files and Engineering Knowledge have observed webhook dependencies",
-    "Evidence & Test Results physical destination is not confirmed by repository evidence"
+    "Power Apps and Power Automate definitions, external connector configuration and permissions remain unavailable",
+    "Projects, Clients, Actions, Project Files and Engineering Knowledge have observed webhook dependencies",
+    "Work Log outcome, performer, provenance, correction and evidence-state fields are missing",
+    "Existing RateCode embeds commercial labels and requires owner treatment decision",
+    "Evidence & Test Results exists but is empty; Project Files is recommended for V1 evidence"
   ],
+  "live_review": {
+    "source": "approved external metadata-only inventory 2026-08-07-rerun-1",
+    "site_id": "49cc1059-a4f6-42f7-88bd-9940503ae28f",
+    "work_log_id": "7b6d10ec-c009-422a-9802-c907d3d4f57f",
+    "projects_id": "66944251-b9a3-40cc-9a59-05538e200c19",
+    "clients_id": "3d55c612-9799-4462-9474-7f0ca5a10b24",
+    "actions_id": "d7079aad-7f18-4164-8bd6-41f5629898bb",
+    "project_files_id": "3363639a-c52d-4789-b2cf-34a71ef9a793",
+    "evidence_test_results_id": "0febf366-e8c8-4f43-ad33-26123fb9957d",
+    "engineering_knowledge_id": "adb9a65b-2429-4528-b9c3-04dae9d2cfc0",
+    "manifest_path": "config/work-capture-v1-activation-manifest.json",
+    "manifest_sha256": "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca",
+    "mutations": 0,
+    "operational_record_reads": 0,
+    "power_apps_definitions": "unavailable",
+    "power_automate_definitions": "unavailable",
+    "permissions": "unavailable"
+  },
   "validation": {
     "outcome": "passed",
     "focused_work_capture_tests": 16,
@@ -42,5 +61,5 @@
   "remote_ref": "origin/feature/universal-work-capture-v0.1",
   "local_head_equals_remote_after_push": true,
   "repository_status": "clean-validated-feature-checkpoint",
-  "updated_at": "2026-08-18T11:44:56+09:30"
+  "updated_at": "2026-08-18T12:20:00+09:30"
 }

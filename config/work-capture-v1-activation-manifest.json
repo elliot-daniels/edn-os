@@ -1,0 +1,42 @@
+{
+  "manifest_version": "1.0.0",
+  "purpose": "Universal Work Capture V1 bounded test activation specification",
+  "status": "prepared-not-approved-not-executed",
+  "source_review": "docs/work-capture/M365-SCHEMA-REVIEW-2026-08-18.md",
+  "site": {
+    "url": "https://edn123.sharepoint.com/sites/EDNSystems",
+    "site_id": "49cc1059-a4f6-42f7-88bd-9940503ae28f"
+  },
+  "resources": {
+    "work_log": "7b6d10ec-c009-422a-9802-c907d3d4f57f",
+    "projects": "66944251-b9a3-40cc-9a59-05538e200c19",
+    "clients": "3d55c612-9799-4462-9474-7f0ca5a10b24",
+    "actions": "d7079aad-7f18-4164-8bd6-41f5629898bb",
+    "project_files": "3363639a-c52d-4789-b2cf-34a71ef9a793",
+    "evidence_test_results": "0febf366-e8c8-4f43-ad33-26123fb9957d",
+    "engineering_knowledge": "adb9a65b-2429-4528-b9c3-04dae9d2cfc0"
+  },
+  "existing_bindings": {
+    "work_log_project_lookup": "ProjectLookup -> Projects.Title",
+    "work_log_client_lookup": "ClientLookup -> Clients.Title",
+    "work_log_action_lookup": "ActionLookup -> Actions.Title",
+    "work_log_duration_source": "Hours -> DurationMinutes (conversion required)",
+    "work_log_summary_source": "TechnicalSummary -> WorkSummary (mapping required)",
+    "evidence_destination": "Project Files"
+  },
+  "proposed_mutations": [
+    "add approved optional Work Log identity/provenance/outcome/evidence fields",
+    "create or configure the standalone responsive capture app",
+    "create the acceptance flow with idempotent submission handling",
+    "run one bounded synthetic test capture and correction after separate owner approval"
+  ],
+  "explicit_exclusions": [
+    "no billing-rate changes",
+    "no night/after-hours rule changes",
+    "no offline queue",
+    "no Evidence & Test Results write in first test",
+    "no existing field rename/delete/requiredness change",
+    "no webhook, permission, Power Apps package or Power Automate definition mutation"
+  ],
+  "approval_required": "separate owner approval naming activation window, operator, test data boundary and this manifest hash"
+}
