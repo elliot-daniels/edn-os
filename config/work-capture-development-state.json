@@ -3,7 +3,7 @@
   "product": "EDN Systems OS Universal Work Capture",
   "branch": "feature/universal-work-capture-v0.1",
   "increment": "UWC-001",
-  "status": "read-only-m365-review-complete-live-test-activation-owner-gated",
+  "status": "hash-bound-test-activation-proposal-ready-owner-gated",
   "canonical_owner": "Work Log",
   "live_microsoft_mutation_authorised": false,
   "protected_runtime_access_authorised": false,
@@ -38,6 +38,9 @@
     "power_apps_definitions": "unavailable",
     "power_automate_definitions": "unavailable",
     "permissions": "unavailable"
+    ,"proposal_path": "docs/work-capture/M365-TEST-ACTIVATION-PROPOSAL.md",
+    "proposal_manifest_sha256_verified": true,
+    "microsoft_mutation_authorised": false
   },
   "validation": {
     "outcome": "passed",
@@ -61,5 +64,5 @@
   "remote_ref": "origin/feature/universal-work-capture-v0.1",
   "local_head_equals_remote_after_push": true,
   "repository_status": "clean-validated-feature-checkpoint",
-  "updated_at": "2026-08-18T12:20:00+09:30"
+  "updated_at": "2026-08-18T12:30:00+09:30"
 }
