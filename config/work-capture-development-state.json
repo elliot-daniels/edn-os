@@ -3,7 +3,7 @@
   "product": "EDN Systems OS Universal Work Capture",
   "branch": "feature/universal-work-capture-v0.1",
   "increment": "UWC-001",
-  "status": "hash-bound-test-activation-proposal-ready-owner-gated",
+  "status": "test-activation-admission-blocked-m365-execution-capability-unavailable",
   "canonical_owner": "Work Log",
   "live_microsoft_mutation_authorised": false,
   "protected_runtime_access_authorised": false,
@@ -40,7 +40,18 @@
     "permissions": "unavailable"
     ,"proposal_path": "docs/work-capture/M365-TEST-ACTIVATION-PROPOSAL.md",
     "proposal_manifest_sha256_verified": true,
-    "microsoft_mutation_authorised": false
+    "microsoft_mutation_authorised": false,
+    "last_activation_admission": {
+      "operator": "elliot-owner",
+      "window_start": "2026-08-18T13:30:00+09:30",
+      "window_end": "2026-08-18T16:30:00+09:30",
+      "manifest_sha256": "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca",
+      "hash_verified": true,
+      "mutations": 0,
+      "authentication_attempts": 0,
+      "blocked_reason": "No authorized Microsoft 365 execution connector or PowerShell runtime is available; connections, permissions and licensing cannot be verified.",
+      "next_required_capability": "Owner-approved execution session with SharePoint/Power Platform connectivity and preflight-only connection/licensing verification"
+    }
   },
   "validation": {
     "outcome": "passed",
