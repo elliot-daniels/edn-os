@@ -32,7 +32,7 @@ speculative implementations.
 | MOD-001 | Memory | **Approved** | `MODULE-001-MEMORY.md` |
 | MOD-002 | Retrieval | **Provisional** | — |
 | MOD-003 | Identity & Relationships | Candidate | — |
-| MOD-004 | Work | Candidate | — |
+| MOD-004 | Work | **Approved (Universal Work Capture V1 only)** | `MODULE-004-WORK.md` |
 | MOD-005 | Commercial | Candidate | — |
 | MOD-006 | Finance | Candidate | — |
 | MOD-007 | Intelligence | Candidate | — |
@@ -75,7 +75,15 @@ records. Expanding **cross-domain retrieval** — search, filtering, ranking, an
 citation presentation across modules — should move into MOD-002 when evidence
 warrants a separate durable module.
 
-### MOD-003 through MOD-012
+### MOD-004 — Work
+
+**Approved for Universal Work Capture V1 only.**
+
+Owns the source-neutral human-fact Work Capture event, reference-only evidence,
+append-only correction lineage and deterministic projection intents. The wider
+project/task/deliverable/asset candidate scope is not approved by this increment.
+
+### MOD-003 and MOD-005 through MOD-012
 
 **Candidate modules only.** They guide long-term ownership but are **not authorised
 for implementation**. Boundaries may change after implementation evidence.
@@ -150,7 +158,16 @@ CRM (MOD-005) must reference Identity — not own the canonical person model.
 
 ### MOD-004 — Work
 
-**Candidate ownership:**
+**Approved V1 ownership:**
+
+- canonical meaningful-work capture;
+- work duration, outcome and billing/rate classification;
+- project/client references and versioned project defaults;
+- follow-up intent and evidence/knowledge candidacy;
+- reference-only evidence and secure-site/photo policy; and
+- append-only corrections and deterministic projection intents.
+
+**Candidate ownership beyond V1:**
 
 - projects;
 - tasks;

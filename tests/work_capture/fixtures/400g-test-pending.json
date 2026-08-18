@@ -1,0 +1,47 @@
+{
+  "project_defaults": {
+    "profile_version": "WCPROFILE-PRJ-2026-001-v1",
+    "project": {
+      "stable_id": "PRJ-2026-001",
+      "display_name": "Synthetic 400G Commissioning",
+      "source_uri": "https://example.sharepoint.com/sites/edn/Lists/Projects/1"
+    },
+    "client": {
+      "stable_id": "CLI-SYNTH-001",
+      "display_name": "Synthetic Secure Client",
+      "source_uri": "https://example.sharepoint.com/sites/edn/Lists/Clients/1"
+    },
+    "active": true,
+    "default_work_type": "testing",
+    "default_outcome": "completed",
+    "default_billing_treatment": "billable",
+    "default_rate_class": "standard",
+    "default_billing_code": "SYNTH-400G",
+    "task_reference_required": false,
+    "default_evidence_requirement": "optional",
+    "evidence_by_work_type": {
+      "commissioning": "required",
+      "testing": "required"
+    },
+    "photo_policy": "prohibited",
+    "secure_site": true
+  },
+  "draft": {
+    "submission_key": "b06f89a8-f836-42d6-87df-4af8c245dbad",
+    "project_id": "PRJ-2026-001",
+    "engineer": {
+      "principal_id": "engineer-synthetic",
+      "display_name": "Synthetic Engineer",
+      "email": "engineer@example.invalid"
+    },
+    "work_date": "2026-08-18",
+    "work_started_at": "2026-08-18T20:30:00+09:30",
+    "duration_minutes": 120,
+    "summary": "400G test completed. FEC enabled at remote end, clean test after configuration correction.",
+    "captured_at": "2026-08-18T22:33:00+09:30",
+    "capture_method": "power_apps",
+    "source_app_version": "uwc-v1-synthetic",
+    "technical_value": "candidate",
+    "technical_note": "FEC mismatch at the remote end can present as a failed 400G test; verify both ends before retesting."
+  }
+}

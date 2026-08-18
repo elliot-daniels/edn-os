@@ -43,6 +43,17 @@ Initial implementation objectives (Outlook PST archives):
 - [ ] Implement SQLite FTS5 keyword search with resolved provenance
 - [ ] Handle partial failures and produce machine-readable import reports
 
+### Module 004 — Work
+
+Universal Work Capture V1 has a repository-complete, synthetic implementation.
+It defines one human-fact event owned operationally by the existing SharePoint
+Work Log, project defaults, secure evidence/photo rules, append-only corrections
+and deterministic downstream projections. Live Microsoft activation remains a
+separate owner-authority gate.
+
+See [Module 004 — Work](docs/MODULE-004-WORK.md) and the
+[Universal Work Capture V1 design](docs/work-capture/UNIVERSAL-WORK-CAPTURE-V1.md).
+
 Development sprints may be used to schedule work, but modules define the durable product architecture.
 
 ---
