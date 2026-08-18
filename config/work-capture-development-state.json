@@ -37,7 +37,10 @@
   "prepared_commit_message": "feat(work): add universal work capture v1",
   "implementation_commit": "89f939b36bdfba89a049cc18e426d576fc9fd07d",
   "implementation_commit_created": true,
-  "push_status": "pending",
-  "repository_status": "validated-implementation-commit-created",
-  "updated_at": "2026-08-18T11:43:48+09:30"
+  "checkpoint_commit": "dfe26b96a8722981d3223569bfb398fe9eb73883",
+  "push_status": "pushed",
+  "remote_ref": "origin/feature/universal-work-capture-v0.1",
+  "local_head_equals_remote_after_push": true,
+  "repository_status": "clean-validated-feature-checkpoint",
+  "updated_at": "2026-08-18T11:44:56+09:30"
 }
