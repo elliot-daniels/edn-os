@@ -100,8 +100,8 @@
   },
   "validation": {
     "outcome": "passed",
-    "focused_work_capture_tests": 29,
-    "full_pytest_passed": 540,
+    "focused_work_capture_tests": 30,
+    "full_pytest_passed": 541,
     "ruff": "passed",
     "strict_mypy": "passed",
     "mypy_source_files": 118,
@@ -122,7 +122,7 @@
     "microsoft_authentication_attempts": 0,
     "external_mutations": 29,
     "live_schema_activation": "passed-owner-reported-first-run-and-idempotency-rerun",
-    "validated_at": "2026-08-21T19:29:25+09:30",
+    "validated_at": "2026-08-21T19:33:37+09:30",
     "activation_receipt": "passed"
   },
   "starting_commit": "560421510d70b2a6ee3480f99321b2e163d5b706",
@@ -314,9 +314,19 @@
     "schema_authority_status": "completed-closed",
     "next_stage_status": "flow-creation-prepared-not-authorised"
   },
+  "flow_activation_proposal": {
+    "path": "config/work-capture-v1-flow-activation-proposal.json",
+    "status": "prepared-not-authorised-not-executed",
+    "separate_from_schema_authority": true,
+    "schema_result_commit": "e0df0aebd0b4b9bd7b362f6f46aa9f7872d363a7",
+    "flow_name": "UWC-AcceptCapture-v1",
+    "proposed_window_start": "2026-08-21T20:05:00+09:30",
+    "proposed_window_end": "2026-08-21T21:30:00+09:30",
+    "execution_status": "not-executed-separate-owner-go-required"
+  },
   "push_status": "pending",
   "remote_ref": "origin/feature/universal-work-capture-v0.1",
   "local_head_equals_remote_after_push": false,
-  "repository_status": "schema-activation-result-recorded-checkpoint-pending",
-  "updated_at": "2026-08-21T19:29:25+09:30"
+  "repository_status": "schema-result-committed-flow-stage-prepared-checkpoint-pending",
+  "updated_at": "2026-08-21T19:31:57+09:30"
 }

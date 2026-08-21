@@ -7,6 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
 MANIFEST = ROOT / "config" / "work-capture-v1-activation-manifest.json"
+FLOW_PROPOSAL = ROOT / "config" / "work-capture-v1-flow-activation-proposal.json"
 SCRIPT = ROOT / "installer" / "Activate-UWCWorkLogSchema.ps1"
 PACK = ROOT / "docs" / "work-capture" / "MANUAL-MAKER-ACTIVATION-PACK.md"
 STUDIO = ROOT / "docs" / "work-capture" / "POWER-APPS-STUDIO-V1-RUNBOOK.md"
@@ -218,3 +219,21 @@ def test_studio_contract_matches_manual_flow() -> None:
     assert "Actions or Project Files projections" in studio
     assert 'captureMethod: "power_apps"' not in studio
     assert "projectProfileVersion:" not in studio
+
+
+def test_flow_stage_is_prepared_separately_and_not_authorised() -> None:
+    proposal = json.loads(FLOW_PROPOSAL.read_text(encoding="utf-8"))
+
+    assert proposal["status"] == "prepared-not-authorised-not-executed"
+    assert proposal["separate_from_schema_authority"] is True
+    assert proposal["binding"]["manifest_sha256"] == EXPECTED_HASH
+    assert proposal["binding"]["schema_result_commit"] == (
+        "e0df0aebd0b4b9bd7b362f6f46aa9f7872d363a7"
+    )
+    assert proposal["target"]["flow_name"] == "UWC-AcceptCapture-v1"
+    assert proposal["completed_dependency"]["work_log_fields_created"] == 29
+    assert proposal["completed_dependency"]["idempotency_rerun_created"] == 0
+    assert "do not run the flow or create a Work Log item" in proposal[
+        "stage_stop_boundary"
+    ]
+    assert proposal["exact_owner_go"].startswith("GO — approve")

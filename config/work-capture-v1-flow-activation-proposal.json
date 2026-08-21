@@ -1,0 +1,69 @@
+{
+  "schema_version": "1.0.0",
+  "increment": "UWC-001",
+  "stage": "manual-maker-flow-creation",
+  "status": "prepared-not-authorised-not-executed",
+  "prepared_at": "2026-08-21T19:31:57+09:30",
+  "separate_from_schema_authority": true,
+  "binding": {
+    "manifest_path": "config/work-capture-v1-activation-manifest.json",
+    "manifest_sha256": "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca",
+    "schema_activation_receipt": "config/work-capture-v1-activation-receipt.json",
+    "schema_result_commit": "e0df0aebd0b4b9bd7b362f6f46aa9f7872d363a7",
+    "manual_maker_pack": "docs/work-capture/MANUAL-MAKER-ACTIVATION-PACK.md",
+    "manual_maker_pack_commit": "be42606236f1cebb2e8a03369a43f5a7a75c9a94"
+  },
+  "completed_dependency": {
+    "work_log_fields_created": 29,
+    "idempotency_rerun_created": 0,
+    "idempotency_rerun_reused_compatible": 29,
+    "existing_fields_changed": 0,
+    "views_changed": 0,
+    "webhooks_changed": 0,
+    "commercial_or_finance_changes": 0
+  },
+  "target": {
+    "operator": "elliot-owner",
+    "environment_name": "EDN Systems (default)",
+    "environment_id": "Default-aae6ab79-45eb-4829-a04f-595becdb936d",
+    "flow_name": "UWC-AcceptCapture-v1",
+    "site_url": "https://edn123.sharepoint.com/sites/EDNSystems",
+    "work_log_id": "7b6d10ec-c009-422a-9802-c907d3d4f57f"
+  },
+  "proposed_window": {
+    "start": "2026-08-21T20:05:00+09:30",
+    "end": "2026-08-21T21:30:00+09:30"
+  },
+  "authorised_only_after_exact_owner_go": [
+    "manually create UWC-AcceptCapture-v1 in EDN Systems (default)",
+    "configure the Power Apps (V2) trigger with Text inputs submissionKey then payloadJson",
+    "configure only the standard SharePoint and built-in actions, expressions, conditions and mappings in section B of the validated manual-maker pack",
+    "configure the SharePoint run-only connection as Provided by run-only user without adding permissions",
+    "configure Text outputs status, captureId, workLogItemId, workLogItemUrl, evidenceStatus and message",
+    "run Flow checker and save the flow"
+  ],
+  "stage_stop_boundary": [
+    "do not connect the flow to EDN Work Capture",
+    "do not run the flow or create a Work Log item",
+    "do not create synthetic files or records",
+    "do not edit or publish the canvas app",
+    "do not share the flow beyond the existing owner context",
+    "do not add permissions, premium connectors, Dataverse, HTTP, custom connectors or replacement apps"
+  ],
+  "preserved_prohibitions": [
+    "synthetic and non-customer test boundary only",
+    "no production records",
+    "no commercial or RateCode changes",
+    "no finance, invoice, approval, view or webhook changes",
+    "no permission broadening",
+    "no Intelligence Core changes",
+    "no PA-010"
+  ],
+  "stop_conditions": [
+    "any requested permission or consent exceeds the existing SharePoint connection",
+    "any required action or connector is premium, unavailable or differs from the validated pack",
+    "the exact flow name, environment, inputs, outputs or mappings cannot be preserved",
+    "the proposed activation window has not started or has expired"
+  ],
+  "exact_owner_go": "GO — approve the Universal Work Capture V1 manual Power Automate flow-creation stage for operator elliot-owner from 2026-08-21T20:05:00+09:30 through 2026-08-21T21:30:00+09:30. Bind exactly to manifest SHA-256 ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca, completed schema receipt commit e0df0aebd0b4b9bd7b362f6f46aa9f7872d363a7, and docs/work-capture/MANUAL-MAKER-ACTIVATION-PACK.md. Authorize only owner-interactive manual creation, configuration, Flow Checker validation and save of UWC-AcceptCapture-v1 in EDN Systems (default), using the exact Power Apps (V2) inputs, standard SharePoint actions, conditions, expressions, mappings and outputs in section B. Stop before connecting the flow to EDN Work Capture, running it, creating records/files, editing the app, sharing beyond the existing owner context, adding permissions, or using premium, Dataverse, HTTP or custom connectors. Preserve the synthetic/non-customer boundary and all commercial, finance, view, webhook, Intelligence Core and PA-010 prohibitions."
+}
