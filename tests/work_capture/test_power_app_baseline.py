@@ -77,7 +77,7 @@ def test_deprecated_round_trip_and_live_update_remain_blocked() -> None:
     assert live_update["native_git_integration_available"] is False
 
 
-def test_activation_receipt_is_bound_to_manifest_and_awaits_schema_retry() -> None:
+def test_activation_receipt_records_completed_idempotent_schema_activation() -> None:
     receipt = json.loads(ACTIVATION_RECEIPT.read_text(encoding="utf-8"))
     authority = receipt["authority"]
     target = receipt["target"]
@@ -89,9 +89,7 @@ def test_activation_receipt_is_bound_to_manifest_and_awaits_schema_retry() -> No
     assert authority["observed_manifest_sha256"] == actual_hash
     assert authority["hash_verified"] is True
     assert target["app_id"] == "a47efc3e-0b52-405a-a220-54930a4ffdc9"
-    assert receipt["status"] == (
-        "owner-interactive-schema-activation-authorised-awaiting-window"
-    )
+    assert receipt["status"] == "schema-activation-completed-flow-stage-not-authorised"
     assert authority["operator"] == "elliot-owner"
     assert authority["window_start"] == "2026-08-21T19:05:00+09:30"
     assert authority["window_end"] == "2026-08-21T20:00:00+09:30"
@@ -113,8 +111,17 @@ def test_activation_receipt_is_bound_to_manifest_and_awaits_schema_retry() -> No
     assert execution["empty_webhook_repair_commit"] == (
         "07ad09cc0a53a2340f6325936a9b5c90a8284137"
     )
-    assert results["external_mutations"] == 0
-    assert results["work_log_fields_created"] == []
+    completed = execution["completed_result"]
+    assert completed["first_run"]["created"] == 29
+    assert completed["first_run"]["existing_fields_changed"] == 0
+    assert completed["idempotency_rerun"]["created"] == 0
+    assert completed["idempotency_rerun"]["reused_compatible"] == 29
+    assert execution["retry_authorised_within_current_window"] is False
+    assert results["external_mutations"] == 29
+    assert len(results["work_log_fields_created"]) == 29
+    assert "WorkCaptureID" in results["work_log_fields_created"]
+    assert "WorkCapturePayloadHash" in results["work_log_fields_created"]
+    assert results["work_log_fields_changed"] == []
     assert results["flows_created"] == []
     assert results["customer_data_used"] is False
     assert rollback["required"] is False

@@ -1,8 +1,8 @@
 {
   "schema_version": "1.0.0",
   "increment": "UWC-001",
-  "status": "owner-interactive-schema-activation-authorised-awaiting-window",
-  "recorded_at": "2026-08-21T19:02:19+09:30",
+  "status": "schema-activation-completed-flow-stage-not-authorised",
+  "recorded_at": "2026-08-21T19:29:25+09:30",
   "authority": {
     "operator": "elliot-owner",
     "window_start": "2026-08-21T19:05:00+09:30",
@@ -19,6 +19,7 @@
     "choice_retrieval_repair_commit": "b3cacc6d27531e5f5bc0c474ff0b961ded4d9eac",
     "webhook_repair_commit": "07ad09cc0a53a2340f6325936a9b5c90a8284137",
     "execution_operator": "owner-interactive",
+    "execution_status": "completed-authority-closed",
     "authorised_mutations": [
       "execute installer/Activate-UWCWorkLogSchema.ps1 once against the approved Work Log boundary",
       "execute the same installer once more immediately to verify idempotency"
@@ -77,7 +78,37 @@
     ]
   },
   "activation_results": {
-    "work_log_fields_created": [],
+    "work_log_fields_created": [
+      "WorkCaptureID",
+      "WorkCaptureSubmissionKey",
+      "WorkCaptureSchemaVersion",
+      "WorkCaptureProjectID",
+      "WorkCaptureClientID",
+      "Engineer",
+      "DurationMinutes",
+      "WorkSummary",
+      "OutcomeStatus",
+      "BillingTreatment",
+      "FollowUpRequired",
+      "FollowUpSummary",
+      "FollowUpDue",
+      "EvidenceRequirementApplied",
+      "EvidenceStatus",
+      "EvidenceReferencesJson",
+      "SecureSiteApplied",
+      "PhotoPolicyApplied",
+      "PhotoAuthorizationRef",
+      "CaptureMethod",
+      "SourceAppVersion",
+      "CapturedAt",
+      "ProjectProfileVersion",
+      "FactOrigin",
+      "DefaultedFieldsJson",
+      "WorkCaptureRevision",
+      "SupersedesWorkCaptureID",
+      "CorrectionReason",
+      "WorkCapturePayloadHash"
+    ],
     "work_log_fields_changed": [],
     "flows_created": [],
     "flows_changed": [],
@@ -85,7 +116,7 @@
     "project_files_created": [],
     "synthetic_customer_records_used": false,
     "customer_data_used": false,
-    "external_mutations": 0,
+    "external_mutations": 29,
     "finance_changes": 0,
     "webhook_changes": 0,
     "commercial_rate_changes": 0,
@@ -94,7 +125,8 @@
     "pa_010_started": false
   },
   "acceptance": {
-    "schema_presence_and_types": "not-run-no-schema-mutation",
+    "schema_presence_and_types": "passed-29-approved-fields-verified",
+    "schema_idempotency_rerun": "passed-created-0-reused-compatible-29",
     "idempotent_submission": "not-run-no-acceptance-flow",
     "duplicate_rejection": "not-run-no-acceptance-flow",
     "follow_up_projection": "not-run-no-acceptance-flow",
@@ -103,7 +135,7 @@
     "secure_photo_prohibition": "not-run-no-acceptance-flow",
     "correction_lineage": "not-run-no-acceptance-flow",
     "finance_view_regression": "not-run-no-synthetic-record",
-    "webhook_regression": "not-run-no-live-mutation"
+    "webhook_regression": "passed-zero-webhooks-unchanged"
   },
   "prior_automation_blocker": {
     "reason_code": "supported-flow-creation-and-sharepoint-schema-mutation-capability-unavailable",
@@ -145,12 +177,36 @@
     "site_url_repair_commit": "c2cb6640e3aaa8f7bbc9a290ca3deef10c8faad2",
     "choice_retrieval_repair_commit": "b3cacc6d27531e5f5bc0c474ff0b961ded4d9eac",
     "empty_webhook_repair_commit": "07ad09cc0a53a2340f6325936a9b5c90a8284137",
-    "retry_authorised_within_current_window": true,
-    "next_action": "elliot-owner runs installer/Activate-UWCWorkLogSchema.ps1 and its immediate idempotency rerun between 2026-08-21T19:05:00+09:30 and 2026-08-21T20:00:00+09:30, then reports both verification outputs"
+    "completed_result": {
+      "evidence_source": "owner-reported console verification",
+      "first_run": {
+        "preflight": "passed",
+        "created": 29,
+        "reused": 0,
+        "existing_fields_changed": 0,
+        "original_existing_fields_unchanged": 102,
+        "views_unchanged": 4,
+        "webhooks_unchanged": 0,
+        "existing_values_read_or_changed": 0,
+        "rate_finance_permission_view_webhook_mutations": 0
+      },
+      "idempotency_rerun": {
+        "preflight": "passed",
+        "created": 0,
+        "reused_compatible": 29,
+        "existing_fields_changed": 0,
+        "approved_v1_fields_verified": 29,
+        "existing_values_read_or_changed": 0,
+        "rate_finance_permission_view_webhook_mutations": 0
+      },
+      "manifest_sha256": "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca"
+    },
+    "retry_authorised_within_current_window": false,
+    "next_action": "obtain a separate owner GO before manually creating UWC-AcceptCapture-v1; the completed schema authority cannot be reused"
   },
   "rollback": {
     "required": false,
-    "reason": "No live object, schema, record, file, flow, permission, app definition, finance rule, view, or webhook was changed."
+    "reason": "The approved additive schema completed successfully and passed its immediate idempotency rerun. Rollback is leave-dormant; do not delete the optional fields."
   },
   "manual_maker_pack": "docs/work-capture/MANUAL-MAKER-ACTIVATION-PACK.md",
   "studio_handoff": "docs/work-capture/POWER-APPS-STUDIO-V1-RUNBOOK.md"

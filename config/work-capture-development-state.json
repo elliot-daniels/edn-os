@@ -3,9 +3,9 @@
   "product": "EDN Systems OS Universal Work Capture",
   "branch": "feature/universal-work-capture-v0.1",
   "increment": "UWC-001",
-  "status": "owner-interactive-schema-activation-authorised-awaiting-window",
+  "status": "schema-activation-completed-flow-stage-prepared-not-authorised",
   "canonical_owner": "Work Log",
-  "live_microsoft_mutation_authorised": true,
+  "live_microsoft_mutation_authorised": false,
   "protected_runtime_access_authorised": false,
   "architecture_evidence": [
     "docs/ims/EDN-IMS-Architecture.md",
@@ -17,7 +17,7 @@
   "known_live_binding_gaps": [
     "The exact canvas app definition is exported; supported automated flow/app authoring is unavailable, so the owner-executable PnP/Power Automate/Studio path is prepared",
     "Projects, Clients, Actions, Project Files and Engineering Knowledge have observed webhook dependencies",
-    "Work Log outcome, performer, provenance, correction and evidence-state fields are missing",
+    "Work Log V1 additive schema is active; UWC-AcceptCapture-v1 does not yet exist",
     "Existing RateCode embeds commercial labels and requires owner treatment decision",
     "Evidence & Test Results exists but is empty; Project Files is recommended for V1 evidence"
   ],
@@ -33,7 +33,7 @@
     "engineering_knowledge_id": "adb9a65b-2429-4528-b9c3-04dae9d2cfc0",
     "manifest_path": "config/work-capture-v1-activation-manifest.json",
     "manifest_sha256": "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca",
-    "mutations": 0,
+    "mutations": 29,
     "operational_record_reads": 0,
     "power_apps_definitions": "exact saved scaffold exported as generated review source",
     "power_automate_definitions": "unavailable",
@@ -54,7 +54,7 @@
     }
     ,"proposal_path": "docs/work-capture/M365-TEST-ACTIVATION-PROPOSAL.md",
     "proposal_manifest_sha256_verified": true,
-    "microsoft_mutation_authorised": true,
+    "microsoft_mutation_authorised": false,
     "bounded_activation_authority": {
       "received": true,
       "operator": "elliot-owner",
@@ -67,7 +67,19 @@
       "validated_branch_commit": "f69dd29741c82bc9eb8937a8e4f9d948d0b896e1",
       "repair_commit": "b3cacc6d27531e5f5bc0c474ff0b961ded4d9eac",
       "execution_mode": "owner-interactive-schema-script-and-idempotency-rerun-only",
-      "execution_status": "authorised-awaiting-window"
+      "execution_status": "completed-authority-closed",
+      "result": {
+        "first_run_created": 29,
+        "first_run_reused": 0,
+        "idempotency_rerun_created": 0,
+        "idempotency_rerun_reused_compatible": 29,
+        "existing_fields_changed": 0,
+        "original_existing_fields_unchanged": 102,
+        "views_unchanged": 4,
+        "webhooks_unchanged": 0,
+        "existing_values_read_or_changed": 0,
+        "rate_finance_permission_view_webhook_mutations": 0
+      }
     },
     "last_activation_admission": {
       "operator": "elliot-owner",
@@ -78,9 +90,9 @@
       "activation_pack_commit": "be42606236f1cebb2e8a03369a43f5a7a75c9a94",
       "validated_branch_commit": "f69dd29741c82bc9eb8937a8e4f9d948d0b896e1",
       "repair_commit": "b3cacc6d27531e5f5bc0c474ff0b961ded4d9eac",
-      "mutations_reported": 0,
-      "execution_status": "schema-script-and-immediate-idempotency-rerun-authorised-awaiting-window",
-      "next_required_action": "elliot-owner executes only the validated schema script and its immediate idempotency rerun, then reports both verification outputs",
+      "mutations_reported": 29,
+      "execution_status": "completed-authority-closed",
+      "next_required_action": "separate owner GO required before manual creation of UWC-AcceptCapture-v1",
       "receipt_path": "config/work-capture-v1-activation-receipt.json",
       "manual_maker_pack_path": "docs/work-capture/MANUAL-MAKER-ACTIVATION-PACK.md",
       "studio_handoff_path": "docs/work-capture/POWER-APPS-STUDIO-V1-RUNBOOK.md"
@@ -108,8 +120,9 @@
     "power_platform_definition_reads": 1,
     "sharepoint_item_reads": 0,
     "microsoft_authentication_attempts": 0,
-    "external_mutations": 0,
-    "validated_at": "2026-08-21T19:18:00+09:30",
+    "external_mutations": 29,
+    "live_schema_activation": "passed-owner-reported-first-run-and-idempotency-rerun",
+    "validated_at": "2026-08-21T19:29:25+09:30",
     "activation_receipt": "passed"
   },
   "starting_commit": "560421510d70b2a6ee3480f99321b2e163d5b706",
@@ -275,9 +288,35 @@
     "local_head_equals_upstream": true,
     "push_status": "pushed"
   },
-  "push_status": "pushed",
+  "schema_activation_result": {
+    "evidence_source": "owner-reported console verification",
+    "manifest_sha256": "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca",
+    "first_run": {
+      "preflight": "passed",
+      "created": 29,
+      "reused": 0,
+      "existing_fields_changed": 0,
+      "original_existing_fields_unchanged": 102,
+      "views_unchanged": 4,
+      "webhooks_unchanged": 0,
+      "existing_values_read_or_changed": 0,
+      "rate_finance_permission_view_webhook_mutations": 0
+    },
+    "idempotency_rerun": {
+      "preflight": "passed",
+      "created": 0,
+      "reused_compatible": 29,
+      "existing_fields_changed": 0,
+      "approved_v1_fields_verified": 29,
+      "existing_values_read_or_changed": 0,
+      "rate_finance_permission_view_webhook_mutations": 0
+    },
+    "schema_authority_status": "completed-closed",
+    "next_stage_status": "flow-creation-prepared-not-authorised"
+  },
+  "push_status": "pending",
   "remote_ref": "origin/feature/universal-work-capture-v0.1",
-  "local_head_equals_remote_after_push": true,
-  "repository_status": "webhook-metadata-repair-and-audit-pushed-awaiting-owner-retry",
-  "updated_at": "2026-08-21T19:19:13+09:30"
+  "local_head_equals_remote_after_push": false,
+  "repository_status": "schema-activation-result-recorded-checkpoint-pending",
+  "updated_at": "2026-08-21T19:29:25+09:30"
 }
