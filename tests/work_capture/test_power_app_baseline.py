@@ -90,11 +90,11 @@ def test_activation_receipt_is_bound_to_manifest_and_awaits_schema_retry() -> No
     assert authority["hash_verified"] is True
     assert target["app_id"] == "a47efc3e-0b52-405a-a220-54930a4ffdc9"
     assert receipt["status"] == (
-        "owner-interactive-activation-authorised-awaiting-schema-retry"
+        "owner-interactive-schema-activation-authorised-awaiting-window"
     )
     assert authority["operator"] == "elliot-owner"
-    assert authority["window_start"] == "2026-08-21T17:05:00+09:30"
-    assert authority["window_end"] == "2026-08-21T19:00:00+09:30"
+    assert authority["window_start"] == "2026-08-21T19:05:00+09:30"
+    assert authority["window_end"] == "2026-08-21T20:00:00+09:30"
     assert authority["activation_pack_commit"] == (
         "be42606236f1cebb2e8a03369a43f5a7a75c9a94"
     )

@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0.0",
   "increment": "UWC-001",
-  "status": "owner-interactive-activation-authorised-awaiting-schema-retry",
-  "recorded_at": "2026-08-21T17:05:21+09:30",
+  "status": "owner-interactive-schema-activation-authorised-awaiting-window",
+  "recorded_at": "2026-08-21T19:02:19+09:30",
   "authority": {
     "operator": "elliot-owner",
-    "window_start": "2026-08-21T17:05:00+09:30",
-    "window_end": "2026-08-21T19:00:00+09:30",
+    "window_start": "2026-08-21T19:05:00+09:30",
+    "window_end": "2026-08-21T20:00:00+09:30",
     "test_data_boundary": "synthetic-non-customer-only",
     "manifest_path": "config/work-capture-v1-activation-manifest.json",
     "required_manifest_sha256": "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca",
@@ -15,12 +15,12 @@
     "activation_pack_path": "docs/work-capture/MANUAL-MAKER-ACTIVATION-PACK.md",
     "activation_pack_commit": "be42606236f1cebb2e8a03369a43f5a7a75c9a94",
     "activation_pack_commit_verified": true,
+    "validated_branch_commit": "f69dd29741c82bc9eb8937a8e4f9d948d0b896e1",
+    "choice_retrieval_repair_commit": "b3cacc6d27531e5f5bc0c474ff0b961ded4d9eac",
     "execution_operator": "owner-interactive",
     "authorised_mutations": [
-      "manifest-approved additive Work Log schema changes",
-      "create UWC-AcceptCapture-v1 using the validated manual-maker runbook",
-      "synthetic acceptance records and files",
-      "existing EDN Work Capture test-app Studio changes in the validated runbook"
+      "execute installer/Activate-UWCWorkLogSchema.ps1 once against the approved Work Log boundary",
+      "execute the same installer once more immediately to verify idempotency"
     ],
     "preserved_prohibitions": [
       "no production activation",
@@ -113,7 +113,7 @@
   "current_execution": {
     "mode": "owner-interactive-manual-maker",
     "authority_received": true,
-    "authority_active_at_recording": true,
+    "authority_active_at_recording": false,
     "execution_reported": true,
     "repository_agent_microsoft_execution_planned": false,
     "previous_attempt": {
@@ -136,7 +136,7 @@
     "site_url_repair_commit": "c2cb6640e3aaa8f7bbc9a290ca3deef10c8faad2",
     "choice_retrieval_repair_commit": "b3cacc6d27531e5f5bc0c474ff0b961ded4d9eac",
     "retry_authorised_within_current_window": true,
-    "next_action": "elliot-owner reruns installer/Activate-UWCWorkLogSchema.ps1 before 2026-08-21T19:00:00+09:30 and reports the post-activation verification output"
+    "next_action": "elliot-owner runs installer/Activate-UWCWorkLogSchema.ps1 and its immediate idempotency rerun between 2026-08-21T19:05:00+09:30 and 2026-08-21T20:00:00+09:30, then reports both verification outputs"
   },
   "rollback": {
     "required": false,
