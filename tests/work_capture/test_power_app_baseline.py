@@ -77,7 +77,7 @@ def test_deprecated_round_trip_and_live_update_remain_blocked() -> None:
     assert live_update["native_git_integration_available"] is False
 
 
-def test_activation_receipt_is_bound_to_manifest_and_awaits_owner_results() -> None:
+def test_activation_receipt_is_bound_to_manifest_and_awaits_schema_retry() -> None:
     receipt = json.loads(ACTIVATION_RECEIPT.read_text(encoding="utf-8"))
     authority = receipt["authority"]
     target = receipt["target"]
@@ -90,7 +90,7 @@ def test_activation_receipt_is_bound_to_manifest_and_awaits_owner_results() -> N
     assert authority["hash_verified"] is True
     assert target["app_id"] == "a47efc3e-0b52-405a-a220-54930a4ffdc9"
     assert receipt["status"] == (
-        "owner-interactive-activation-authorised-awaiting-results"
+        "owner-interactive-activation-authorised-awaiting-schema-retry"
     )
     assert authority["operator"] == "elliot-owner"
     assert authority["window_start"] == "2026-08-21T17:05:00+09:30"
@@ -98,7 +98,13 @@ def test_activation_receipt_is_bound_to_manifest_and_awaits_owner_results() -> N
     assert authority["activation_pack_commit"] == (
         "be42606236f1cebb2e8a03369a43f5a7a75c9a94"
     )
-    assert receipt["current_execution"]["execution_reported"] is False
+    execution = receipt["current_execution"]
+    assert execution["execution_reported"] is True
+    assert execution["last_attempt"]["result"] == "stopped-before-mutation"
+    assert execution["last_attempt"]["sharepoint_mutations"] == 0
+    assert execution["approved_repair_commit"] == (
+        "c2cb6640e3aaa8f7bbc9a290ca3deef10c8faad2"
+    )
     assert results["external_mutations"] == 0
     assert results["work_log_fields_created"] == []
     assert results["flows_created"] == []

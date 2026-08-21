@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
   "increment": "UWC-001",
-  "status": "owner-interactive-activation-authorised-awaiting-results",
+  "status": "owner-interactive-activation-authorised-awaiting-schema-retry",
   "recorded_at": "2026-08-21T17:05:21+09:30",
   "authority": {
     "operator": "elliot-owner",
@@ -114,9 +114,20 @@
     "mode": "owner-interactive-manual-maker",
     "authority_received": true,
     "authority_active_at_recording": true,
-    "execution_reported": false,
+    "execution_reported": true,
     "repository_agent_microsoft_execution_planned": false,
-    "next_action": "elliot-owner executes the validated schema, Power Automate, Studio, and synthetic acceptance runbooks and reports results before the window closes"
+    "last_attempt": {
+      "stage": "schema-site-identity-preflight",
+      "result": "stopped-before-mutation",
+      "reason": "SharePoint returned the equivalent site path with lowercase URL casing and the prior comparison was case-sensitive",
+      "actual_site_url": "https://edn123.sharepoint.com/sites/ednsystems",
+      "expected_site_url": "https://edn123.sharepoint.com/sites/EDNSystems",
+      "sharepoint_mutations": 0,
+      "customer_data_used": false
+    },
+    "approved_repair_commit": "c2cb6640e3aaa8f7bbc9a290ca3deef10c8faad2",
+    "retry_authorised_within_current_window": true,
+    "next_action": "elliot-owner reruns installer/Activate-UWCWorkLogSchema.ps1 before 2026-08-21T19:00:00+09:30 and reports the post-activation verification output"
   },
   "rollback": {
     "required": false,

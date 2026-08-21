@@ -3,7 +3,7 @@
   "product": "EDN Systems OS Universal Work Capture",
   "branch": "feature/universal-work-capture-v0.1",
   "increment": "UWC-001",
-  "status": "owner-interactive-manual-maker-activation-authorised-awaiting-results",
+  "status": "owner-interactive-manual-maker-activation-authorised-awaiting-schema-retry",
   "canonical_owner": "Work Log",
   "live_microsoft_mutation_authorised": true,
   "protected_runtime_access_authorised": false,
@@ -84,14 +84,14 @@
   },
   "validation": {
     "outcome": "passed",
-    "focused_work_capture_tests": 26,
-    "full_pytest_passed": 537,
+    "focused_work_capture_tests": 27,
+    "full_pytest_passed": 538,
     "ruff": "passed",
     "strict_mypy": "passed",
     "mypy_source_files": 118,
     "json": "passed",
     "whitespace": "passed",
-    "powershell_7_parser": "passed",
+    "powershell_7_parser": "passed-activation-and-url-regression-files",
     "psscriptanalyzer": "unavailable-not-installed",
     "manual_flow_contract": "passed-static-repository-validation",
     "canvas_source_hashes": "passed",
@@ -101,7 +101,7 @@
     "sharepoint_item_reads": 0,
     "microsoft_authentication_attempts": 0,
     "external_mutations": 0,
-    "validated_at": "2026-08-21T16:57:07+09:30",
+    "validated_at": "2026-08-21T18:29:16+09:30",
     "activation_receipt": "passed"
   },
   "starting_commit": "560421510d70b2a6ee3480f99321b2e163d5b706",
@@ -192,9 +192,25 @@
     "local_head_equals_upstream": true,
     "microsoft_mutations_reported": 0
   },
-  "push_status": "pushed",
+  "schema_url_preflight_repair": {
+    "repair_commit": "c2cb6640e3aaa8f7bbc9a290ca3deef10c8faad2",
+    "failed_actual_url": "https://edn123.sharepoint.com/sites/ednsystems",
+    "expected_url": "https://edn123.sharepoint.com/sites/EDNSystems",
+    "first_attempt_result": "stopped-before-mutation",
+    "sharepoint_mutations": 0,
+    "manifest_sha256": "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca",
+    "validation": {
+      "focused_work_capture_tests": 27,
+      "full_pytest_passed": 538,
+      "powershell_7_parser": "passed",
+      "windows_regression_execution": "blocked-by-existing-unsigned-script-execution-policy-not-bypassed"
+    },
+    "retry_status": "authorised-within-current-window",
+    "push_status": "pushed"
+  },
+  "push_status": "pending",
   "remote_ref": "origin/feature/universal-work-capture-v0.1",
-  "local_head_equals_remote_after_push": true,
-  "repository_status": "activation-authority-recorded-pushed-awaiting-owner-results",
-  "updated_at": "2026-08-21T17:07:17+09:30"
+  "local_head_equals_remote_after_push": false,
+  "repository_status": "schema-url-preflight-repair-pushed-audit-checkpoint-pending",
+  "updated_at": "2026-08-21T18:29:16+09:30"
 }
