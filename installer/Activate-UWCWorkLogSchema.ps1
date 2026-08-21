@@ -323,12 +323,63 @@ function Assert-ExistingField {
     }
 }
 
+function Get-UwcWebhookMetadataSnapshot {
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [object[]]$Webhooks
+    )
+
+    $seenIds = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::OrdinalIgnoreCase
+    )
+    $metadata = [Collections.Generic.List[object]]::new()
+    foreach ($webhook in $Webhooks) {
+        if ($null -eq $webhook) {
+            throw "Webhook collection contains a null entry."
+        }
+
+        $webhookId = [Guid]::Empty
+        if (
+            -not [Guid]::TryParse([string]$webhook.Id, [ref]$webhookId) -or
+            $webhookId -eq [Guid]::Empty
+        ) {
+            throw "Webhook collection contains an invalid identity."
+        }
+        $normalizedId = $webhookId.ToString().ToLowerInvariant()
+        if (-not $seenIds.Add($normalizedId)) {
+            throw "Webhook collection contains duplicate identity '$normalizedId'."
+        }
+
+        try {
+            $expiration = [DateTimeOffset]$webhook.ExpirationDateTime
+        }
+        catch {
+            throw "Webhook '$normalizedId' has invalid expiration metadata."
+        }
+        if ($expiration -eq [DateTimeOffset]::MinValue) {
+            throw "Webhook '$normalizedId' has empty expiration metadata."
+        }
+
+        $metadata.Add([ordered]@{
+            Id = $normalizedId
+            ExpirationUtc = $expiration.ToUniversalTime().ToString(
+                "o",
+                [Globalization.CultureInfo]::InvariantCulture
+            )
+        })
+    }
+    return @($metadata | Sort-Object { $_.Id })
+}
+
 function Get-ExistingSchemaSnapshot {
     param(
         [Parameter(Mandatory)][object[]]$Fields,
         [Parameter(Mandatory)][Guid[]]$OriginalFieldIds,
         [Parameter(Mandatory)][object[]]$Views,
-        [Parameter(Mandatory)][object[]]$Webhooks
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [object[]]$Webhooks
     )
 
     $idSet = @{}
@@ -369,18 +420,7 @@ function Get-ExistingSchemaSnapshot {
                 }
             }
     )
-    $webhookSnapshot = @(
-        $Webhooks |
-            Sort-Object Id |
-            ForEach-Object {
-                [ordered]@{
-                    Id = [string]$_.Id
-                    NotificationUrl = [string]$_.NotificationUrl
-                    ExpirationDateTime = [string]$_.ExpirationDateTime
-                    ClientState = [string]$_.ClientState
-                }
-            }
-    )
+    $webhookSnapshot = @(Get-UwcWebhookMetadataSnapshot -Webhooks $Webhooks)
 
     $json = [ordered]@{
         Fields = $fieldSnapshot

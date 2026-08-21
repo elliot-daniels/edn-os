@@ -14,6 +14,9 @@ URL_TEST = ROOT / "tests" / "work_capture" / "Test-Activate-UWCWorkLogSchemaUrl.
 CHOICE_TEST = (
     ROOT / "tests" / "work_capture" / "Test-Activate-UWCWorkLogSchemaChoices.ps1"
 )
+WEBHOOK_TEST = (
+    ROOT / "tests" / "work_capture" / "Test-Activate-UWCWorkLogSchemaWebhooks.ps1"
+)
 EXPECTED_HASH = "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca"
 
 EXPECTED_FIELDS = {
@@ -142,6 +145,23 @@ def test_schema_script_loads_choices_from_supported_schema_xml() -> None:
     assert "Scheduled Night-135" in regression
     assert "Missing required choice validation was bypassed" in regression
     assert "Empty choice-schema validation was bypassed" in regression
+
+
+def test_schema_script_accepts_empty_webhooks_and_keeps_metadata_only() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+    regression = WEBHOOK_TEST.read_text(encoding="utf-8")
+
+    assert "Get-UwcWebhookMetadataSnapshot" in script
+    assert "[AllowEmptyCollection()]" in script
+    assert "ExpirationUtc" in script
+    assert "NotificationUrl" not in script
+    assert "ClientState" not in script
+    assert "Webhook collection contains a null entry" in script
+    assert "Webhook collection contains duplicate identity" in script
+    assert "-Webhooks @()" in regression
+    assert "Well-formed webhooks were not retained" in regression
+    assert "Malformed webhook validation was bypassed" in regression
+    assert "Ambiguous webhook validation was bypassed" in regression
 
 
 def test_manual_flow_contract_is_standard_only_and_exact() -> None:
