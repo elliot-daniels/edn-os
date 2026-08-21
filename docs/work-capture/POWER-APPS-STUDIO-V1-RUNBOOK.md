@@ -53,7 +53,6 @@ following, then choose **Run OnStart**:
 
 ```powerfx
 Set(varSubmissionKey, Text(GUID()));
-Set(varCapturedAt, Now());
 Set(varHours, 0.5);
 Set(varOtherDuration, false);
 Set(varOutcome, "completed");
@@ -62,6 +61,10 @@ Set(varSubmitting, false);
 Set(varSaveMessage, Blank());
 Set(varLastCaptureId, Blank());
 Set(varLastWorkLogItemId, Blank());
+Set(varAttemptSubmissionKey, Blank());
+Set(varAttemptPayloadJson, Blank());
+Set(varLastSubmissionKey, Blank());
+Set(varLastPayloadJson, Blank());
 Set(varSelectedProject, Blank());
 Set(varSecureSite, false);
 Set(varPhotoPolicy, "allowed");
@@ -236,6 +239,7 @@ cards follow billing, and `uwcEvidenceCard` follows the follow-up cards.
 |---:|---|---|---|---|
 | 8.1 | `DataCardValue10` | `DefaultSelectedItems` | `If(IsBlank(Parent.Default), Filter(Choices([@'Work Log'].'WorkType'), Value = "Field Work"), Parent.Default)` | Existing Work Type choices and default are preserved. |
 | 8.2 | `DataCardValue6` | `Default` | `false` | Synthetic test starts non-billable and cannot create a genuine invoice effect. |
+| 8.2a | `DataCardValue6` | `DisplayMode` | `DisplayMode.Disabled` | The bounded synthetic activation cannot be made billable; later enablement requires separate finance approval. |
 | 8.3 | `Rate Code_DataCard1` | `Visible` | `DataCardValue6.Value` | Existing Rate Code is shown only when billable is explicitly selected. |
 | 8.4 | `DataCardValue5` | `Items` | `Choices([@'Work Log'].'RateCode')` | Existing values, including `APEX-95` and `Scheduled Night-135`, remain unchanged. |
 | 8.5 | `Task or Job Reference_DataCard1` | `Visible` | `varMore` | Task/job reference is progressive. |
@@ -324,46 +328,52 @@ If(
 ```powerfx
 Set(varSubmitting, true);
 Set(varSaveMessage, Blank());
+Set(varAttemptSubmissionKey, varSubmissionKey);
+Set(
+    varAttemptPayloadJson,
+    JSON(
+        {
+            schemaVersion: "1.0.0",
+            projectItemId: DataCardValue9.Selected.Id,
+            clientItemId: DataCardValue8.Selected.Id,
+            workDate: Text(DateValue1.SelectedDate, "yyyy-mm-dd"),
+            durationMinutes: Round(varHours * 60, 0),
+            workType: DataCardValue10.Selected.Value,
+            workSummary: Trim(DataCardValue7.Text),
+            outcomeStatus: uwcOutcome.Selected.Value,
+            billingTreatment: "non_billable",
+            rateCode: "",
+            taskReference: If(varMore, Trim(DataCardValue11.Text), ""),
+            followUpRequired: uwcFollowUp.Value,
+            followUpSummary: If(uwcFollowUp.Value, Trim(uwcFollowUpSummary.Text), ""),
+            followUpDue: If(uwcFollowUp.Value, Text(uwcFollowUpDue.SelectedDate, "yyyy-mm-dd"), ""),
+            evidenceRequirement: uwcEvidenceRequirement.Selected.Value,
+            secureSiteApplied: varSecureSite,
+            photoPolicyApplied: varPhotoPolicy,
+            captureMethod: "mobile_app",
+            sourceAppVersion: varSourceAppVersion,
+            projectProfileModified: varSelectedProject.Modified,
+            factOrigin: "human_confirmed",
+            supersedesCaptureId: Coalesce(varSupersedesCaptureId, ""),
+            correctionReason: Coalesce(varCorrectionReason, "")
+        },
+        JSONFormat.Compact
+    )
+);
 IfError(
     Set(
         varReceipt,
         'UWC-AcceptCapture-v1'.Run(
-            varSubmissionKey,
-            JSON(
-                {
-                    schemaVersion: "1.0.0",
-                    projectItemId: DataCardValue9.Selected.Id,
-                    clientItemId: DataCardValue8.Selected.Id,
-                    workDate: Text(DateValue1.SelectedDate, "yyyy-mm-dd"),
-                    durationMinutes: Round(varHours * 60, 0),
-                    workType: DataCardValue10.Selected.Value,
-                    workSummary: Trim(DataCardValue7.Text),
-                    outcomeStatus: uwcOutcome.Selected.Value,
-                    billingTreatment: If(DataCardValue6.Value, "billable", "non_billable"),
-                    rateCode: If(DataCardValue6.Value, Coalesce(DataCardValue5.Selected.Value, ""), ""),
-                    taskReference: If(varMore, Trim(DataCardValue11.Text), ""),
-                    followUpRequired: uwcFollowUp.Value,
-                    followUpSummary: If(uwcFollowUp.Value, Trim(uwcFollowUpSummary.Text), ""),
-                    followUpDue: If(uwcFollowUp.Value, Text(uwcFollowUpDue.SelectedDate, "yyyy-mm-dd"), ""),
-                    evidenceRequirement: uwcEvidenceRequirement.Selected.Value,
-                    secureSiteApplied: varSecureSite,
-                    photoPolicyApplied: varPhotoPolicy,
-                    captureMethod: "power_apps",
-                    sourceAppVersion: varSourceAppVersion,
-                    projectProfileVersion: "Projects:" & Text(varSelectedProject.ID) & ":" & Text(varSelectedProject.Modified, "[$-en-US]yyyymmddhhmmss"),
-                    factOrigin: "human_confirmed",
-                    capturedAtClient: varCapturedAt,
-                    supersedesCaptureId: Coalesce(varSupersedesCaptureId, ""),
-                    correctionReason: Coalesce(varCorrectionReason, "")
-                },
-                JSONFormat.Compact
-            )
+            varAttemptSubmissionKey,
+            varAttemptPayloadJson
         )
     );
     If(
         Or(varReceipt.status = "saved", varReceipt.status = "already_saved"),
         Set(varLastCaptureId, varReceipt.captureId);
         Set(varLastWorkLogItemId, varReceipt.workLogItemId);
+        Set(varLastSubmissionKey, varAttemptSubmissionKey);
+        Set(varLastPayloadJson, varAttemptPayloadJson);
         Set(
             varSaveMessage,
             If(
@@ -377,7 +387,6 @@ IfError(
             )
         );
         Set(varSubmissionKey, Text(GUID()));
-        Set(varCapturedAt, Now());
         Set(varHours, 0.5);
         Set(varOtherDuration, false);
         Set(varOutcome, "completed");
@@ -408,36 +417,68 @@ Expected result: the app clears only after `saved` or `already_saved`; a flow
 error, rejection, or conflict leaves the current entry and submission key in
 place. A retry therefore reaches the idempotent flow with the same key.
 
-## 11. App Checker, save, publish, and phone test
+## 11. Flow acceptance, App Checker, save, publish, and phone test
 
 Perform these actions in order:
 
-1. Select **App checker**. Resolve every formula error. Do not suppress a
-   missing-field or missing-flow error. Accessibility warnings for the controls
-   above should be resolved before publishing.
-2. Preview with **Play** in Studio. Confirm Project search works; button labels
+1. Preview with **Play** in Studio. Confirm Project search works; button labels
    are exactly 15m/30m/1h/2h/Other; non-standard Security Classification shows
-   the no-photo warning; Rate Code appears only after Billable; follow-up detail
-   appears only after Follow-up Required; More reveals date/client/task/evidence.
-3. Select **Save** on the existing app. Do not use **Save as**.
-4. Select **Publish this version**. Confirm the app ID remains
+   the no-photo warning; Billable is disabled and off; Rate Code remains hidden;
+   follow-up detail appears only after Follow-up Required; More reveals
+   date/client/task/evidence.
+2. Use only a deterministic synthetic project/test profile. Keep Billable off.
+   Enter summary `[SYNTHETIC UWC V1] manual-maker acceptance`, choose 15m,
+   completed, no follow-up, no evidence, and press **LOG WORK** once. Expect
+   `Saved — WC-…`, a reset form, and a new submission key.
+3. In the flow's run history, select that successful run and **Resubmit** it.
+   Require `status=already_saved` in `Respond_to_Power_Apps`, and verify that no
+   second Work Log item exists for the submission key.
+4. For conflict acceptance, insert one temporary Modern button
+   on `Screen1`, rename it `uwcConflictTest`, and set its `Text` to
+   `"TEST CONFLICT"`. Set `OnSelect` to the exact formula below, then select the
+   temporary button. Require the green PASS notification and no second Work Log
+   item. Delete `uwcConflictTest` immediately after the result.
+
+   ```powerfx
+   Set(
+       varConflictReceipt,
+       'UWC-AcceptCapture-v1'.Run(
+           varLastSubmissionKey,
+           Substitute(
+               varLastPayloadJson,
+               "[SYNTHETIC UWC V1] manual-maker acceptance",
+               "[SYNTHETIC UWC V1] manual-maker acceptance changed"
+           )
+       )
+   );
+   If(
+       varConflictReceipt.status = "conflict",
+       Notify("PASS — changed facts rejected for the same key", NotificationType.Success),
+       Notify("STOP — expected conflict; do not publish", NotificationType.Error)
+   )
+   ```
+
+5. Repeat the remaining controlled acceptance cases through the app/flow:
+   follow-up facts are retained only in Work Log; required evidence saves as
+   pending; a non-Standard project has no photo control and policy mismatch is
+   rejected; correction creates a higher revision with
+   `SupersedesWorkCaptureID` and leaves the original unchanged. This pack does
+   not create Actions or Project Files projections.
+6. Select **App checker** after deleting `uwcConflictTest`. Resolve every formula
+   error. Do not suppress a missing-field or missing-flow error. Resolve the
+   accessibility warnings for the controls above before publishing.
+7. Select **Save** on the existing app. Do not use **Save as**.
+8. Select **Publish this version**. Confirm the app ID remains
    `a47efc3e-0b52-405a-a220-54930a4ffdc9`.
-5. On Elliot's phone, open Power Apps, refresh the app list, and open this exact
+9. On Elliot's phone, open Power Apps, refresh the app list, and open this exact
    URL:
 
    `https://apps.powerapps.com/play/e/Default-aae6ab79-45eb-4829-a04f-595becdb936d/a/a47efc3e-0b52-405a-a220-54930a4ffdc9?tenantId=aae6ab79-45eb-4829-a04f-595becdb936d`
 
-6. Use only a deterministic synthetic project/test profile. Keep Billable off.
-   Enter summary `[SYNTHETIC UWC V1] mobile acceptance`, choose 15m, completed,
-   no follow-up, no evidence, and press **LOG WORK** once. Expect `Saved —
-   WC-…`, a reset form, and a new submission key.
-7. Repeat the controlled acceptance cases through the flow harness: same key
-   and same payload returns `already_saved`; same key with changed summary
-   returns `conflict`; follow-up creates the deterministic synthetic projection;
-   required evidence saves as pending; secure project offers no photo and the
-   flow rejects a crafted photo request; correction creates a higher revision
-   with `SupersedesWorkCaptureID` and leaves the original unchanged.
-8. Re-export the saved app through the same supported read-only app-document
+10. Keep Billable off. Enter summary `[SYNTHETIC UWC V1] mobile acceptance`,
+    choose 15m, completed, no follow-up, no evidence, and press **LOG WORK**
+    once. Expect `Saved — WC-…`, a reset form, and a new submission key.
+11. Re-export the saved app through the same supported read-only app-document
    workflow, update the baseline hashes, review generated `.pa.yaml` only as a
    diff, validate, commit, and push. Never deploy the generated YAML.
 
