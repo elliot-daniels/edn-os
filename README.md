@@ -53,6 +53,9 @@ separate owner-authority gate.
 
 See [Module 004 — Work](docs/MODULE-004-WORK.md) and the
 [Universal Work Capture V1 design](docs/work-capture/UNIVERSAL-WORK-CAPTURE-V1.md).
+The exact saved `EDN Work Capture` canvas scaffold is now represented by its
+generated review source and a hash-bound live-app baseline. See the
+[Power Apps source-control and update handoff](docs/work-capture/POWER-APPS-SOURCE-CONTROL-AND-V1-UPDATE.md).
 
 Development sprints may be used to schedule work, but modules define the durable product architecture.
 

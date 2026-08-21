@@ -1,0 +1,82 @@
+{
+  "schema_version": "1.0.0",
+  "captured_at": "2026-08-21T12:12:05+09:30",
+  "status": "exported-review-source-controlled-live-update-owner-gated",
+  "app": {
+    "display_name": "EDN Work Capture",
+    "app_id": "a47efc3e-0b52-405a-a220-54930a4ffdc9",
+    "resource_id": "/providers/Microsoft.PowerApps/apps/a47efc3e-0b52-405a-a220-54930a4ffdc9",
+    "environment_name": "EDN Systems (default)",
+    "environment_id": "Default-aae6ab79-45eb-4829-a04f-595becdb936d",
+    "tenant_id": "aae6ab79-45eb-4829-a04f-595becdb936d",
+    "app_version": "2026-08-21T02:20:45Z",
+    "last_draft_version": "2026-08-21T02:20:45Z",
+    "lifecycle_id": "Published",
+    "runtime_status": "Ready",
+    "shared_users": 0,
+    "shared_groups": 0,
+    "app_open_uri": "https://apps.powerapps.com/play/e/Default-aae6ab79-45eb-4829-a04f-595becdb936d/a/a47efc3e-0b52-405a-a220-54930a4ffdc9?tenantId=aae6ab79-45eb-4829-a04f-595becdb936d"
+  },
+  "connections": {
+    "connector": "shared_sharepointonline",
+    "tier": "Standard",
+    "premium_connector_used": false,
+    "site": "https://edn123.sharepoint.com/sites/EDNSystems",
+    "data_sources": {
+      "Work Log": "7b6d10ec-c009-422a-9802-c907d3d4f57f",
+      "Projects": "66944251-b9a3-40cc-9a59-05538e200c19",
+      "Clients": "3d55c612-9799-4462-9474-7f0ca5a10b24"
+    }
+  },
+  "export": {
+    "pac_version": "2.11.2+g47bc199",
+    "pac_canvas_download_result": "blocked-before-download-default-environment-has-no-dataverse-organization",
+    "method": "read-only Power Platform API app document download using the existing PAC authentication profile",
+    "msapp_bytes": 65195,
+    "msapp_sha256": "c555e598e1cb1e1c895c146d3f4742a55d141ce4f060dce76d5a2d045c18e56d",
+    "archive_committed": false,
+    "archive_retention": "temporary export only; generated stable source files are committed",
+    "deprecated_pack_unpack_used": false,
+    "pac_canvas_validate_result": "command-present-but-no-longer-supported"
+  },
+  "source_control": {
+    "root": "power-platform/work-capture/canvas/EDNWorkCapture/Src",
+    "policy": "generated review source; edit in Power Apps Studio unless native Power Platform Git Integration is enabled",
+    "normalization": "removed trailing spaces from four generated warning-comment lines only; formulas and controls are unchanged",
+    "original_export_files": {
+      "App.pa.yaml": "4daa2e26e59666973b8353895ce8cef667f73fa115905240f154175f8a453ed5",
+      "Screen1.pa.yaml": "5a32f5f1e1fe21c2bb80cd4fdfb705dbfbc21724139ee04fd34863dfa3cea081"
+    },
+    "files": {
+      "App.pa.yaml": "1475d030ee2c0de34c1f6328ea5224fc134a5654dda02ab729bf21457dc4747d",
+      "Screen1.pa.yaml": "98ccc213b853093039e4fcb2099ad99f3c72ea96abb607897bb453d39bdb9d51"
+    },
+    "excluded_generated_files": [
+      "_EditorState.pa.yaml",
+      "Controls/*.json",
+      "References/*.json",
+      "Properties.json",
+      "Header.json"
+    ]
+  },
+  "live_update": {
+    "authorised": false,
+    "supported_path": "edit the exact existing app in Power Apps Studio, run App Checker, save, publish, re-export and compare generated source",
+    "cli_upload_available": false,
+    "native_git_integration_available": false,
+    "blocking_prerequisites": [
+      "owner-approved optional Work Log identity, outcome, evidence-state and correction fields",
+      "owner-approved idempotent UWC-AcceptCapture-v1 flow or equivalent reviewed acceptance boundary",
+      "project-profile defaults for billing, task reference, evidence and secure-photo policy",
+      "a concrete owner-approved activation window bound to the validated activation manifest"
+    ]
+  },
+  "safety": {
+    "external_mutations": 0,
+    "sharepoint_item_reads": 0,
+    "customer_data_used": false,
+    "finance_or_webhook_changes": 0,
+    "intelligence_core_changes": 0,
+    "pa_010_started": false
+  }
+}

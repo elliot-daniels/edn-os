@@ -3,7 +3,7 @@
   "product": "EDN Systems OS Universal Work Capture",
   "branch": "feature/universal-work-capture-v0.1",
   "increment": "UWC-001",
-  "status": "test-activation-admission-blocked-m365-execution-capability-unavailable",
+  "status": "live-canvas-scaffold-exported-review-source-controlled-live-update-owner-gated",
   "canonical_owner": "Work Log",
   "live_microsoft_mutation_authorised": false,
   "protected_runtime_access_authorised": false,
@@ -15,7 +15,7 @@
     "docs/intelligence-core/UNIVERSAL-RECORD-MODEL.md"
   ],
   "known_live_binding_gaps": [
-    "Power Apps and Power Automate definitions, external connector configuration and permissions remain unavailable",
+    "The exact canvas app definition is exported; Power Automate definitions, external connector permissions and licensing remain unavailable",
     "Projects, Clients, Actions, Project Files and Engineering Knowledge have observed webhook dependencies",
     "Work Log outcome, performer, provenance, correction and evidence-state fields are missing",
     "Existing RateCode embeds commercial labels and requires owner treatment decision",
@@ -35,9 +35,23 @@
     "manifest_sha256": "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca",
     "mutations": 0,
     "operational_record_reads": 0,
-    "power_apps_definitions": "unavailable",
+    "power_apps_definitions": "exact saved scaffold exported as generated review source",
     "power_automate_definitions": "unavailable",
-    "permissions": "unavailable"
+    "permissions": "unavailable",
+    "power_app_baseline": {
+      "manifest_path": "config/work-capture-power-app-baseline.json",
+      "display_name": "EDN Work Capture",
+      "app_id": "a47efc3e-0b52-405a-a220-54930a4ffdc9",
+      "environment_id": "Default-aae6ab79-45eb-4829-a04f-595becdb936d",
+      "app_version": "2026-08-21T02:20:45Z",
+      "lifecycle_id": "Published",
+      "status": "Ready",
+      "shared_users": 0,
+      "shared_groups": 0,
+      "msapp_sha256": "c555e598e1cb1e1c895c146d3f4742a55d141ce4f060dce76d5a2d045c18e56d",
+      "deprecated_pack_unpack_used": false,
+      "live_update_authorised": false
+    }
     ,"proposal_path": "docs/work-capture/M365-TEST-ACTIVATION-PROPOSAL.md",
     "proposal_manifest_sha256_verified": true,
     "microsoft_mutation_authorised": false,
@@ -55,25 +69,30 @@
   },
   "validation": {
     "outcome": "passed",
-    "focused_work_capture_tests": 16,
-    "full_pytest_passed": 527,
+    "focused_work_capture_tests": 20,
+    "full_pytest_passed": 531,
     "ruff": "passed",
     "strict_mypy": "passed",
     "mypy_source_files": 111,
     "json": "passed",
     "whitespace": "passed",
+    "canvas_source_hashes": "passed",
+    "pac_canvas_validate": "unavailable-command-no-longer-supported",
     "live_source_reads": 0,
+    "power_platform_definition_reads": 1,
+    "sharepoint_item_reads": 0,
     "microsoft_authentication_attempts": 0,
-    "external_mutations": 0
+    "external_mutations": 0,
+    "validated_at": "2026-08-21T12:15:00+09:30"
   },
   "starting_commit": "560421510d70b2a6ee3480f99321b2e163d5b706",
-  "prepared_commit_message": "feat(work): add universal work capture v1",
+  "prepared_commit_message": "chore(work): source-control saved canvas scaffold",
   "implementation_commit": "89f939b36bdfba89a049cc18e426d576fc9fd07d",
   "implementation_commit_created": true,
   "checkpoint_commit": "dfe26b96a8722981d3223569bfb398fe9eb73883",
   "push_status": "pushed",
   "remote_ref": "origin/feature/universal-work-capture-v0.1",
   "local_head_equals_remote_after_push": true,
-  "repository_status": "clean-validated-feature-checkpoint",
-  "updated_at": "2026-08-18T12:30:00+09:30"
+  "repository_status": "validated-canvas-baseline-checkpoint-pending",
+  "updated_at": "2026-08-21T12:15:00+09:30"
 }
