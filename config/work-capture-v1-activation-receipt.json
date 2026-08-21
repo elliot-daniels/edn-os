@@ -17,6 +17,7 @@
     "activation_pack_commit_verified": true,
     "validated_branch_commit": "f69dd29741c82bc9eb8937a8e4f9d948d0b896e1",
     "choice_retrieval_repair_commit": "b3cacc6d27531e5f5bc0c474ff0b961ded4d9eac",
+    "webhook_repair_commit": "07ad09cc0a53a2340f6325936a9b5c90a8284137",
     "execution_operator": "owner-interactive",
     "authorised_mutations": [
       "execute installer/Activate-UWCWorkLogSchema.ps1 once against the approved Work Log boundary",
@@ -125,7 +126,7 @@
       "sharepoint_mutations": 0,
       "customer_data_used": false
     },
-    "last_attempt": {
+    "prior_attempt": {
       "stage": "schema-field-load-preflight",
       "result": "stopped-before-mutation",
       "reason": "PnP.PowerShell 3.3.0 rejected Choices in the Get-PnPField Includes ValidateSet",
@@ -133,8 +134,17 @@
       "sharepoint_mutations": 0,
       "customer_data_used": false
     },
+    "last_attempt": {
+      "stage": "schema-webhook-metadata-preflight",
+      "result": "stopped-before-mutation",
+      "reason": "PowerShell rejected the valid empty webhook collection at parameter binding",
+      "observed_webhook_count": 0,
+      "sharepoint_mutations": 0,
+      "customer_data_used": false
+    },
     "site_url_repair_commit": "c2cb6640e3aaa8f7bbc9a290ca3deef10c8faad2",
     "choice_retrieval_repair_commit": "b3cacc6d27531e5f5bc0c474ff0b961ded4d9eac",
+    "empty_webhook_repair_commit": "07ad09cc0a53a2340f6325936a9b5c90a8284137",
     "retry_authorised_within_current_window": true,
     "next_action": "elliot-owner runs installer/Activate-UWCWorkLogSchema.ps1 and its immediate idempotency rerun between 2026-08-21T19:05:00+09:30 and 2026-08-21T20:00:00+09:30, then reports both verification outputs"
   },

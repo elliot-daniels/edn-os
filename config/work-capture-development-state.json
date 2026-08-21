@@ -88,16 +88,17 @@
   },
   "validation": {
     "outcome": "passed",
-    "focused_work_capture_tests": 28,
-    "full_pytest_passed": 539,
+    "focused_work_capture_tests": 29,
+    "full_pytest_passed": 540,
     "ruff": "passed",
     "strict_mypy": "passed",
     "mypy_source_files": 118,
     "json": "passed",
     "whitespace": "passed",
-    "powershell_7_parser": "passed-activation-url-and-choice-regression-files",
+    "powershell_7_parser": "passed-activation-url-choice-and-webhook-regression-files",
     "schema_url_regression": "passed-under-existing-windows-execution-policy",
     "schema_choice_regression": "passed-under-existing-windows-execution-policy",
+    "schema_webhook_regression": "passed-under-existing-windows-execution-policy",
     "pnp_powershell_3_3_0_includes_compatibility": "passed-11-properties",
     "psscriptanalyzer": "unavailable-not-installed",
     "manual_flow_contract": "passed-static-repository-validation",
@@ -108,7 +109,7 @@
     "sharepoint_item_reads": 0,
     "microsoft_authentication_attempts": 0,
     "external_mutations": 0,
-    "validated_at": "2026-08-21T18:40:16+09:30",
+    "validated_at": "2026-08-21T19:18:00+09:30",
     "activation_receipt": "passed"
   },
   "starting_commit": "560421510d70b2a6ee3480f99321b2e163d5b706",
@@ -254,9 +255,26 @@
     "local_head_equals_upstream": true,
     "microsoft_mutations_reported": 0
   },
-  "push_status": "pushed",
+  "schema_webhook_metadata_repair": {
+    "repair_commit": "07ad09cc0a53a2340f6325936a9b5c90a8284137",
+    "first_attempt_result": "stopped-before-mutation",
+    "observed_webhook_count": 0,
+    "failure": "empty webhook collection rejected by mandatory array parameter binding",
+    "mechanism": "AllowEmptyCollection with normalized ID and UTC expiry metadata only",
+    "secret_bearing_endpoint_metadata_read_or_persisted": false,
+    "sharepoint_mutations": 0,
+    "manifest_sha256": "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca",
+    "validation": {
+      "focused_work_capture_tests": 29,
+      "full_pytest_passed": 540,
+      "windows_webhook_regression": "passed"
+    },
+    "retry_status": "authorised-within-schema-window-ending-2026-08-21T20:00:00+09:30",
+    "push_status": "pushed"
+  },
+  "push_status": "pending",
   "remote_ref": "origin/feature/universal-work-capture-v0.1",
-  "local_head_equals_remote_after_push": true,
-  "repository_status": "fresh-schema-activation-authority-pushed-awaiting-window",
-  "updated_at": "2026-08-21T19:03:39+09:30"
+  "local_head_equals_remote_after_push": false,
+  "repository_status": "webhook-metadata-repair-pushed-audit-checkpoint-pending",
+  "updated_at": "2026-08-21T19:18:00+09:30"
 }
