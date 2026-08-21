@@ -10,6 +10,7 @@ MANIFEST = ROOT / "config" / "work-capture-v1-activation-manifest.json"
 SCRIPT = ROOT / "installer" / "Activate-UWCWorkLogSchema.ps1"
 PACK = ROOT / "docs" / "work-capture" / "MANUAL-MAKER-ACTIVATION-PACK.md"
 STUDIO = ROOT / "docs" / "work-capture" / "POWER-APPS-STUDIO-V1-RUNBOOK.md"
+URL_TEST = ROOT / "tests" / "work_capture" / "Test-Activate-UWCWorkLogSchemaUrl.ps1"
 EXPECTED_HASH = "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca"
 
 EXPECTED_FIELDS = {
@@ -100,6 +101,22 @@ def test_schema_script_preflights_and_preserves_existing_dependencies() -> None:
     assert "beforeSnapshot.Hash -cne $afterSnapshot.Hash" in script
     assert "Add-PnPFieldFromXml" in script
     assert "ShouldProcess" in script
+
+
+def test_schema_script_accepts_only_equivalent_case_insensitive_site_urls() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+    regression = URL_TEST.read_text(encoding="utf-8")
+
+    assert "Test-EquivalentSharePointSiteUrl" in script
+    assert "[Uri]::TryCreate" in script
+    assert "[StringComparer]::OrdinalIgnoreCase" in script
+    assert ".IdnHost" in script
+    assert ".AbsolutePath" in script
+    assert '$connection.Url.TrimEnd("/") -cne $siteUrl' not in script
+
+    assert "https://edn123.sharepoint.com/sites/EDNSystems" in regression
+    assert "https://edn123.sharepoint.com/sites/ednsystems" in regression
+    assert "https://edn123.sharepoint.com/sites/AnotherSite" in regression
 
 
 def test_manual_flow_contract_is_standard_only_and_exact() -> None:

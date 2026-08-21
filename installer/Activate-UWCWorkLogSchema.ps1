@@ -56,6 +56,56 @@ function Get-NormalizedGuidText {
     return ([string]$Value).Trim("{} ").ToLowerInvariant()
 }
 
+function Test-EquivalentSharePointSiteUrl {
+    param(
+        [Parameter(Mandatory)][string]$ExpectedUrl,
+        [Parameter(Mandatory)][string]$ActualUrl
+    )
+
+    $identities = foreach ($candidate in @($ExpectedUrl, $ActualUrl)) {
+        $parsed = $null
+        if (-not [Uri]::TryCreate(
+            $candidate,
+            [UriKind]::Absolute,
+            [ref]$parsed
+        )) {
+            throw "Invalid absolute SharePoint site URL '$candidate'."
+        }
+        if (
+            -not [StringComparer]::OrdinalIgnoreCase.Equals(
+                $parsed.Scheme,
+                [Uri]::UriSchemeHttps
+            ) -or
+            -not $parsed.IsDefaultPort -or
+            -not [string]::IsNullOrEmpty($parsed.UserInfo) -or
+            -not [string]::IsNullOrEmpty($parsed.Query) -or
+            -not [string]::IsNullOrEmpty($parsed.Fragment)
+        ) {
+            throw "Unsafe SharePoint site URL '$candidate'."
+        }
+
+        $path = $parsed.AbsolutePath.TrimEnd("/")
+        if ([string]::IsNullOrEmpty($path)) {
+            $path = "/"
+        }
+        [pscustomobject]@{
+            Host = $parsed.IdnHost
+            Path = $path
+        }
+    }
+
+    return (
+        [StringComparer]::OrdinalIgnoreCase.Equals(
+            $identities[0].Host,
+            $identities[1].Host
+        ) -and
+        [StringComparer]::OrdinalIgnoreCase.Equals(
+            $identities[0].Path,
+            $identities[1].Path
+        )
+    )
+}
+
 function New-UwcFieldXml {
     param([Parameter(Mandatory)][pscustomobject]$Definition)
 
@@ -333,7 +383,10 @@ $connection = Connect-PnPOnline `
     -ClientId $clientId `
     -ReturnConnection
 
-if ($connection.Url.TrimEnd("/") -cne $siteUrl) {
+if (-not (Test-EquivalentSharePointSiteUrl `
+    -ExpectedUrl $siteUrl `
+    -ActualUrl $connection.Url
+)) {
     Stop-Activation "Connected site '$($connection.Url)' is not '$siteUrl'."
 }
 
