@@ -100,10 +100,14 @@ def test_activation_receipt_is_bound_to_manifest_and_awaits_schema_retry() -> No
     )
     execution = receipt["current_execution"]
     assert execution["execution_reported"] is True
+    assert execution["previous_attempt"]["result"] == "stopped-before-mutation"
     assert execution["last_attempt"]["result"] == "stopped-before-mutation"
     assert execution["last_attempt"]["sharepoint_mutations"] == 0
-    assert execution["approved_repair_commit"] == (
+    assert execution["site_url_repair_commit"] == (
         "c2cb6640e3aaa8f7bbc9a290ca3deef10c8faad2"
+    )
+    assert execution["choice_retrieval_repair_commit"] == (
+        "b3cacc6d27531e5f5bc0c474ff0b961ded4d9eac"
     )
     assert results["external_mutations"] == 0
     assert results["work_log_fields_created"] == []

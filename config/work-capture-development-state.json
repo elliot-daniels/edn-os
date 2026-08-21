@@ -84,15 +84,17 @@
   },
   "validation": {
     "outcome": "passed",
-    "focused_work_capture_tests": 27,
-    "full_pytest_passed": 538,
+    "focused_work_capture_tests": 28,
+    "full_pytest_passed": 539,
     "ruff": "passed",
     "strict_mypy": "passed",
     "mypy_source_files": 118,
     "json": "passed",
     "whitespace": "passed",
-    "powershell_7_parser": "passed-activation-and-url-regression-files",
+    "powershell_7_parser": "passed-activation-url-and-choice-regression-files",
     "schema_url_regression": "passed-under-existing-windows-execution-policy",
+    "schema_choice_regression": "passed-under-existing-windows-execution-policy",
+    "pnp_powershell_3_3_0_includes_compatibility": "passed-11-properties",
     "psscriptanalyzer": "unavailable-not-installed",
     "manual_flow_contract": "passed-static-repository-validation",
     "canvas_source_hashes": "passed",
@@ -102,7 +104,7 @@
     "sharepoint_item_reads": 0,
     "microsoft_authentication_attempts": 0,
     "external_mutations": 0,
-    "validated_at": "2026-08-21T18:31:51+09:30",
+    "validated_at": "2026-08-21T18:40:16+09:30",
     "activation_receipt": "passed"
   },
   "starting_commit": "560421510d70b2a6ee3480f99321b2e163d5b706",
@@ -212,9 +214,26 @@
     "local_head_equals_upstream": true,
     "push_status": "pushed"
   },
-  "push_status": "pushed",
+  "schema_choice_retrieval_repair": {
+    "repair_commit": "b3cacc6d27531e5f5bc0c474ff0b961ded4d9eac",
+    "pnp_powershell_version": "3.3.0",
+    "first_attempt_result": "stopped-before-mutation",
+    "failure": "Choices is not accepted by Get-PnPField Includes",
+    "mechanism": "supported SchemaXml include with fail-closed CHOICES and lookup identity parsing",
+    "sharepoint_mutations": 0,
+    "manifest_sha256": "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca",
+    "validation": {
+      "focused_work_capture_tests": 28,
+      "full_pytest_passed": 539,
+      "pnp_3_3_0_includes_compatibility": "passed-11-properties",
+      "windows_choice_regression": "passed"
+    },
+    "retry_status": "authorised-within-current-window",
+    "push_status": "pushed"
+  },
+  "push_status": "pending",
   "remote_ref": "origin/feature/universal-work-capture-v0.1",
-  "local_head_equals_remote_after_push": true,
-  "repository_status": "schema-url-preflight-repair-and-audit-pushed-awaiting-owner-retry",
-  "updated_at": "2026-08-21T18:31:51+09:30"
+  "local_head_equals_remote_after_push": false,
+  "repository_status": "schema-choice-retrieval-repair-pushed-audit-checkpoint-pending",
+  "updated_at": "2026-08-21T18:40:16+09:30"
 }

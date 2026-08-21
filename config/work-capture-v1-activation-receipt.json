@@ -116,7 +116,7 @@
     "authority_active_at_recording": true,
     "execution_reported": true,
     "repository_agent_microsoft_execution_planned": false,
-    "last_attempt": {
+    "previous_attempt": {
       "stage": "schema-site-identity-preflight",
       "result": "stopped-before-mutation",
       "reason": "SharePoint returned the equivalent site path with lowercase URL casing and the prior comparison was case-sensitive",
@@ -125,7 +125,16 @@
       "sharepoint_mutations": 0,
       "customer_data_used": false
     },
-    "approved_repair_commit": "c2cb6640e3aaa8f7bbc9a290ca3deef10c8faad2",
+    "last_attempt": {
+      "stage": "schema-field-load-preflight",
+      "result": "stopped-before-mutation",
+      "reason": "PnP.PowerShell 3.3.0 rejected Choices in the Get-PnPField Includes ValidateSet",
+      "pnp_powershell_version": "3.3.0",
+      "sharepoint_mutations": 0,
+      "customer_data_used": false
+    },
+    "site_url_repair_commit": "c2cb6640e3aaa8f7bbc9a290ca3deef10c8faad2",
+    "choice_retrieval_repair_commit": "b3cacc6d27531e5f5bc0c474ff0b961ded4d9eac",
     "retry_authorised_within_current_window": true,
     "next_action": "elliot-owner reruns installer/Activate-UWCWorkLogSchema.ps1 before 2026-08-21T19:00:00+09:30 and reports the post-activation verification output"
   },
