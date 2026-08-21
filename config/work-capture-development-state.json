@@ -3,7 +3,7 @@
   "product": "EDN Systems OS Universal Work Capture",
   "branch": "feature/universal-work-capture-v0.1",
   "increment": "UWC-001",
-  "status": "bounded-activation-blocked-before-mutation-studio-handoff-prepared",
+  "status": "supported-manual-maker-activation-pack-prepared-not-executed",
   "canonical_owner": "Work Log",
   "live_microsoft_mutation_authorised": false,
   "protected_runtime_access_authorised": false,
@@ -15,7 +15,7 @@
     "docs/intelligence-core/UNIVERSAL-RECORD-MODEL.md"
   ],
   "known_live_binding_gaps": [
-    "The exact canvas app definition is exported; the exact existing SharePoint connection is Connected, but installed supported tooling cannot create the required flow",
+    "The exact canvas app definition is exported; supported automated flow/app authoring is unavailable, so the owner-executable PnP/Power Automate/Studio path is prepared",
     "Projects, Clients, Actions, Project Files and Engineering Knowledge have observed webhook dependencies",
     "Work Log outcome, performer, provenance, correction and evidence-state fields are missing",
     "Existing RateCode embeds commercial labels and requires owner treatment decision",
@@ -82,13 +82,16 @@
   },
   "validation": {
     "outcome": "passed",
-    "focused_work_capture_tests": 22,
-    "full_pytest_passed": 533,
+    "focused_work_capture_tests": 26,
+    "full_pytest_passed": 537,
     "ruff": "passed",
     "strict_mypy": "passed",
     "mypy_source_files": 118,
     "json": "passed",
     "whitespace": "passed",
+    "powershell_7_parser": "passed",
+    "psscriptanalyzer": "unavailable-not-installed",
+    "manual_flow_contract": "passed-static-repository-validation",
     "canvas_source_hashes": "passed",
     "pac_canvas_validate": "unavailable-command-no-longer-supported",
     "live_source_reads": 0,
@@ -96,7 +99,7 @@
     "sharepoint_item_reads": 0,
     "microsoft_authentication_attempts": 0,
     "external_mutations": 0,
-    "validated_at": "2026-08-21T14:54:33+09:30",
+    "validated_at": "2026-08-21T16:57:07+09:30",
     "activation_receipt": "passed"
   },
   "starting_commit": "560421510d70b2a6ee3480f99321b2e163d5b706",
@@ -141,9 +144,39 @@
     "local_head_equals_upstream": true,
     "external_mutations": 0
   },
-  "push_status": "pushed",
+  "manual_maker_activation_pack_checkpoint": {
+    "task_id": "UWC-001",
+    "implementation_commit": "b9fa4abf7676563c513c081bdfc0c95f0719c174",
+    "commit_message": "feat(work): add manual maker activation pack",
+    "branch": "feature/universal-work-capture-v0.1",
+    "upstream": "origin/feature/universal-work-capture-v0.1",
+    "artifacts": [
+      "installer/Activate-UWCWorkLogSchema.ps1",
+      "docs/work-capture/MANUAL-MAKER-ACTIVATION-PACK.md",
+      "docs/work-capture/POWER-APPS-STUDIO-V1-RUNBOOK.md",
+      "tests/work_capture/test_manual_maker_activation_pack.py"
+    ],
+    "schema_fields_planned": 29,
+    "flow_name": "UWC-AcceptCapture-v1",
+    "app_id": "a47efc3e-0b52-405a-a220-54930a4ffdc9",
+    "manifest_sha256": "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca",
+    "validation_evidence": {
+      "focused_work_capture_tests": 26,
+      "full_pytest_passed": 537,
+      "ruff": "passed",
+      "strict_mypy": "passed",
+      "json_jsonl": "passed",
+      "manifest_hash": "passed",
+      "powershell_7_parser": "passed",
+      "whitespace": "passed"
+    },
+    "microsoft_authentication_attempts": 0,
+    "external_mutations": 0,
+    "push_status": "pending"
+  },
+  "push_status": "pending",
   "remote_ref": "origin/feature/universal-work-capture-v0.1",
-  "local_head_equals_remote_after_push": true,
-  "repository_status": "validated-activation-blocker-and-studio-handoff-checkpoint-recorded",
-  "updated_at": "2026-08-21T14:55:51+09:30"
+  "local_head_equals_remote_after_push": false,
+  "repository_status": "validated-manual-maker-activation-pack-implementation-committed-checkpoint-pending",
+  "updated_at": "2026-08-21T16:57:07+09:30"
 }
