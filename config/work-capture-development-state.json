@@ -290,6 +290,7 @@
   },
   "schema_activation_result": {
     "evidence_source": "owner-reported console verification",
+    "receipt_commit": "e0df0aebd0b4b9bd7b362f6f46aa9f7872d363a7",
     "manifest_sha256": "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca",
     "first_run": {
       "preflight": "passed",
@@ -319,14 +320,17 @@
     "status": "prepared-not-authorised-not-executed",
     "separate_from_schema_authority": true,
     "schema_result_commit": "e0df0aebd0b4b9bd7b362f6f46aa9f7872d363a7",
+    "proposal_commit": "6f6e3ae13c0643c8ba69d0481caa6bb747a0256d",
     "flow_name": "UWC-AcceptCapture-v1",
     "proposed_window_start": "2026-08-21T20:05:00+09:30",
     "proposed_window_end": "2026-08-21T21:30:00+09:30",
-    "execution_status": "not-executed-separate-owner-go-required"
+    "execution_status": "not-executed-separate-owner-go-required",
+    "pushed_at": "2026-08-21T19:34:02+09:30",
+    "local_head_equals_upstream": true
   },
-  "push_status": "pending",
+  "push_status": "pushed",
   "remote_ref": "origin/feature/universal-work-capture-v0.1",
-  "local_head_equals_remote_after_push": false,
-  "repository_status": "schema-result-committed-flow-stage-prepared-checkpoint-pending",
-  "updated_at": "2026-08-21T19:31:57+09:30"
+  "local_head_equals_remote_after_push": true,
+  "repository_status": "schema-activation-completed-flow-stage-proposal-pushed-awaiting-separate-go",
+  "updated_at": "2026-08-21T19:34:02+09:30"
 }
