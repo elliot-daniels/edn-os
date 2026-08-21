@@ -6,6 +6,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
 MANIFEST = ROOT / "config" / "work-capture-power-app-baseline.json"
+ACTIVATION_MANIFEST = ROOT / "config" / "work-capture-v1-activation-manifest.json"
+ACTIVATION_RECEIPT = ROOT / "config" / "work-capture-v1-activation-receipt.json"
+STUDIO_RUNBOOK = ROOT / "docs" / "work-capture" / "POWER-APPS-STUDIO-V1-RUNBOOK.md"
 SOURCE = ROOT / "power-platform" / "work-capture" / "canvas" / "EDNWorkCapture" / "Src"
 
 
@@ -72,3 +75,58 @@ def test_deprecated_round_trip_and_live_update_remain_blocked() -> None:
     assert live_update["authorised"] is False
     assert live_update["cli_upload_available"] is False
     assert live_update["native_git_integration_available"] is False
+
+
+def test_activation_receipt_is_bound_to_manifest_and_records_zero_mutations() -> None:
+    receipt = json.loads(ACTIVATION_RECEIPT.read_text(encoding="utf-8"))
+    authority = receipt["authority"]
+    target = receipt["target"]
+    results = receipt["activation_results"]
+    rollback = receipt["rollback"]
+
+    actual_hash = hashlib.sha256(ACTIVATION_MANIFEST.read_bytes()).hexdigest()
+    assert authority["required_manifest_sha256"] == actual_hash
+    assert authority["observed_manifest_sha256"] == actual_hash
+    assert authority["hash_verified"] is True
+    assert target["app_id"] == "a47efc3e-0b52-405a-a220-54930a4ffdc9"
+    assert receipt["status"] == "blocked-before-first-live-mutation"
+    assert results["external_mutations"] == 0
+    assert results["work_log_fields_created"] == []
+    assert results["flows_created"] == []
+    assert results["customer_data_used"] is False
+    assert rollback["required"] is False
+
+
+def test_studio_runbook_uses_existing_controls_and_supported_boundary() -> None:
+    runbook = STUDIO_RUNBOOK.read_text(encoding="utf-8")
+
+    for control in (
+        "Form2",
+        "DataCardValue4",
+        "DataCardValue5",
+        "DataCardValue6",
+        "DataCardValue7",
+        "DataCardValue8",
+        "DataCardValue9",
+        "DataCardValue10",
+        "DataCardValue11",
+        "Button1",
+        "Button1_1",
+        "Button1_2",
+        "Button1_3",
+    ):
+        assert f"`{control}`" in runbook
+
+    assert "UWC-AcceptCapture-v1" in runbook
+    assert '"15m"' in runbook
+    assert '"30m"' in runbook
+    assert '"1h"' in runbook
+    assert '"2h"' in runbook
+    assert '"Other"' in runbook
+    assert "pac canvas pack/unpack" in runbook
+    assert "Never deploy the generated YAML" in runbook
+    assert (
+        "https://apps.powerapps.com/play/e/"
+        "Default-aae6ab79-45eb-4829-a04f-595becdb936d/a/"
+        "a47efc3e-0b52-405a-a220-54930a4ffdc9"
+    ) in runbook

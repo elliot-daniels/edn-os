@@ -1,0 +1,99 @@
+{
+  "schema_version": "1.0.0",
+  "increment": "UWC-001",
+  "status": "blocked-before-first-live-mutation",
+  "recorded_at": "2026-08-21T14:48:36+09:30",
+  "authority": {
+    "operator": "elliot-owner",
+    "window_start": "2026-08-21T14:45:00+09:30",
+    "window_end": "2026-08-21T17:30:00+09:30",
+    "test_data_boundary": "synthetic-non-customer-only",
+    "manifest_path": "config/work-capture-v1-activation-manifest.json",
+    "required_manifest_sha256": "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca",
+    "observed_manifest_sha256": "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca",
+    "hash_verified": true
+  },
+  "target": {
+    "environment_name": "EDN Systems (default)",
+    "environment_id": "Default-aae6ab79-45eb-4829-a04f-595becdb936d",
+    "app_name": "EDN Work Capture",
+    "app_id": "a47efc3e-0b52-405a-a220-54930a4ffdc9",
+    "work_log_id": "7b6d10ec-c009-422a-9802-c907d3d4f57f",
+    "project_files_id": "3363639a-c52d-4789-b2cf-34a71ef9a793"
+  },
+  "preflight": {
+    "pac_version": "2.11.2+g47bc199",
+    "sharepoint_connection": {
+      "connection_id": "b1418e737fcb469fa4a68422d3878601",
+      "connector": "shared_sharepointonline",
+      "status": "Connected",
+      "environment_id": "Default-aae6ab79-45eb-4829-a04f-595becdb936d",
+      "new_permission_requested": false
+    },
+    "official_cloud_flow_api": {
+      "api_version": "2024-10-01",
+      "result": "unavailable",
+      "error_code": "DataverseInstanceNotFound",
+      "reason": "The target default environment has no Dataverse database."
+    },
+    "installed_power_platform_powershell": {
+      "supported_runtime": "Windows PowerShell 5.x",
+      "power_apps_module": "Microsoft.PowerApps.PowerShell 1.0.45",
+      "administration_module": "Microsoft.PowerApps.Administration.PowerShell 2.0.217",
+      "windows_powershell_5_import": "blocked-by-existing-execution-policy",
+      "execution_policy_changed": false,
+      "flow_creation_command_available": false,
+      "supplemental_powershell_7_read_only_query": {
+        "module_support_status": "not-a-supported-mutation-runtime-for-these-modules",
+        "matching_uwc_flows": []
+      }
+    },
+    "unsupported_paths_rejected": [
+      "deprecated pac canvas pack/unpack",
+      "generated .pa.yaml live round-trip",
+      "undocumented direct writes to the legacy api.flow.microsoft.com endpoint",
+      "replacement canvas app creation",
+      "PowerShell execution-policy bypass"
+    ]
+  },
+  "activation_results": {
+    "work_log_fields_created": [],
+    "work_log_fields_changed": [],
+    "flows_created": [],
+    "flows_changed": [],
+    "sharepoint_records_created": [],
+    "project_files_created": [],
+    "synthetic_customer_records_used": false,
+    "customer_data_used": false,
+    "external_mutations": 0,
+    "finance_changes": 0,
+    "webhook_changes": 0,
+    "commercial_rate_changes": 0,
+    "permission_changes": 0,
+    "intelligence_core_changes": 0,
+    "pa_010_started": false
+  },
+  "acceptance": {
+    "schema_presence_and_types": "not-run-no-schema-mutation",
+    "idempotent_submission": "not-run-no-acceptance-flow",
+    "duplicate_rejection": "not-run-no-acceptance-flow",
+    "follow_up_projection": "not-run-no-acceptance-flow",
+    "evidence_pending": "not-run-no-acceptance-flow",
+    "project_files_relationship": "not-run-no-evidence-flow",
+    "secure_photo_prohibition": "not-run-no-acceptance-flow",
+    "correction_lineage": "not-run-no-acceptance-flow",
+    "finance_view_regression": "not-run-no-synthetic-record",
+    "webhook_regression": "not-run-no-live-mutation"
+  },
+  "blocker": {
+    "reason_code": "supported-flow-creation-and-sharepoint-schema-mutation-capability-unavailable",
+    "summary": "The connected existing SharePoint connection is healthy, but the installed Power Platform modules expose no flow-creation command, their supported Windows PowerShell 5 runtime is blocked by the existing execution policy, and the current official cloud-flow API requires Dataverse, which this environment does not have.",
+    "boundary_applied": "Stopped before using an undocumented legacy API, installing a new Microsoft administration dependency, broadening permissions, or making any live mutation.",
+    "required_resolution": "Provide a supported authenticated maker session capable of creating UWC-AcceptCapture-v1 and applying the manifest-bound optional Work Log fields, or separately approve and install a current supported SharePoint/Power Platform administration tool with no permission broadening."
+  },
+  "rollback": {
+    "required": false,
+    "reason": "No live object, schema, record, file, flow, permission, app definition, finance rule, view, or webhook was changed."
+  },
+  "studio_handoff": "docs/work-capture/POWER-APPS-STUDIO-V1-RUNBOOK.md"
+}
