@@ -233,14 +233,30 @@
       "pnp_3_3_0_includes_compatibility": "passed-11-properties",
       "windows_choice_regression": "passed"
     },
-    "retry_status": "authorised-within-current-window",
+    "retry_status": "authorised-in-fresh-window-2026-08-21T19:05:00+09:30-to-20:00:00+09:30",
     "pushed_at": "2026-08-21T18:42:20+09:30",
     "local_head_equals_upstream": true,
     "push_status": "pushed"
   },
-  "push_status": "pending",
+  "fresh_schema_activation_authority_checkpoint": {
+    "commit_hash": "c773820150dc6afddf69638f4a13bead338d2d1f",
+    "operator": "elliot-owner",
+    "window_start": "2026-08-21T19:05:00+09:30",
+    "window_end": "2026-08-21T20:00:00+09:30",
+    "manifest_sha256": "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca",
+    "validated_branch_commit": "f69dd29741c82bc9eb8937a8e4f9d948d0b896e1",
+    "repair_commit": "b3cacc6d27531e5f5bc0c474ff0b961ded4d9eac",
+    "authorised_operations": [
+      "single schema installer execution",
+      "immediate idempotency rerun"
+    ],
+    "pushed_at": "2026-08-21T19:03:39+09:30",
+    "local_head_equals_upstream": true,
+    "microsoft_mutations_reported": 0
+  },
+  "push_status": "pushed",
   "remote_ref": "origin/feature/universal-work-capture-v0.1",
-  "local_head_equals_remote_after_push": false,
-  "repository_status": "fresh-schema-activation-authority-recorded-checkpoint-pending",
-  "updated_at": "2026-08-21T19:02:19+09:30"
+  "local_head_equals_remote_after_push": true,
+  "repository_status": "fresh-schema-activation-authority-pushed-awaiting-window",
+  "updated_at": "2026-08-21T19:03:39+09:30"
 }
