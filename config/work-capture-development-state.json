@@ -340,11 +340,14 @@
     "flow_name": "UWC-AcceptCapture-v1",
     "scope_end": "Flow Checker passed and flow saved",
     "execution_status": "not-started-awaiting-window",
-    "microsoft_calls_reported": 0
+    "microsoft_calls_reported": 0,
+    "authority_commit": "55898e2c2be03f9d29a9ca6d31209c2a06d6114c",
+    "pushed_at": "2026-08-21T19:39:15+09:30",
+    "local_head_equals_upstream": true
   },
-  "push_status": "pending",
+  "push_status": "pushed",
   "remote_ref": "origin/feature/universal-work-capture-v0.1",
-  "local_head_equals_remote_after_push": false,
-  "repository_status": "flow-creation-authority-recorded-checkpoint-pending",
-  "updated_at": "2026-08-21T19:37:07+09:30"
+  "local_head_equals_remote_after_push": true,
+  "repository_status": "flow-creation-authority-pushed-awaiting-window",
+  "updated_at": "2026-08-21T19:39:15+09:30"
 }
