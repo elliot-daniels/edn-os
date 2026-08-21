@@ -194,6 +194,7 @@
   },
   "schema_url_preflight_repair": {
     "repair_commit": "c2cb6640e3aaa8f7bbc9a290ca3deef10c8faad2",
+    "audit_checkpoint_commit": "80f444063d81facff8bf5277c77457f89a35148d",
     "failed_actual_url": "https://edn123.sharepoint.com/sites/ednsystems",
     "expected_url": "https://edn123.sharepoint.com/sites/EDNSystems",
     "first_attempt_result": "stopped-before-mutation",
@@ -206,11 +207,13 @@
       "windows_regression_execution": "blocked-by-existing-unsigned-script-execution-policy-not-bypassed"
     },
     "retry_status": "authorised-within-current-window",
+    "pushed_at": "2026-08-21T18:30:31+09:30",
+    "local_head_equals_upstream": true,
     "push_status": "pushed"
   },
-  "push_status": "pending",
+  "push_status": "pushed",
   "remote_ref": "origin/feature/universal-work-capture-v0.1",
-  "local_head_equals_remote_after_push": false,
-  "repository_status": "schema-url-preflight-repair-pushed-audit-checkpoint-pending",
-  "updated_at": "2026-08-21T18:29:16+09:30"
+  "local_head_equals_remote_after_push": true,
+  "repository_status": "schema-url-preflight-repair-and-audit-pushed-awaiting-owner-retry",
+  "updated_at": "2026-08-21T18:30:31+09:30"
 }
