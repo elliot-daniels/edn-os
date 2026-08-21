@@ -2,8 +2,9 @@
   "schema_version": "1.0.0",
   "increment": "UWC-001",
   "stage": "manual-maker-flow-creation",
-  "status": "prepared-not-authorised-not-executed",
+  "status": "authorised-awaiting-window-not-executed",
   "prepared_at": "2026-08-21T19:31:57+09:30",
+  "authority_received_at": "2026-08-21T19:37:07+09:30",
   "separate_from_schema_authority": true,
   "binding": {
     "manifest_path": "config/work-capture-v1-activation-manifest.json",
@@ -33,6 +34,16 @@
   "proposed_window": {
     "start": "2026-08-21T20:05:00+09:30",
     "end": "2026-08-21T21:30:00+09:30"
+  },
+  "authority": {
+    "received": true,
+    "operator": "elliot-owner",
+    "window_start": "2026-08-21T20:05:00+09:30",
+    "window_end": "2026-08-21T21:30:00+09:30",
+    "manifest_sha256": "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca",
+    "schema_result_commit": "e0df0aebd0b4b9bd7b362f6f46aa9f7872d363a7",
+    "scope": "manual creation, exact configuration, Flow Checker validation and save of UWC-AcceptCapture-v1 only",
+    "execution_status": "not-started-awaiting-window"
   },
   "authorised_only_after_exact_owner_go": [
     "manually create UWC-AcceptCapture-v1 in EDN Systems (default)",
