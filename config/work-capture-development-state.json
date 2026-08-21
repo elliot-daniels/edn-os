@@ -216,6 +216,7 @@
   },
   "schema_choice_retrieval_repair": {
     "repair_commit": "b3cacc6d27531e5f5bc0c474ff0b961ded4d9eac",
+    "audit_checkpoint_commit": "337c0962f5ae33cbfcbcc671c373f82c010f52c3",
     "pnp_powershell_version": "3.3.0",
     "first_attempt_result": "stopped-before-mutation",
     "failure": "Choices is not accepted by Get-PnPField Includes",
@@ -229,11 +230,13 @@
       "windows_choice_regression": "passed"
     },
     "retry_status": "authorised-within-current-window",
+    "pushed_at": "2026-08-21T18:42:20+09:30",
+    "local_head_equals_upstream": true,
     "push_status": "pushed"
   },
-  "push_status": "pending",
+  "push_status": "pushed",
   "remote_ref": "origin/feature/universal-work-capture-v0.1",
-  "local_head_equals_remote_after_push": false,
-  "repository_status": "schema-choice-retrieval-repair-pushed-audit-checkpoint-pending",
-  "updated_at": "2026-08-21T18:40:16+09:30"
+  "local_head_equals_remote_after_push": true,
+  "repository_status": "schema-choice-retrieval-repair-and-audit-pushed-awaiting-owner-retry",
+  "updated_at": "2026-08-21T18:42:20+09:30"
 }
