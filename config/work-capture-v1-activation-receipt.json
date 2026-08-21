@@ -1,17 +1,36 @@
 {
   "schema_version": "1.0.0",
   "increment": "UWC-001",
-  "status": "blocked-before-first-live-mutation",
-  "recorded_at": "2026-08-21T14:48:36+09:30",
+  "status": "owner-interactive-activation-authorised-awaiting-results",
+  "recorded_at": "2026-08-21T17:05:21+09:30",
   "authority": {
     "operator": "elliot-owner",
-    "window_start": "2026-08-21T14:45:00+09:30",
-    "window_end": "2026-08-21T17:30:00+09:30",
+    "window_start": "2026-08-21T17:05:00+09:30",
+    "window_end": "2026-08-21T19:00:00+09:30",
     "test_data_boundary": "synthetic-non-customer-only",
     "manifest_path": "config/work-capture-v1-activation-manifest.json",
     "required_manifest_sha256": "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca",
     "observed_manifest_sha256": "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca",
-    "hash_verified": true
+    "hash_verified": true,
+    "activation_pack_path": "docs/work-capture/MANUAL-MAKER-ACTIVATION-PACK.md",
+    "activation_pack_commit": "be42606236f1cebb2e8a03369a43f5a7a75c9a94",
+    "activation_pack_commit_verified": true,
+    "execution_operator": "owner-interactive",
+    "authorised_mutations": [
+      "manifest-approved additive Work Log schema changes",
+      "create UWC-AcceptCapture-v1 using the validated manual-maker runbook",
+      "synthetic acceptance records and files",
+      "existing EDN Work Capture test-app Studio changes in the validated runbook"
+    ],
+    "preserved_prohibitions": [
+      "no production activation",
+      "no real or customer data",
+      "no genuine billable records",
+      "no permission broadening",
+      "no commercial, finance, view, or webhook behavior changes",
+      "no Intelligence Core changes",
+      "no PA-010"
+    ]
   },
   "target": {
     "environment_name": "EDN Systems (default)",
@@ -85,15 +104,24 @@
     "finance_view_regression": "not-run-no-synthetic-record",
     "webhook_regression": "not-run-no-live-mutation"
   },
-  "blocker": {
+  "prior_automation_blocker": {
     "reason_code": "supported-flow-creation-and-sharepoint-schema-mutation-capability-unavailable",
     "summary": "The connected existing SharePoint connection is healthy, but the installed Power Platform modules expose no flow-creation command, their supported Windows PowerShell 5 runtime is blocked by the existing execution policy, and the current official cloud-flow API requires Dataverse, which this environment does not have.",
     "boundary_applied": "Stopped before using an undocumented legacy API, installing a new Microsoft administration dependency, broadening permissions, or making any live mutation.",
     "required_resolution": "Provide a supported authenticated maker session capable of creating UWC-AcceptCapture-v1 and applying the manifest-bound optional Work Log fields, or separately approve and install a current supported SharePoint/Power Platform administration tool with no permission broadening."
   },
+  "current_execution": {
+    "mode": "owner-interactive-manual-maker",
+    "authority_received": true,
+    "authority_active_at_recording": true,
+    "execution_reported": false,
+    "repository_agent_microsoft_execution_planned": false,
+    "next_action": "elliot-owner executes the validated schema, Power Automate, Studio, and synthetic acceptance runbooks and reports results before the window closes"
+  },
   "rollback": {
     "required": false,
     "reason": "No live object, schema, record, file, flow, permission, app definition, finance rule, view, or webhook was changed."
   },
+  "manual_maker_pack": "docs/work-capture/MANUAL-MAKER-ACTIVATION-PACK.md",
   "studio_handoff": "docs/work-capture/POWER-APPS-STUDIO-V1-RUNBOOK.md"
 }
