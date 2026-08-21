@@ -92,6 +92,7 @@
     "json": "passed",
     "whitespace": "passed",
     "powershell_7_parser": "passed-activation-and-url-regression-files",
+    "schema_url_regression": "passed-under-existing-windows-execution-policy",
     "psscriptanalyzer": "unavailable-not-installed",
     "manual_flow_contract": "passed-static-repository-validation",
     "canvas_source_hashes": "passed",
@@ -101,7 +102,7 @@
     "sharepoint_item_reads": 0,
     "microsoft_authentication_attempts": 0,
     "external_mutations": 0,
-    "validated_at": "2026-08-21T18:29:16+09:30",
+    "validated_at": "2026-08-21T18:31:51+09:30",
     "activation_receipt": "passed"
   },
   "starting_commit": "560421510d70b2a6ee3480f99321b2e163d5b706",
@@ -204,7 +205,7 @@
       "focused_work_capture_tests": 27,
       "full_pytest_passed": 538,
       "powershell_7_parser": "passed",
-      "windows_regression_execution": "blocked-by-existing-unsigned-script-execution-policy-not-bypassed"
+      "windows_regression_execution": "passed-via-local-windows-temporary-copy-existing-policy-unchanged"
     },
     "retry_status": "authorised-within-current-window",
     "pushed_at": "2026-08-21T18:30:31+09:30",
@@ -215,5 +216,5 @@
   "remote_ref": "origin/feature/universal-work-capture-v0.1",
   "local_head_equals_remote_after_push": true,
   "repository_status": "schema-url-preflight-repair-and-audit-pushed-awaiting-owner-retry",
-  "updated_at": "2026-08-21T18:30:31+09:30"
+  "updated_at": "2026-08-21T18:31:51+09:30"
 }
