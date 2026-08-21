@@ -147,6 +147,7 @@
   "manual_maker_activation_pack_checkpoint": {
     "task_id": "UWC-001",
     "implementation_commit": "b9fa4abf7676563c513c081bdfc0c95f0719c174",
+    "checkpoint_commit": "6292aeaf51d3e7ac57b53edafee7e3b3e652a487",
     "commit_message": "feat(work): add manual maker activation pack",
     "branch": "feature/universal-work-capture-v0.1",
     "upstream": "origin/feature/universal-work-capture-v0.1",
@@ -172,11 +173,13 @@
     },
     "microsoft_authentication_attempts": 0,
     "external_mutations": 0,
-    "push_status": "pending"
+    "pushed_at": "2026-08-21T16:59:14+09:30",
+    "local_head_equals_upstream": true,
+    "push_status": "pushed"
   },
-  "push_status": "pending",
+  "push_status": "pushed",
   "remote_ref": "origin/feature/universal-work-capture-v0.1",
-  "local_head_equals_remote_after_push": false,
-  "repository_status": "validated-manual-maker-activation-pack-implementation-committed-checkpoint-pending",
-  "updated_at": "2026-08-21T16:57:07+09:30"
+  "local_head_equals_remote_after_push": true,
+  "repository_status": "validated-manual-maker-activation-pack-pushed-and-verified",
+  "updated_at": "2026-08-21T16:59:14+09:30"
 }
