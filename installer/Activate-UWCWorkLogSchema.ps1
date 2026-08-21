@@ -106,6 +106,63 @@ function Test-EquivalentSharePointSiteUrl {
     )
 }
 
+function Get-UwcFieldSchemaDocument {
+    param([Parameter(Mandatory)][object]$Field)
+
+    if ([string]::IsNullOrWhiteSpace([string]$Field.SchemaXml)) {
+        throw "Field '$($Field.InternalName)' has no loaded SchemaXml."
+    }
+    try {
+        $document = [xml]$Field.SchemaXml
+    }
+    catch {
+        throw "Field '$($Field.InternalName)' has invalid SchemaXml: $($_.Exception.Message)"
+    }
+    if ($null -eq $document.DocumentElement -or $document.DocumentElement.LocalName -cne "Field") {
+        throw "Field '$($Field.InternalName)' SchemaXml has no Field root."
+    }
+    return $document
+}
+
+function Get-UwcChoiceValuesFromSchema {
+    param([Parameter(Mandatory)][object]$Field)
+
+    $document = Get-UwcFieldSchemaDocument $Field
+    if ($document.DocumentElement.GetAttribute("Type") -cne "Choice") {
+        throw "Field '$($Field.InternalName)' SchemaXml is not Type Choice."
+    }
+    $choiceNodes = @(
+        $document.DocumentElement.SelectNodes(
+            "./*[local-name()='CHOICES']/*[local-name()='CHOICE']"
+        )
+    )
+    if ($choiceNodes.Count -eq 0) {
+        throw "Choice field '$($Field.InternalName)' exposes no CHOICE values in SchemaXml."
+    }
+    return [string[]]@($choiceNodes | ForEach-Object { $_.InnerText })
+}
+
+function Get-UwcLookupIdentityFromSchema {
+    param([Parameter(Mandatory)][object]$Field)
+
+    $document = Get-UwcFieldSchemaDocument $Field
+    if ($document.DocumentElement.GetAttribute("Type") -cne "Lookup") {
+        throw "Field '$($Field.InternalName)' SchemaXml is not Type Lookup."
+    }
+    $lookupList = $document.DocumentElement.GetAttribute("List")
+    $lookupField = $document.DocumentElement.GetAttribute("ShowField")
+    if (
+        [string]::IsNullOrWhiteSpace($lookupList) -or
+        [string]::IsNullOrWhiteSpace($lookupField)
+    ) {
+        throw "Lookup field '$($Field.InternalName)' has incomplete SchemaXml identity."
+    }
+    return [pscustomobject]@{
+        List = $lookupList
+        Field = $lookupField
+    }
+}
+
 function New-UwcFieldXml {
     param([Parameter(Mandatory)][pscustomobject]$Definition)
 
@@ -198,7 +255,7 @@ function Assert-NewFieldCompatible {
     }
     if ($Definition.Type -eq "Choice") {
         $expectedChoices = @($Definition.Choices | Sort-Object)
-        $actualChoices = @($Field.Choices | Sort-Object)
+        $actualChoices = @(Get-UwcChoiceValuesFromSchema $Field | Sort-Object)
         if (($expectedChoices -join "`n") -cne ($actualChoices -join "`n")) {
             Stop-Activation (
                 "Choice conflict for $($Definition.InternalName): expected " +
@@ -238,23 +295,25 @@ function Assert-ExistingField {
         )
     }
     if ($Type -eq "Lookup") {
-        $actualLookupList = Get-NormalizedGuidText $field.LookupList
+        $lookupIdentity = Get-UwcLookupIdentityFromSchema $field
+        $actualLookupList = Get-NormalizedGuidText $lookupIdentity.List
         if ($actualLookupList -cne $LookupList.ToString().ToLowerInvariant()) {
             Stop-Activation (
                 "Existing lookup '$InternalName' targets $actualLookupList; " +
                 "expected $LookupList."
             )
         }
-        if ($field.LookupField -cne "Title") {
+        if ($lookupIdentity.Field -cne "Title") {
             Stop-Activation (
-                "Existing lookup '$InternalName' targets '$($field.LookupField)'; " +
+                "Existing lookup '$InternalName' targets '$($lookupIdentity.Field)'; " +
                 "expected Title."
             )
         }
     }
     if ($RequiredChoices.Count -gt 0) {
+        $actualChoices = @(Get-UwcChoiceValuesFromSchema $field)
         foreach ($choice in $RequiredChoices) {
-            if ($field.Choices -cnotcontains $choice) {
+            if ($actualChoices -cnotcontains $choice) {
                 Stop-Activation (
                     "Existing choice field '$InternalName' is missing approved " +
                     "value '$choice'."
@@ -400,8 +459,7 @@ if ($list.Id -ne $workLogId -or $list.Title -cne "Work Log") {
 
 $fieldIncludes = @(
     "InternalName", "Title", "TypeAsString", "Required", "ReadOnlyField",
-    "Hidden", "Choices", "DefaultValue", "Indexed", "EnforceUniqueValues",
-    "LookupList", "LookupField", "SchemaXml", "Id"
+    "Hidden", "DefaultValue", "Indexed", "EnforceUniqueValues", "SchemaXml", "Id"
 )
 $initialFields = @(Get-PnPField -List $list -Includes $fieldIncludes -Connection $connection)
 $fieldMap = @{}

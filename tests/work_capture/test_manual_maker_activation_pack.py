@@ -11,6 +11,9 @@ SCRIPT = ROOT / "installer" / "Activate-UWCWorkLogSchema.ps1"
 PACK = ROOT / "docs" / "work-capture" / "MANUAL-MAKER-ACTIVATION-PACK.md"
 STUDIO = ROOT / "docs" / "work-capture" / "POWER-APPS-STUDIO-V1-RUNBOOK.md"
 URL_TEST = ROOT / "tests" / "work_capture" / "Test-Activate-UWCWorkLogSchemaUrl.ps1"
+CHOICE_TEST = (
+    ROOT / "tests" / "work_capture" / "Test-Activate-UWCWorkLogSchemaChoices.ps1"
+)
 EXPECTED_HASH = "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca"
 
 EXPECTED_FIELDS = {
@@ -117,6 +120,28 @@ def test_schema_script_accepts_only_equivalent_case_insensitive_site_urls() -> N
     assert "https://edn123.sharepoint.com/sites/EDNSystems" in regression
     assert "https://edn123.sharepoint.com/sites/ednsystems" in regression
     assert "https://edn123.sharepoint.com/sites/AnotherSite" in regression
+
+
+def test_schema_script_loads_choices_from_supported_schema_xml() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+    regression = CHOICE_TEST.read_text(encoding="utf-8")
+
+    includes_match = re.search(r"\$fieldIncludes = @\((.*?)\n\)", script, re.DOTALL)
+    assert includes_match is not None
+    includes = includes_match.group(1)
+    assert '"SchemaXml"' in includes
+    assert '"Choices"' not in includes
+    assert '"LookupList"' not in includes
+    assert '"LookupField"' not in includes
+
+    assert "Get-UwcChoiceValuesFromSchema" in script
+    assert "Get-UwcLookupIdentityFromSchema" in script
+    assert "$actualChoices -cnotcontains $choice" in script
+    assert "exposes no CHOICE values" in script
+    assert "APEX-95" in regression
+    assert "Scheduled Night-135" in regression
+    assert "Missing required choice validation was bypassed" in regression
+    assert "Empty choice-schema validation was bypassed" in regression
 
 
 def test_manual_flow_contract_is_standard_only_and_exact() -> None:
