@@ -122,9 +122,28 @@
     "pushed_at": "2026-08-21T12:20:15+09:30",
     "local_head_equals_upstream": true
   },
-  "push_status": "pending",
+  "activation_handoff_checkpoint": {
+    "task_id": "UWC-001",
+    "commit_hash": "4d981097a92c0c8785d9b7688d3cc3710ad17436",
+    "commit_message": "docs(work): record blocked activation and studio handoff",
+    "branch": "feature/universal-work-capture-v0.1",
+    "upstream": "origin/feature/universal-work-capture-v0.1",
+    "validation_evidence": {
+      "focused_work_capture_tests": 22,
+      "full_pytest_passed": 533,
+      "ruff": "passed",
+      "strict_mypy": "passed",
+      "json_jsonl": "passed",
+      "manifest_hash": "passed",
+      "whitespace": "passed"
+    },
+    "pushed_at": "2026-08-21T14:55:51+09:30",
+    "local_head_equals_upstream": true,
+    "external_mutations": 0
+  },
+  "push_status": "pushed",
   "remote_ref": "origin/feature/universal-work-capture-v0.1",
-  "local_head_equals_remote_after_push": false,
-  "repository_status": "validated-activation-blocker-and-studio-handoff-pending-checkpoint",
-  "updated_at": "2026-08-21T14:54:33+09:30"
+  "local_head_equals_remote_after_push": true,
+  "repository_status": "validated-activation-blocker-and-studio-handoff-checkpoint-recorded",
+  "updated_at": "2026-08-21T14:55:51+09:30"
 }
