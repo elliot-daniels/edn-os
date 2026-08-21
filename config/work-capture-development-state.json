@@ -257,6 +257,7 @@
   },
   "schema_webhook_metadata_repair": {
     "repair_commit": "07ad09cc0a53a2340f6325936a9b5c90a8284137",
+    "audit_checkpoint_commit": "d61f2da4b9bc8e32555ba3e4f492605056eb6091",
     "first_attempt_result": "stopped-before-mutation",
     "observed_webhook_count": 0,
     "failure": "empty webhook collection rejected by mandatory array parameter binding",
@@ -270,11 +271,13 @@
       "windows_webhook_regression": "passed"
     },
     "retry_status": "authorised-within-schema-window-ending-2026-08-21T20:00:00+09:30",
+    "pushed_at": "2026-08-21T19:19:13+09:30",
+    "local_head_equals_upstream": true,
     "push_status": "pushed"
   },
-  "push_status": "pending",
+  "push_status": "pushed",
   "remote_ref": "origin/feature/universal-work-capture-v0.1",
-  "local_head_equals_remote_after_push": false,
-  "repository_status": "webhook-metadata-repair-pushed-audit-checkpoint-pending",
-  "updated_at": "2026-08-21T19:18:00+09:30"
+  "local_head_equals_remote_after_push": true,
+  "repository_status": "webhook-metadata-repair-and-audit-pushed-awaiting-owner-retry",
+  "updated_at": "2026-08-21T19:19:13+09:30"
 }
