@@ -45,11 +45,12 @@ Initial implementation objectives (Outlook PST archives):
 
 ### Module 004 — Work
 
-Universal Work Capture V1 has a repository-complete, synthetic implementation.
-It defines one human-fact event owned operationally by the existing SharePoint
-Work Log, project defaults, secure evidence/photo rules, append-only corrections
-and deterministic downstream projections. Live Microsoft activation remains a
-separate owner-authority gate.
+Universal Work Capture V1 has a repository-complete synthetic implementation
+and a completed 29-field Work Log schema activation. No acceptance flow, app
+submission path, capture, or live SharePoint content integration exists. The
+2026-08-21 `UWC-AcceptCapture-v1` flow-creation window expired unused and is
+not reusable. A fresh owner GO is required before any further Microsoft
+mutation.
 
 See [Module 004 — Work](docs/MODULE-004-WORK.md) and the
 [Universal Work Capture V1 design](docs/work-capture/UNIVERSAL-WORK-CAPTURE-V1.md).

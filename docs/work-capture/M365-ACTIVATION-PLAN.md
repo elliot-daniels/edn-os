@@ -1,6 +1,6 @@
 # Universal Work Capture V1 — Microsoft 365 Activation Plan
 
-Status: Prepared boundary; stop before first authentication or mutation
+Status: Historical prepared boundary; 29-field schema later completed; flow stage expired unused and is not reusable
 
 ## Authority boundary
 
@@ -145,3 +145,13 @@ Only decisions not safely derivable from repository evidence remain:
 
 Prepare and approve the exact read-only dependency/schema review described in
 Gate 1. Do not authenticate or mutate Microsoft 365 until that approval exists.
+
+## Addendum — 2026-08-28 repository reconciliation
+
+This plan is preserved as the original pre-activation boundary. Later
+repository evidence shows Gate 1 identifiers were bound and the 29-field schema
+activation completed on 2026-08-21. `UWC-AcceptCapture-v1` was not created. The
+2026-08-21T20:05:00+09:30 to 2026-08-21T21:30:00+09:30 flow-creation window
+expired unused and is not reusable. No capture, app submission path, or live
+SharePoint content integration exists. A fresh owner GO is required before any
+further Microsoft mutation.

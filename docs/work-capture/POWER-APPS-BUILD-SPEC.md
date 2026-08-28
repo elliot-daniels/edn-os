@@ -1,6 +1,6 @@
 # Universal Work Capture V1 — Power Apps Build Specification
 
-Status: Build specification only; no Power Platform mutation authorised
+Status: Build specification only; 29-field Work Log schema exists; no acceptance flow, app submission path, or live V1 update
 
 ## Product choice
 

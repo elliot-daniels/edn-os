@@ -1,7 +1,6 @@
 # EDN Work Capture V1 — ordered Power Apps Studio runbook
 
-Status: **prepared against the exact exported scaffold; do not execute until the
-manifest-bound Work Log fields and `UWC-AcceptCapture-v1` flow exist**.
+Status: **manifest-bound Work Log fields exist; `UWC-AcceptCapture-v1` does not. Do not execute this runbook. The 2026-08-21T20:05:00+09:30 to 2026-08-21T21:30:00+09:30 flow-creation window expired unused and is not reusable**.
 
 This runbook edits the existing app only:
 
@@ -33,7 +32,9 @@ Do not begin the edits unless all of these are true:
    not clear or overwrite the earlier capture.
 
 If any gate fails, close Studio without saving. The current activation receipt
-records that this gate is presently blocked.
+records that the Work Log schema gate has passed and that `UWC-AcceptCapture-v1`
+does not exist. The previous flow-creation window expired unused and is not
+reusable.
 
 ## 1. Open the exact app and refresh bindings
 

@@ -1,22 +1,87 @@
 {
   "schema_version": "1.0.0",
   "increment": "UWC-001",
-  "status": "design-only-unbound-no-live-mutation-authorised",
+  "status": "schema-activated-identifiers-bound-no-live-content-integration",
+  "site": {
+    "url": "https://edn123.sharepoint.com/sites/EDNSystems",
+    "site_id": "49cc1059-a4f6-42f7-88bd-9940503ae28f",
+    "binding_status": "bound-from-approved-read-only-inventory-and-completed-schema-activation",
+    "evidence": [
+      "docs/work-capture/M365-SCHEMA-REVIEW-2026-08-18.md",
+      "config/work-capture-v1-activation-manifest.json",
+      "config/work-capture-v1-activation-receipt.json"
+    ]
+  },
   "canonical_owner": {
     "logical_name": "Work Log",
     "existing_structure_required": true,
-    "list_id": null,
-    "binding_status": "requires-approved-live-inventory-resolution",
+    "list_id": "7b6d10ec-c009-422a-9802-c907d3d4f57f",
+    "binding_status": "bound-from-approved-inventory-and-completed-schema-activation",
     "source_of_truth": "one Work Capture event per accepted submission or append-only correction",
     "native_audit_fields": ["ID", "Author", "Created", "Editor", "Modified", "version history"]
   },
   "project_profile": {
     "logical_name": "Projects",
     "existing_structure_required": true,
-    "list_id": null,
-    "binding_status": "requires-approved-live-inventory-resolution",
+    "list_id": "66944251-b9a3-40cc-9a59-05538e200c19",
+    "binding_status": "identifier-bound-no-content-integration",
     "dependency_review_required": true,
     "reason": "Projects is populated and webhook-connected; current field and consumer contracts are not in Git"
+  },
+  "clients": {
+    "logical_name": "Clients",
+    "existing_structure_required": true,
+    "list_id": "3d55c612-9799-4462-9474-7f0ca5a10b24",
+    "binding_status": "identifier-bound-no-content-integration"
+  },
+  "live_schema": {
+    "status": "completed-29-optional-fields-2026-08-21",
+    "evidence_source": "owner-reported console verification in config/work-capture-v1-activation-receipt.json",
+    "manifest_sha256": "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca",
+    "created_optional_internal_names": [
+      "WorkCaptureID",
+      "WorkCaptureSubmissionKey",
+      "WorkCaptureSchemaVersion",
+      "WorkCaptureProjectID",
+      "WorkCaptureClientID",
+      "Engineer",
+      "DurationMinutes",
+      "WorkSummary",
+      "OutcomeStatus",
+      "BillingTreatment",
+      "FollowUpRequired",
+      "FollowUpSummary",
+      "FollowUpDue",
+      "EvidenceRequirementApplied",
+      "EvidenceStatus",
+      "EvidenceReferencesJson",
+      "SecureSiteApplied",
+      "PhotoPolicyApplied",
+      "PhotoAuthorizationRef",
+      "CaptureMethod",
+      "SourceAppVersion",
+      "CapturedAt",
+      "ProjectProfileVersion",
+      "FactOrigin",
+      "DefaultedFieldsJson",
+      "WorkCaptureRevision",
+      "SupersedesWorkCaptureID",
+      "CorrectionReason",
+      "WorkCapturePayloadHash"
+    ],
+    "dormant_uncreated_internal_names": [
+      "WorkStartedAt",
+      "RateClass",
+      "BillingCode",
+      "TechnicalValue",
+      "TechnicalNote"
+    ],
+    "existing_fields_changed": [],
+    "existing_values_read_or_changed": 0,
+    "live_content_integration": false,
+    "acceptance_flow_exists": false,
+    "app_submission_path_exists": false,
+    "capture_executed": false
   },
   "field_contract": [
     {"semantic":"capture_id","preferred_internal_name":"WorkCaptureID","type":"Text","required_in_app":true,"unique":true},
@@ -75,23 +140,24 @@
     "photo_policy"
   ],
   "downstream_bindings": [
-    {"destination":"Project activity/history","mode":"reference","existing_structure":"Projects","list_id":null,"dependency_review_required":true},
-    {"destination":"Actions","mode":"idempotent-create-once","existing_structure":"Actions","list_id":null,"dependency_review_required":true},
-    {"destination":"Evidence & Test Results","mode":"reference-or-backlink","existing_structure":"unconfirmed","list_id":null,"dependency_review_required":true},
-    {"destination":"Project Files","mode":"reference-or-backlink","existing_structure":"Project Files","list_id":null,"dependency_review_required":true},
-    {"destination":"Engineering Knowledge","mode":"idempotent-draft-candidate","existing_structure":"Engineering Knowledge","list_id":null,"dependency_review_required":true},
-    {"destination":"Weekly summary","mode":"derived-view","existing_structure":null,"list_id":null,"dependency_review_required":false},
-    {"destination":"Billing preparation","mode":"derived-view","existing_structure":null,"list_id":null,"dependency_review_required":false},
-    {"destination":"Daily Intelligence","mode":"authorised-read-reference","existing_structure":null,"list_id":null,"dependency_review_required":false}
+    {"destination":"Project activity/history","mode":"reference","existing_structure":"Projects","list_id":"66944251-b9a3-40cc-9a59-05538e200c19","dependency_review_required":true,"content_integration":false},
+    {"destination":"Actions","mode":"idempotent-create-once","existing_structure":"Actions","list_id":"d7079aad-7f18-4164-8bd6-41f5629898bb","dependency_review_required":true,"content_integration":false},
+    {"destination":"Evidence & Test Results","mode":"reference-or-backlink","existing_structure":"Evidence & Test Results","list_id":"0febf366-e8c8-4f43-ad33-26123fb9957d","dependency_review_required":true,"content_integration":false},
+    {"destination":"Project Files","mode":"reference-or-backlink","existing_structure":"Project Files","list_id":"3363639a-c52d-4789-b2cf-34a71ef9a793","dependency_review_required":true,"content_integration":false},
+    {"destination":"Engineering Knowledge","mode":"idempotent-draft-candidate","existing_structure":"Engineering Knowledge","list_id":"adb9a65b-2429-4528-b9c3-04dae9d2cfc0","dependency_review_required":true,"content_integration":false},
+    {"destination":"Weekly summary","mode":"derived-view","existing_structure":null,"list_id":null,"dependency_review_required":false,"content_integration":false},
+    {"destination":"Billing preparation","mode":"derived-view","existing_structure":null,"list_id":null,"dependency_review_required":false,"content_integration":false},
+    {"destination":"Daily Intelligence","mode":"authorised-read-reference","existing_structure":null,"list_id":null,"dependency_review_required":false,"content_integration":false}
   ],
   "activation_guards": [
-    "resolve exact existing object GUIDs from separately authorised current inventory",
-    "map existing internal fields before proposing any additive field",
-    "inspect and regression-test Projects, Actions, Project Files and Engineering Knowledge consumers/webhooks",
-    "confirm Work Log versioning, permissions, field contract and automation dependencies",
-    "make app-required fields optional at SharePoint schema level during migration",
-    "enforce unique capture and submission keys",
-    "store evidence references only; binary content remains in the owning library",
-    "perform no mutation until an exact owner-approved Plan hash and activation window exist"
+    "exact site and Work Log, Projects, Clients, Actions, Project Files, Evidence & Test Results and Engineering Knowledge GUIDs are bound from the approved 2026-08-18 inventory and the completed 2026-08-21 schema activation",
+    "29 approved optional Work Log fields were created and verified by the immediate idempotency rerun; do not recreate or mutate them without a fresh owner GO",
+    "WorkStartedAt, RateClass, BillingCode, TechnicalValue and TechnicalNote remain uncreated and dormant",
+    "inspect and regression-test Projects, Actions, Project Files and Engineering Knowledge consumers/webhooks before any further live mutation",
+    "confirm Work Log versioning, permissions and remaining automation dependencies before any further live mutation",
+    "keep app-required fields optional at SharePoint schema level; the 29 created fields remain optional",
+    "store evidence references only; binary content remains in the owning library; no evidence flow exists",
+    "no acceptance flow, app submission path, capture or live SharePoint content integration exists",
+    "perform no further Microsoft mutation until an exact owner-approved Plan hash and a fresh activation window exist; the 2026-08-21T20:05:00+09:30 to 2026-08-21T21:30:00+09:30 UWC-AcceptCapture-v1 window expired unused and is not reusable"
   ]
 }

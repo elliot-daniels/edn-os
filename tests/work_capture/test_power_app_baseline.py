@@ -89,7 +89,12 @@ def test_activation_receipt_records_completed_idempotent_schema_activation() -> 
     assert authority["observed_manifest_sha256"] == actual_hash
     assert authority["hash_verified"] is True
     assert target["app_id"] == "a47efc3e-0b52-405a-a220-54930a4ffdc9"
-    assert receipt["status"] == "schema-activation-completed-flow-stage-not-authorised"
+    assert receipt["status"] == (
+        "schema-activation-completed-flow-window-expired-not-executed"
+    )
+    assert receipt["historical_status"] == (
+        "schema-activation-completed-flow-stage-not-authorised"
+    )
     assert authority["operator"] == "elliot-owner"
     assert authority["window_start"] == "2026-08-21T19:05:00+09:30"
     assert authority["window_end"] == "2026-08-21T20:00:00+09:30"
@@ -125,6 +130,13 @@ def test_activation_receipt_records_completed_idempotent_schema_activation() -> 
     assert results["flows_created"] == []
     assert results["customer_data_used"] is False
     assert rollback["required"] is False
+    flow_window = receipt["flow_window_reconciliation"]
+    assert flow_window["flow_name"] == "UWC-AcceptCapture-v1"
+    assert flow_window["execution_status"] == "expired-not-executed"
+    assert flow_window["reusable"] is False
+    assert flow_window["flow_created"] is False
+    assert flow_window["flow_run"] is False
+    assert "expired unused and is not reusable" in execution["next_action"]
 
 
 def test_studio_runbook_uses_existing_controls_and_supported_boundary() -> None:

@@ -1,7 +1,6 @@
 # Universal Work Capture V1 — bounded test activation proposal
 
-Status: **prepared for owner review; no Microsoft 365 mutation authorised or
-executed**.
+Status: **historical proposal; 29-field schema later completed; no flow, capture, or content integration; previous flow window expired unused and is not reusable**.
 
 This proposal is bound to
 `config/work-capture-v1-activation-manifest.json` SHA-256
@@ -188,3 +187,13 @@ production workflow automation enters this test.
 
 Until that exact GO is supplied with a concrete window and confirmed connection
 permissions, activation status remains **BLOCKED**.
+
+## Addendum — 2026-08-28 repository reconciliation
+
+This proposal is preserved as the original owner-review request. Later
+repository evidence shows the 29-field Work Log schema portion completed on
+2026-08-21. `UWC-AcceptCapture-v1` was not created. The 2026-08-21T20:05:00+09:30
+to 2026-08-21T21:30:00+09:30 flow-creation window expired unused and is not
+reusable. No capture, app submission path, or live SharePoint content
+integration exists. A fresh owner GO is required before any later flow-creation
+attempt.
