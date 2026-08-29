@@ -65,10 +65,10 @@
     "cli_upload_available": false,
     "native_git_integration_available": false,
     "blocking_prerequisites": [
-      "owner-approved optional Work Log identity, outcome, evidence-state and correction fields",
-      "owner-approved idempotent UWC-AcceptCapture-v1 flow or equivalent reviewed acceptance boundary",
-      "project-profile defaults for billing, task reference, evidence and secure-photo policy",
-      "a concrete owner-approved activation window bound to the validated activation manifest"
+      "completed: owner-approved optional Work Log identity, outcome, evidence-state and correction fields (29 fields created 2026-08-21)",
+      "remaining: owner-approved idempotent UWC-AcceptCapture-v1 flow or equivalent reviewed acceptance boundary; the 2026-08-21T20:05:00+09:30 to 2026-08-21T21:30:00+09:30 window expired unused and is not reusable",
+      "remaining: project-profile defaults for billing, task reference, evidence and secure-photo policy",
+      "remaining: a concrete owner-approved activation window bound to the validated activation manifest"
     ]
   },
   "safety": {

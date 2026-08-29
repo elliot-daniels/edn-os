@@ -1,6 +1,6 @@
 # EDN Work Capture — source control and bounded V1 update
 
-Status: **live scaffold exported; generated review source controlled; live V1 update not authorised**
+Status: **live scaffold exported; generated review source controlled; live V1 update not authorised; 29-field Work Log schema exists; UWC-AcceptCapture-v1 does not**
 
 ## Exact live app
 

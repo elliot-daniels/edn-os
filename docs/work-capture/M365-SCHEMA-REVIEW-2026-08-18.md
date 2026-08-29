@@ -1,6 +1,7 @@
 # Universal Work Capture V1 — Microsoft 365 schema review
 
-Status: **read-only discovery complete; activation remains owner-gated**  
+Status: **read-only discovery complete; later 29-field schema activation completed; no flow, capture, or content integration**
+
 Review source: approved metadata-only inventory `2026-08-07-rerun-1` at the
 approved external EDN Confidential location. No list items, document contents,
 attachments, credentials, or webhook target URLs were copied into Git.
@@ -126,3 +127,24 @@ permissions and existing contents, increasing access and dependency risk.
 
 The current owner decision is **read-only review only**. The next approval must
 explicitly authorize the bounded test mutation; this review does not authorize it.
+
+## Addendum — 2026-08-28 repository reconciliation
+
+This review document is preserved as the original 18 August 2026 read-only
+discovery record. It is not rewritten.
+
+Later repository evidence, recorded outside this review, shows:
+
+- the 29 approved optional Work Log fields were created on 2026-08-21 and
+  verified by an immediate idempotency rerun;
+- exact site and list identifiers from this review are now bound in
+  `config/work-capture-v1-sharepoint-contract.json`;
+- `UWC-AcceptCapture-v1` was not created;
+- the 2026-08-21T20:05:00+09:30 to 2026-08-21T21:30:00+09:30 flow-creation
+  window expired unused and is not reusable;
+- no capture, app submission path, or live SharePoint content integration
+  exists.
+
+The original “missing field” table above describes the pre-activation Work Log.
+Current created-field evidence is in
+`config/work-capture-v1-activation-receipt.json`.

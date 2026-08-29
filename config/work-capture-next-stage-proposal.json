@@ -1,0 +1,135 @@
+{
+  "schema_version": "1.0.0",
+  "proposal_id": "UWC-002-ACCEPTANCE-FLOW-PREPARATION",
+  "status": "repository-only-prepared-not-authorised-not-executed",
+  "objective": "Prepare a reviewable, idempotent Power Apps-to-Work Log acceptance boundary without making any Microsoft mutation.",
+  "authority": {
+    "microsoft_mutation_authorised": false,
+    "expired_uwc_acceptcapture_v1_authority_reusable": false,
+    "fresh_owner_go_required": true,
+    "fresh_time_bounded_window_required": true,
+    "proposal_approval_is_not_execution_authority": true
+  },
+  "eventual_resources": {
+    "environment": {
+      "display_name": "EDN Systems (default)",
+      "id": "Default-aae6ab79-45eb-4829-a04f-595becdb936d"
+    },
+    "sharepoint_site": {
+      "url": "https://edn123.sharepoint.com/sites/EDNSystems",
+      "site_id": "49cc1059-a4f6-42f7-88bd-9940503ae28f"
+    },
+    "work_log": {
+      "display_name": "Work Log",
+      "list_id": "7b6d10ec-c009-422a-9802-c907d3d4f57f",
+      "role": "canonical accepted Work Capture store"
+    },
+    "projects": {
+      "display_name": "Projects",
+      "list_id": "66944251-b9a3-40cc-9a59-05538e200c19",
+      "role": "read-only project profile source during acceptance"
+    },
+    "clients": {
+      "display_name": "Clients",
+      "list_id": "3d55c612-9799-4462-9474-7f0ca5a10b24",
+      "role": "read-only client reference source where required"
+    },
+    "power_app": {
+      "display_name": "EDN Work Capture",
+      "app_id": "a47efc3e-0b52-405a-a220-54930a4ffdc9",
+      "role": "collect, retain and submit a human-confirmed capture only after the acceptance flow is independently approved and validated"
+    },
+    "acceptance_flow": {
+      "proposed_name": "UWC-AcceptCapture-v1",
+      "exists": false,
+      "role": "validate, enforce idempotency, create exactly one canonical Work Log item, and return a durable receipt"
+    }
+  },
+  "architecture": {
+    "trigger": "Power Apps (V2) with submissionKey and payloadJson text inputs",
+    "sequence": [
+      "validate exact environment, site, list, connection and flow identity",
+      "parse and validate the versioned payload against the repository contract",
+      "read project and client references without mutating their lists",
+      "look up Work Log by WorkCaptureSubmissionKey before any create",
+      "return the existing receipt when key and immutable payload agree",
+      "fail visibly when the key exists with different immutable facts or hash",
+      "create one Work Log item only when no matching key exists",
+      "read the created item back and return status, captureId, item ID and item URL"
+    ],
+    "power_apps_role": [
+      "generate and retain one submission UUID across retries",
+      "collect human-confirmed values and apply reviewed project defaults",
+      "disable duplicate taps while a request is active",
+      "retain entered values on failure",
+      "show success only from a confirmed acceptance receipt",
+      "perform no direct Work Log create or update"
+    ]
+  },
+  "sharepoint_fields": {
+    "reuse_existing": ["Project", "Client", "WorkDate", "WorkType", "TaskReference"],
+    "activated_optional": [
+      "WorkCaptureID", "WorkCaptureSubmissionKey", "WorkCaptureSchemaVersion", "WorkCaptureProjectID",
+      "WorkCaptureClientID", "Engineer", "DurationMinutes", "WorkSummary", "OutcomeStatus",
+      "BillingTreatment", "FollowUpRequired", "FollowUpSummary", "FollowUpDue",
+      "EvidenceRequirementApplied", "EvidenceStatus", "EvidenceReferencesJson", "SecureSiteApplied",
+      "PhotoPolicyApplied", "PhotoAuthorizationRef", "CaptureMethod", "SourceAppVersion", "CapturedAt",
+      "ProjectProfileVersion", "FactOrigin", "DefaultedFieldsJson", "WorkCaptureRevision",
+      "SupersedesWorkCaptureID", "CorrectionReason", "WorkCapturePayloadHash"
+    ],
+    "dormant_not_to_create": ["WorkStartedAt", "RateClass", "BillingCode", "TechnicalValue", "TechnicalNote"],
+    "schema_changes_in_this_stage": false
+  },
+  "idempotency": {
+    "device_key": "one UUID generated per capture and retained across retries",
+    "lookup_field": "WorkCaptureSubmissionKey",
+    "stable_capture_id": "WC-<submission UUID>",
+    "same_key_same_payload": "return the existing success receipt without a create",
+    "same_key_different_payload": "abort with an idempotency conflict and perform no mutation",
+    "payload_comparison": "compare WorkCapturePayloadHash only when produced by an approved native mechanism; otherwise compare every immutable human-fact field",
+    "retry_rule": "never retry an indeterminate create until a read-only lookup resolves whether the canonical item exists"
+  },
+  "mutation_boundaries": {
+    "this_repository_stage": [
+      "documentation, configuration proposal and tests only",
+      "no Microsoft authentication required",
+      "no SharePoint item, field, view, webhook, permission or schema mutation",
+      "no Power Automate flow creation, edit, save, enable, share or run",
+      "no Power Apps edit, connection, save, publish, share or run",
+      "no production or customer data"
+    ],
+    "future_owner_gated_stage": [
+      "create and save only the exact reviewed UWC-AcceptCapture-v1 flow",
+      "use standard Power Apps and SharePoint connectors only",
+      "stop before app connection, flow enablement or any test run unless separately authorised"
+    ]
+  },
+  "abort_conditions": [
+    "branch, proposal hash, manifest hash or repository status differs from the approved checkpoint",
+    "environment, site, Work Log, Projects, Clients, app or flow identity differs",
+    "any connector is premium, custom, HTTP, Dataverse-backed or requests new consent",
+    "permissions, run-only sharing or connection ownership would broaden",
+    "the exact idempotency lookup and conflict paths cannot be implemented",
+    "a create result is ambiguous or read-back does not confirm the canonical item",
+    "the fresh owner window has not started or has expired",
+    "any schema, finance, rate, view, webhook, downstream list or production change is requested"
+  ],
+  "rollback": {
+    "repository_stage": "revert only the proposal commit; no external rollback is applicable",
+    "future_flow_creation_stage": "if validation fails before enablement, leave the flow disabled or remove only the newly created unconnected draft when the fresh owner GO explicitly authorises that cleanup",
+    "records": "never delete or overwrite a potentially accepted Work Log record during recovery; resolve by read-only lookup and append-only correction",
+    "schema": "do not delete the 29 activated optional fields; they remain dormant if the flow is not activated"
+  },
+  "validation": [
+    "verify branch, HEAD, clean status and proposal hash",
+    "verify the frozen activation manifest SHA-256 and all bound resource identifiers",
+    "run focused Work Capture tests, full pytest on the supported POSIX runtime, Ruff and strict mypy",
+    "perform metadata-only identity and connector preflight under a separately approved read authority",
+    "run Flow Checker and save the disabled draft only during a fresh owner-approved creation window",
+    "under a later separate test-run approval, submit one synthetic non-customer capture and verify create, read-back, receipt and retry idempotency",
+    "verify the same key and same payload creates zero additional items",
+    "verify the same key and changed payload fails with zero mutation",
+    "verify repository status and all prohibited resources remain unchanged"
+  ],
+  "next_gate": "Owner review of this proposal and its final commit hash. A separate fresh, explicit, time-bounded owner GO is required before any Microsoft mutation."
+}

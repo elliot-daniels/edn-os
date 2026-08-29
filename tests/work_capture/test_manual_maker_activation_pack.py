@@ -221,10 +221,12 @@ def test_studio_contract_matches_manual_flow() -> None:
     assert "projectProfileVersion:" not in studio
 
 
-def test_flow_stage_is_separately_authorised_and_not_executed() -> None:
+def test_flow_stage_window_expired_unused_and_is_not_reusable() -> None:
     proposal = json.loads(FLOW_PROPOSAL.read_text(encoding="utf-8"))
 
-    assert proposal["status"] == "authorised-awaiting-window-not-executed"
+    assert proposal["status"] == "expired-not-executed-non-reusable"
+    assert proposal["historical_status"] == "authorised-awaiting-window-not-executed"
+    assert proposal["reusable"] is False
     assert proposal["separate_from_schema_authority"] is True
     assert proposal["binding"]["manifest_sha256"] == EXPECTED_HASH
     assert proposal["binding"]["schema_result_commit"] == (
@@ -232,10 +234,16 @@ def test_flow_stage_is_separately_authorised_and_not_executed() -> None:
     )
     assert proposal["target"]["flow_name"] == "UWC-AcceptCapture-v1"
     assert proposal["authority"]["received"] is True
-    assert proposal["authority"]["execution_status"] == "not-started-awaiting-window"
+    assert proposal["authority"]["execution_status"] == "expired-not-executed"
+    assert proposal["authority"]["reusable"] is False
+    assert proposal["authority"]["flow_created"] is False
+    assert proposal["authority"]["flow_saved"] is False
+    assert proposal["authority"]["flow_run"] is False
     assert proposal["completed_dependency"]["work_log_fields_created"] == 29
     assert proposal["completed_dependency"]["idempotency_rerun_created"] == 0
     assert "do not run the flow or create a Work Log item" in proposal[
         "stage_stop_boundary"
     ]
     assert proposal["exact_owner_go"].startswith("GO — approve")
+    assert proposal["proposed_window"]["end"] == "2026-08-21T21:30:00+09:30"
+    assert "cannot be reused" in proposal["closed_reason"]

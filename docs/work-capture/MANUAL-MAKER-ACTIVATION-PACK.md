@@ -1,6 +1,6 @@
 # Universal Work Capture V1 — supported manual-maker activation pack
 
-Status: **repository-prepared only; no Microsoft 365 mutation performed**.
+Status: **Work Log 29-field schema is active; `UWC-AcceptCapture-v1` was not created. The 2026-08-21T20:05:00+09:30 to 2026-08-21T21:30:00+09:30 flow-creation window expired unused and is not reusable.**
 
 This pack is bound to:
 

@@ -1,6 +1,6 @@
 # EDN Systems OS — Universal Work Capture V1
 
-Status: Repository implementation complete; live Microsoft activation not authorised
+Status: Repository implementation complete; 29-field Work Log schema active; no acceptance flow, app submission path, capture, or live SharePoint content integration
 Increment: `UWC-001`
 Canonical contract: `1.0.0`
 
@@ -14,8 +14,10 @@ consume a stable Work Capture reference; they do not receive copies of the same
 work facts.
 
 This increment implements the source-neutral domain contract and projection
-planner locally. It performs no Microsoft authentication, live data access,
-SharePoint mutation, deployment or external execution.
+planner locally. The approved 29 optional Work Log fields were created on
+2026-08-21. The repository still performs no Microsoft authentication, live
+item access, deployment, or external execution. No acceptance flow, app
+submission path, capture, or live SharePoint content integration exists.
 
 ## Repository reality reconstructed
 
@@ -28,10 +30,12 @@ SharePoint mutation, deployment or external execution.
 | `Project Files` is the intended project-document system and is webhook-connected | Store files there or in a confirmed evidence library; Work Log stores references only |
 | `Engineering` and `Engineering Knowledge` are separate, populated, versioned and webhook-connected | Working artifacts remain in Engineering/Project Files; only human-marked candidates project to Engineering Knowledge as drafts |
 | Existing IMS rules require stable IDs, explicit provenance, human authority and evidence by reference | Work Capture uses a client UUID, stable capture ID, payload hash, applied-profile version, native audit fields and append-only corrections |
-| Current Work Log fields, exact Work Log GUID, Power Apps definitions and Power Automate definitions are not available in Git | The SharePoint contract remains logically bound and fail-closed until a separately authorised current dependency review resolves exact IDs and fields |
+| Current Work Log fields, exact Work Log GUID, Power Apps definitions and Power Automate definitions are not available in Git | Historical at first design. Exact site/list GUIDs and the created 29-field set are now bound in the SharePoint contract from the approved inventory and completed schema activation. Power Automate definitions remain unavailable; `UWC-AcceptCapture-v1` does not exist |
 
 The exact Assets GUID in the IMS manifest is unrelated and is not reused. No
-tenant-specific Work Log, Projects, Clients or Actions GUID was invented.
+tenant-specific Work Log, Projects, Clients or Actions GUID was invented; the
+bound identifiers come from the approved 2026-08-18 inventory and the completed
+2026-08-21 schema activation.
 
 ## Final V1 phone journey
 
@@ -245,7 +249,8 @@ contract.
   payload hash and projection planner;
 - `tests/work_capture/`: field-rule, security, idempotency, correction,
   projection and CLI tests plus synthetic 400G fixture;
-- `config/work-capture-v1-sharepoint-contract.json`: unbound logical SharePoint
-  field/destination contract; and
+- `config/work-capture-v1-sharepoint-contract.json`: SharePoint field/destination
+  contract bound to proven site/list identifiers and the created 29-field set;
+  no live content integration is claimed; and
 - `docs/work-capture/`: Power Apps build specification and exact activation
   boundary.

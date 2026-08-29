@@ -1,11 +1,11 @@
 {
   "schema_version": "1.0.0",
   "product": "EDN Systems OS Universal Work Capture",
-  "branch": "feature/universal-work-capture-v0.1",
+  "branch": "feature/uwc-state-reconciliation",
   "increment": "UWC-001",
-  "status": "schema-completed-flow-creation-authorised-awaiting-window",
+  "status": "schema-completed-flow-window-expired-not-executed",
   "canonical_owner": "Work Log",
-  "live_microsoft_mutation_authorised": true,
+  "live_microsoft_mutation_authorised": false,
   "protected_runtime_access_authorised": false,
   "architecture_evidence": [
     "docs/ims/EDN-IMS-Architecture.md",
@@ -17,7 +17,7 @@
   "known_live_binding_gaps": [
     "The exact canvas app definition is exported; supported automated flow/app authoring is unavailable, so the owner-executable PnP/Power Automate/Studio path is prepared",
     "Projects, Clients, Actions, Project Files and Engineering Knowledge have observed webhook dependencies",
-    "Work Log V1 additive schema is active; UWC-AcceptCapture-v1 does not yet exist",
+    "Work Log V1 additive schema is active; UWC-AcceptCapture-v1 does not exist; the 2026-08-21T20:05:00+09:30 to 2026-08-21T21:30:00+09:30 flow-creation window expired unused and is not reusable",
     "Existing RateCode embeds commercial labels and requires owner treatment decision",
     "Evidence & Test Results exists but is empty; Project Files is recommended for V1 evidence"
   ],
@@ -54,7 +54,7 @@
     }
     ,"proposal_path": "docs/work-capture/M365-TEST-ACTIVATION-PROPOSAL.md",
     "proposal_manifest_sha256_verified": true,
-    "microsoft_mutation_authorised": true,
+    "microsoft_mutation_authorised": false,
     "bounded_activation_authority": {
       "received": true,
       "operator": "elliot-owner",
@@ -92,7 +92,7 @@
       "repair_commit": "b3cacc6d27531e5f5bc0c474ff0b961ded4d9eac",
       "mutations_reported": 29,
       "execution_status": "completed-authority-closed",
-      "next_required_action": "separate owner GO required before manual creation of UWC-AcceptCapture-v1",
+      "next_required_action": "separate fresh owner GO required before any later UWC-AcceptCapture-v1 attempt; previous flow window expired unused and is not reusable",
       "receipt_path": "config/work-capture-v1-activation-receipt.json",
       "manual_maker_pack_path": "docs/work-capture/MANUAL-MAKER-ACTIVATION-PACK.md",
       "studio_handoff_path": "docs/work-capture/POWER-APPS-STUDIO-V1-RUNBOOK.md"
@@ -100,8 +100,8 @@
   },
   "validation": {
     "outcome": "passed",
-    "focused_work_capture_tests": 30,
-    "full_pytest_passed": 541,
+    "focused_work_capture_tests": 35,
+    "full_pytest_passed": 546,
     "ruff": "passed",
     "strict_mypy": "passed",
     "mypy_source_files": 118,
@@ -122,11 +122,12 @@
     "microsoft_authentication_attempts": 0,
     "external_mutations": 29,
     "live_schema_activation": "passed-owner-reported-first-run-and-idempotency-rerun",
-    "validated_at": "2026-08-21T19:33:37+09:30",
+    "schema_activation_validated_at": "2026-08-21T19:33:37+09:30",
+    "validated_at": "2026-08-28T10:05:00+09:30",
     "activation_receipt": "passed"
   },
   "starting_commit": "560421510d70b2a6ee3480f99321b2e163d5b706",
-  "prepared_commit_message": "chore(work): source-control saved canvas scaffold",
+  "historical_canvas_prepared_commit_message": "chore(work): source-control saved canvas scaffold",
   "implementation_commit": "89f939b36bdfba89a049cc18e426d576fc9fd07d",
   "implementation_commit_created": true,
   "checkpoint_commit": "dfe26b96a8722981d3223569bfb398fe9eb73883",
@@ -313,18 +314,20 @@
       "rate_finance_permission_view_webhook_mutations": 0
     },
     "schema_authority_status": "completed-closed",
-    "next_stage_status": "flow-creation-authorised-awaiting-window"
+    "next_stage_status": "flow-window-expired-not-executed-non-reusable"
   },
   "flow_activation_proposal": {
     "path": "config/work-capture-v1-flow-activation-proposal.json",
-    "status": "authorised-awaiting-window-not-executed",
+    "status": "expired-not-executed-non-reusable",
+    "historical_status": "authorised-awaiting-window-not-executed",
     "separate_from_schema_authority": true,
     "schema_result_commit": "e0df0aebd0b4b9bd7b362f6f46aa9f7872d363a7",
     "proposal_commit": "6f6e3ae13c0643c8ba69d0481caa6bb747a0256d",
     "flow_name": "UWC-AcceptCapture-v1",
     "proposed_window_start": "2026-08-21T20:05:00+09:30",
     "proposed_window_end": "2026-08-21T21:30:00+09:30",
-    "execution_status": "not-started-awaiting-window",
+    "execution_status": "expired-not-executed",
+    "reusable": false,
     "authority_received_at": "2026-08-21T19:37:07+09:30",
     "operator": "elliot-owner",
     "pushed_at": "2026-08-21T19:34:02+09:30",
@@ -339,15 +342,37 @@
     "schema_result_commit": "e0df0aebd0b4b9bd7b362f6f46aa9f7872d363a7",
     "flow_name": "UWC-AcceptCapture-v1",
     "scope_end": "Flow Checker passed and flow saved",
-    "execution_status": "not-started-awaiting-window",
+    "execution_status": "expired-not-executed-non-reusable",
+    "reusable": false,
+    "flow_created": false,
+    "flow_saved": false,
+    "flow_run": false,
     "microsoft_calls_reported": 0,
     "authority_commit": "55898e2c2be03f9d29a9ca6d31209c2a06d6114c",
     "pushed_at": "2026-08-21T19:39:15+09:30",
     "local_head_equals_upstream": true
   },
-  "push_status": "pushed",
+  "activation_manifest_freeze": {
+    "path": "config/work-capture-v1-activation-manifest.json",
+    "frozen_sha256": "ce24ad151a868f2f31a46849935201d9413dd93d600deb9348089ba4e474edca",
+    "frozen_status_field": "prepared-not-approved-not-executed",
+    "reason": "The executed 29-field schema activation is hash-bound to these exact bytes. The frozen status field is historical prepared-spec wording, not current operational status. Current status is recorded in the receipt, flow proposal, SharePoint contract, and this development-state file."
+  },
+  "state_reconciliation": {
+    "task_id": "UWC-001-STATE-RECONCILIATION",
+    "reconciled_at": "2026-08-28T10:05:00+09:30",
+    "schema_activation": "completed-29-optional-fields-closed",
+    "flow_window": "expired-not-executed-non-reusable",
+    "live_content_integration": false,
+    "acceptance_flow_exists": false,
+    "app_submission_path_exists": false,
+    "capture_executed": false,
+    "main_unmodified": true
+  },
+  "prepared_commit_message": "docs(work): reconcile schema state and expired flow window",
+  "push_status": "not-pushed",
   "remote_ref": "origin/feature/universal-work-capture-v0.1",
-  "local_head_equals_remote_after_push": true,
-  "repository_status": "flow-creation-authority-pushed-awaiting-window",
-  "updated_at": "2026-08-21T19:39:15+09:30"
+  "local_head_equals_remote_after_push": false,
+  "repository_status": "schema-completed-flow-window-expired-repository-reconciled",
+  "updated_at": "2026-08-28T10:05:00+09:30"
 }

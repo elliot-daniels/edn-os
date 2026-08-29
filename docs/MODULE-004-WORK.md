@@ -91,3 +91,10 @@ database until a later approved architecture changes that boundary.
 The approved contract and tests are in `src/edn/work_capture`,
 `tests/work_capture`, `config/work-capture-v1-sharepoint-contract.json` and
 `docs/work-capture`.
+
+The 29 approved optional Work Log fields were created on 2026-08-21 and
+verified by an immediate idempotency rerun. Site and list identifiers are
+bound from the approved inventory. `UWC-AcceptCapture-v1` does not exist. The
+2026-08-21T20:05:00+09:30 to 2026-08-21T21:30:00+09:30 flow-creation window
+expired unused and is not reusable. No app submission path, capture, or live
+SharePoint content integration exists.
