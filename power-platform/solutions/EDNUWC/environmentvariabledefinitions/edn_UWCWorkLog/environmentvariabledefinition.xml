@@ -1,0 +1,18 @@
+<environmentvariabledefinition schemaname="edn_UWCWorkLog">
+  <apiid>/providers/microsoft.powerapps/apis/shared_sharepointonline</apiid>
+  <description default="SharePoint data-source binding for the EDN Work Log list.">
+    <label description="SharePoint data-source binding for the EDN Work Log list." languagecode="1033" />
+  </description>
+  <displayname default="EDN UWC Work Log List">
+    <label description="EDN UWC Work Log List" languagecode="1033" />
+  </displayname>
+  <introducedversion>1.0.0.0</introducedversion>
+  <iscustomizable>1</iscustomizable>
+  <isrequired>0</isrequired>
+  <parameterkey>table</parameterkey>
+  <parentdefinitionid>
+    <schemaname>edn_UWCSite</schemaname>
+  </parentdefinitionid>
+  <secretstore>0</secretstore>
+  <type>100000004</type>
+</environmentvariabledefinition>

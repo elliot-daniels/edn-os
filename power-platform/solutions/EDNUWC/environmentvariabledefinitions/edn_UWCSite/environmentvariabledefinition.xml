@@ -1,0 +1,15 @@
+<environmentvariabledefinition schemaname="edn_UWCSite">
+  <apiid>/providers/microsoft.powerapps/apis/shared_sharepointonline</apiid>
+  <description default="SharePoint data-source binding for the EDN Systems site.">
+    <label description="SharePoint data-source binding for the EDN Systems site." languagecode="1033" />
+  </description>
+  <displayname default="EDN UWC SharePoint Site">
+    <label description="EDN UWC SharePoint Site" languagecode="1033" />
+  </displayname>
+  <introducedversion>1.0.0.0</introducedversion>
+  <iscustomizable>1</iscustomizable>
+  <isrequired>0</isrequired>
+  <parameterkey>dataset</parameterkey>
+  <secretstore>0</secretstore>
+  <type>100000004</type>
+</environmentvariabledefinition>

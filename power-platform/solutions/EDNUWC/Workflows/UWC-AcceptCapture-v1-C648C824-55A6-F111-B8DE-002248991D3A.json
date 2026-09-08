@@ -1,0 +1,1057 @@
+{
+  "properties": {
+    "connectionReferences": {
+      "shared_sharepointonline": {
+        "runtimeSource": "invoker",
+        "connection": {
+          "connectionReferenceLogicalName": "edn_UWCSharePoint"
+        },
+        "api": {
+          "name": "shared_sharepointonline"
+        }
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        },
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        },
+        "edn_UWCSite": {
+          "defaultValue": "https://edn123.sharepoint.com/sites/EDNSystems",
+          "type": "String",
+          "metadata": {
+            "schemaName": "edn_UWCSite"
+          }
+        },
+        "edn_UWCWorkLog": {
+          "defaultValue": "7b6d10ec-c009-422a-9802-c907d3d4f57f",
+          "type": "String",
+          "metadata": {
+            "schemaName": "edn_UWCWorkLog"
+          }
+        },
+        "edn_UWCProjects": {
+          "defaultValue": "66944251-b9a3-40cc-9a59-05538e200c19",
+          "type": "String",
+          "metadata": {
+            "schemaName": "edn_UWCProjects"
+          }
+        },
+        "edn_UWCClients": {
+          "defaultValue": "3d55c612-9799-4462-9474-7f0ca5a10b24",
+          "type": "String",
+          "metadata": {
+            "schemaName": "edn_UWCClients"
+          }
+        }
+      },
+      "triggers": {
+        "manual": {
+          "type": "Request",
+          "kind": "PowerAppV2",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "submissionKey": {
+                  "title": "submissionKey",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "Submission key",
+                  "x-ms-content-hint": "TEXT"
+                },
+                "payloadJson": {
+                  "title": "payloadJson",
+                  "type": "string",
+                  "x-ms-dynamically-added": true,
+                  "description": "Payload JSON",
+                  "x-ms-content-hint": "TEXT"
+                }
+              },
+              "required": [
+                "submissionKey",
+                "payloadJson"
+              ]
+            }
+          },
+          "runtimeConfiguration": {
+            "concurrency": {
+              "runs": 1
+            }
+          }
+        }
+      },
+      "actions": {
+        "vSubmissionKey": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "vSubmissionKey",
+                "type": "string",
+                "value": "@toLower(trim(triggerBody()?['submissionKey']))"
+              }
+            ]
+          },
+          "runAfter": {}
+        },
+        "vStatus": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "vStatus",
+                "type": "string",
+                "value": "rejected"
+              }
+            ]
+          },
+          "runAfter": {
+            "vSubmissionKey": [
+              "Succeeded"
+            ]
+          }
+        },
+        "vCaptureId": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "vCaptureId",
+                "type": "string",
+                "value": "@concat('WC-',toLower(trim(triggerBody()?['submissionKey'])))"
+              }
+            ]
+          },
+          "runAfter": {
+            "vStatus": [
+              "Succeeded"
+            ]
+          }
+        },
+        "vItemId": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "vItemId",
+                "type": "string",
+                "value": ""
+              }
+            ]
+          },
+          "runAfter": {
+            "vCaptureId": [
+              "Succeeded"
+            ]
+          }
+        },
+        "vItemUrl": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "vItemUrl",
+                "type": "string",
+                "value": ""
+              }
+            ]
+          },
+          "runAfter": {
+            "vItemId": [
+              "Succeeded"
+            ]
+          }
+        },
+        "vEvidenceStatus": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "vEvidenceStatus",
+                "type": "string",
+                "value": ""
+              }
+            ]
+          },
+          "runAfter": {
+            "vItemUrl": [
+              "Succeeded"
+            ]
+          }
+        },
+        "vMessage": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "vMessage",
+                "type": "string",
+                "value": "Not saved"
+              }
+            ]
+          },
+          "runAfter": {
+            "vEvidenceStatus": [
+              "Succeeded"
+            ]
+          }
+        },
+        "vRevision": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "vRevision",
+                "type": "integer",
+                "value": 1
+              }
+            ]
+          },
+          "runAfter": {
+            "vMessage": [
+              "Succeeded"
+            ]
+          }
+        },
+        "vCanCreate": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "vCanCreate",
+                "type": "boolean",
+                "value": false
+              }
+            ]
+          },
+          "runAfter": {
+            "vRevision": [
+              "Succeeded"
+            ]
+          }
+        },
+        "TRY": {
+          "type": "Scope",
+          "actions": {
+            "Parse_payload": {
+              "type": "ParseJson",
+              "inputs": {
+                "content": "@triggerBody()?['payloadJson']",
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "string"
+                    },
+                    "projectItemId": {
+                      "type": "integer"
+                    },
+                    "clientItemId": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "workDate": {
+                      "type": "string"
+                    },
+                    "durationMinutes": {
+                      "type": "integer"
+                    },
+                    "workType": {
+                      "type": "string"
+                    },
+                    "workSummary": {
+                      "type": "string"
+                    },
+                    "outcomeStatus": {
+                      "type": "string"
+                    },
+                    "billingTreatment": {
+                      "type": "string"
+                    },
+                    "rateCode": {
+                      "type": "string"
+                    },
+                    "taskReference": {
+                      "type": "string"
+                    },
+                    "followUpRequired": {
+                      "type": "boolean"
+                    },
+                    "followUpSummary": {
+                      "type": "string"
+                    },
+                    "followUpDue": {
+                      "type": "string"
+                    },
+                    "evidenceRequirement": {
+                      "type": "string"
+                    },
+                    "secureSiteApplied": {
+                      "type": "boolean"
+                    },
+                    "photoPolicyApplied": {
+                      "type": "string"
+                    },
+                    "captureMethod": {
+                      "type": "string"
+                    },
+                    "sourceAppVersion": {
+                      "type": "string"
+                    },
+                    "projectProfileModified": {
+                      "type": "string"
+                    },
+                    "factOrigin": {
+                      "type": "string"
+                    },
+                    "supersedesCaptureId": {
+                      "type": "string"
+                    },
+                    "correctionReason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "projectItemId",
+                    "clientItemId",
+                    "workDate",
+                    "durationMinutes",
+                    "workType",
+                    "workSummary",
+                    "outcomeStatus",
+                    "billingTreatment",
+                    "rateCode",
+                    "taskReference",
+                    "followUpRequired",
+                    "followUpSummary",
+                    "followUpDue",
+                    "evidenceRequirement",
+                    "secureSiteApplied",
+                    "photoPolicyApplied",
+                    "captureMethod",
+                    "sourceAppVersion",
+                    "projectProfileModified",
+                    "factOrigin",
+                    "supersedesCaptureId",
+                    "correctionReason"
+                  ]
+                }
+              },
+              "runAfter": {}
+            },
+            "Payload_is_valid": {
+              "type": "If",
+              "expression": "@and(equals(length(variables('vSubmissionKey')),36),equals(length(replace(variables('vSubmissionKey'),'-','')),32),not(contains(variables('vSubmissionKey'),'''')),equals(body('Parse_payload')?['schemaVersion'],'1.0.0'),greaterOrEquals(int(body('Parse_payload')?['projectItemId']),1),greaterOrEquals(int(body('Parse_payload')?['durationMinutes']),1),lessOrEquals(int(body('Parse_payload')?['durationMinutes']),1440),greater(length(trim(body('Parse_payload')?['workSummary'])),0),lessOrEquals(length(trim(body('Parse_payload')?['workSummary'])),500),greater(length(trim(body('Parse_payload')?['workType'])),0),contains(createArray('completed','partial','blocked'),body('Parse_payload')?['outcomeStatus']),equals(body('Parse_payload')?['billingTreatment'],'non_billable'),empty(body('Parse_payload')?['rateCode']),lessOrEquals(length(body('Parse_payload')?['taskReference']),255),or(not(body('Parse_payload')?['followUpRequired']),greater(length(trim(body('Parse_payload')?['followUpSummary'])),0)),contains(createArray('not_required','required'),body('Parse_payload')?['evidenceRequirement']),contains(createArray('allowed','prohibited'),body('Parse_payload')?['photoPolicyApplied']),equals(body('Parse_payload')?['captureMethod'],'mobile_app'),equals(body('Parse_payload')?['sourceAppVersion'],'uwc-v1-test-1.0.0'),equals(body('Parse_payload')?['factOrigin'],'human_confirmed'),not(empty(body('Parse_payload')?['projectProfileModified'])),lessOrEquals(ticks(concat(body('Parse_payload')?['workDate'],'T00:00:00Z')),ticks(utcNow())),or(and(empty(body('Parse_payload')?['supersedesCaptureId']),empty(body('Parse_payload')?['correctionReason'])),and(not(empty(body('Parse_payload')?['supersedesCaptureId'])),greater(length(trim(body('Parse_payload')?['correctionReason'])),0))))",
+              "actions": {
+                "Find_existing_capture": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "connectionName": "shared_sharepointonline",
+                      "operationId": "GetItems",
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+                    },
+                    "parameters": {
+                      "dataset": "@parameters('edn_UWCSite')",
+                      "table": "@parameters('edn_UWCWorkLog')",
+                      "$filter": "@concat('WorkCaptureSubmissionKey eq ''',variables('vSubmissionKey'),'''')",
+                      "$top": 2
+                    },
+                    "authentication": "@parameters('$authentication')"
+                  },
+                  "runAfter": {}
+                },
+                "More_than_one_existing": {
+                  "type": "If",
+                  "expression": "@greater(length(body('Find_existing_capture')?['value']),1)",
+                  "actions": {
+                    "Set_duplicate_key_conflict_status": {
+                      "type": "SetVariable",
+                      "inputs": {
+                        "name": "vStatus",
+                        "value": "conflict"
+                      },
+                      "runAfter": {}
+                    },
+                    "Set_duplicate_key_conflict_message": {
+                      "type": "SetVariable",
+                      "inputs": {
+                        "name": "vMessage",
+                        "value": "Conflict — duplicate submission-key data already exists"
+                      },
+                      "runAfter": {
+                        "Set_duplicate_key_conflict_status": [
+                          "Succeeded"
+                        ]
+                      }
+                    }
+                  },
+                  "else": {
+                    "actions": {
+                      "One_existing": {
+                        "type": "If",
+                        "expression": "@equals(length(body('Find_existing_capture')?['value']),1)",
+                        "actions": {
+                          "Exact_duplicate_facts": {
+                            "type": "If",
+                            "expression": "@and(equals(string(first(body('Find_existing_capture')?['value'])?['WorkCaptureSchemaVersion']),body('Parse_payload')?['schemaVersion']),equals(string(first(body('Find_existing_capture')?['value'])?['WorkCaptureProjectID']),string(body('Parse_payload')?['projectItemId'])),equals(coalesce(string(first(body('Find_existing_capture')?['value'])?['WorkCaptureClientID']),''),if(empty(body('Parse_payload')?['clientItemId']),'',string(body('Parse_payload')?['clientItemId']))),equals(formatDateTime(first(body('Find_existing_capture')?['value'])?['WorkDate'],'yyyy-MM-dd'),body('Parse_payload')?['workDate']),equals(int(first(body('Find_existing_capture')?['value'])?['DurationMinutes']),int(body('Parse_payload')?['durationMinutes'])),equals(string(coalesce(first(body('Find_existing_capture')?['value'])?['WorkType/Value'],first(body('Find_existing_capture')?['value'])?['WorkType'])),body('Parse_payload')?['workType']),equals(string(first(body('Find_existing_capture')?['value'])?['WorkSummary']),trim(body('Parse_payload')?['workSummary'])),equals(string(coalesce(first(body('Find_existing_capture')?['value'])?['OutcomeStatus/Value'],first(body('Find_existing_capture')?['value'])?['OutcomeStatus'])),body('Parse_payload')?['outcomeStatus']),equals(string(coalesce(first(body('Find_existing_capture')?['value'])?['BillingTreatment/Value'],first(body('Find_existing_capture')?['value'])?['BillingTreatment'])),'non_billable'),equals(coalesce(string(first(body('Find_existing_capture')?['value'])?['TaskReference']),''),body('Parse_payload')?['taskReference']),equals(bool(first(body('Find_existing_capture')?['value'])?['FollowUpRequired']),bool(body('Parse_payload')?['followUpRequired'])),equals(coalesce(string(first(body('Find_existing_capture')?['value'])?['FollowUpSummary']),''),if(body('Parse_payload')?['followUpRequired'],trim(body('Parse_payload')?['followUpSummary']),'')),equals(if(empty(first(body('Find_existing_capture')?['value'])?['FollowUpDue']),'',formatDateTime(first(body('Find_existing_capture')?['value'])?['FollowUpDue'],'yyyy-MM-dd')),if(empty(body('Parse_payload')?['followUpDue']),'',body('Parse_payload')?['followUpDue'])),equals(string(coalesce(first(body('Find_existing_capture')?['value'])?['EvidenceRequirementApplied/Value'],first(body('Find_existing_capture')?['value'])?['EvidenceRequirementApplied'])),body('Parse_payload')?['evidenceRequirement']),equals(string(coalesce(first(body('Find_existing_capture')?['value'])?['EvidenceStatus/Value'],first(body('Find_existing_capture')?['value'])?['EvidenceStatus'])),if(equals(body('Parse_payload')?['evidenceRequirement'],'required'),'pending','not_required')),equals(bool(first(body('Find_existing_capture')?['value'])?['SecureSiteApplied']),bool(body('Parse_payload')?['secureSiteApplied'])),equals(string(coalesce(first(body('Find_existing_capture')?['value'])?['PhotoPolicyApplied/Value'],first(body('Find_existing_capture')?['value'])?['PhotoPolicyApplied'])),body('Parse_payload')?['photoPolicyApplied']),equals(string(coalesce(first(body('Find_existing_capture')?['value'])?['CaptureMethod/Value'],first(body('Find_existing_capture')?['value'])?['CaptureMethod'])),body('Parse_payload')?['captureMethod']),equals(string(first(body('Find_existing_capture')?['value'])?['SourceAppVersion']),body('Parse_payload')?['sourceAppVersion']),equals(string(first(body('Find_existing_capture')?['value'])?['ProjectProfileVersion']),concat('Projects:',string(body('Parse_payload')?['projectItemId']),':',formatDateTime(body('Parse_payload')?['projectProfileModified'],'yyyyMMddHHmmss'))),equals(string(coalesce(first(body('Find_existing_capture')?['value'])?['FactOrigin/Value'],first(body('Find_existing_capture')?['value'])?['FactOrigin'])),body('Parse_payload')?['factOrigin']),equals(coalesce(string(first(body('Find_existing_capture')?['value'])?['SupersedesWorkCaptureID']),''),body('Parse_payload')?['supersedesCaptureId']),equals(coalesce(string(first(body('Find_existing_capture')?['value'])?['CorrectionReason']),''),trim(body('Parse_payload')?['correctionReason'])))",
+                            "actions": {
+                              "Existing_engineer_missing": {
+                                "type": "If",
+                                "expression": "@empty(first(body('Find_existing_capture')?['value'])?['Engineer/Claims'])",
+                                "actions": {
+                                  "Repair_existing_engineer": {
+                                    "type": "OpenApiConnection",
+                                    "inputs": {
+                                      "host": {
+                                        "connectionName": "shared_sharepointonline",
+                                        "operationId": "PatchItem",
+                                        "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+                                      },
+                                      "parameters": {
+                                        "dataset": "@parameters('edn_UWCSite')",
+                                        "table": "@parameters('edn_UWCWorkLog')",
+                                        "id": "@first(body('Find_existing_capture')?['value'])?['ID']",
+                                        "item/Title": "@first(body('Find_existing_capture')?['value'])?['Title']",
+                                        "item/Engineer/Claims": "@first(body('Find_existing_capture')?['value'])?['Author/Claims']"
+                                      },
+                                      "authentication": "@parameters('$authentication')"
+                                    },
+                                    "runAfter": {}
+                                  }
+                                },
+                                "else": {
+                                  "actions": {}
+                                },
+                                "runAfter": {}
+                              },
+                              "Set_existing_status": {
+                                "type": "SetVariable",
+                                "inputs": {
+                                  "name": "vStatus",
+                                  "value": "already_saved"
+                                },
+                                "runAfter": {
+                                  "Existing_engineer_missing": [
+                                    "Succeeded"
+                                  ]
+                                }
+                              },
+                              "Set_existing_capture_id": {
+                                "type": "SetVariable",
+                                "inputs": {
+                                  "name": "vCaptureId",
+                                  "value": "@string(first(body('Find_existing_capture')?['value'])?['WorkCaptureID'])"
+                                },
+                                "runAfter": {
+                                  "Set_existing_status": [
+                                    "Succeeded"
+                                  ]
+                                }
+                              },
+                              "Set_existing_item_id": {
+                                "type": "SetVariable",
+                                "inputs": {
+                                  "name": "vItemId",
+                                  "value": "@string(first(body('Find_existing_capture')?['value'])?['ID'])"
+                                },
+                                "runAfter": {
+                                  "Set_existing_capture_id": [
+                                    "Succeeded"
+                                  ]
+                                }
+                              },
+                              "Set_existing_item_url": {
+                                "type": "SetVariable",
+                                "inputs": {
+                                  "name": "vItemUrl",
+                                  "value": "@concat(parameters('edn_UWCSite'),'/Lists/Work%20Log/DispForm.aspx?ID=',variables('vItemId'))"
+                                },
+                                "runAfter": {
+                                  "Set_existing_item_id": [
+                                    "Succeeded"
+                                  ]
+                                }
+                              },
+                              "Set_existing_evidence_status": {
+                                "type": "SetVariable",
+                                "inputs": {
+                                  "name": "vEvidenceStatus",
+                                  "value": "@string(coalesce(first(body('Find_existing_capture')?['value'])?['EvidenceStatus/Value'],first(body('Find_existing_capture')?['value'])?['EvidenceStatus']))"
+                                },
+                                "runAfter": {
+                                  "Set_existing_item_url": [
+                                    "Succeeded"
+                                  ]
+                                }
+                              },
+                              "Set_existing_message": {
+                                "type": "SetVariable",
+                                "inputs": {
+                                  "name": "vMessage",
+                                  "value": "Already saved"
+                                },
+                                "runAfter": {
+                                  "Set_existing_evidence_status": [
+                                    "Succeeded"
+                                  ]
+                                }
+                              }
+                            },
+                            "else": {
+                              "actions": {
+                                "Set_immutable_conflict_status": {
+                                  "type": "SetVariable",
+                                  "inputs": {
+                                    "name": "vStatus",
+                                    "value": "conflict"
+                                  },
+                                  "runAfter": {}
+                                },
+                                "Set_immutable_conflict_message": {
+                                  "type": "SetVariable",
+                                  "inputs": {
+                                    "name": "vMessage",
+                                    "value": "Conflict — this submission key already has different facts"
+                                  },
+                                  "runAfter": {
+                                    "Set_immutable_conflict_status": [
+                                      "Succeeded"
+                                    ]
+                                  }
+                                }
+                              }
+                            },
+                            "runAfter": {}
+                          }
+                        },
+                        "else": {
+                          "actions": {
+                            "Get_project": {
+                              "type": "OpenApiConnection",
+                              "inputs": {
+                                "host": {
+                                  "connectionName": "shared_sharepointonline",
+                                  "operationId": "GetItem",
+                                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+                                },
+                                "parameters": {
+                                  "dataset": "@parameters('edn_UWCSite')",
+                                  "table": "@parameters('edn_UWCProjects')",
+                                  "id": "@int(body('Parse_payload')?['projectItemId'])"
+                                },
+                                "authentication": "@parameters('$authentication')"
+                              },
+                              "runAfter": {}
+                            },
+                            "Derived_client_id": {
+                              "type": "Compose",
+                              "inputs": "@int(coalesce(outputs('Get_project')?['body/ClientLookup/Id'],outputs('Get_project')?['body/ClientLookupId'],0))",
+                              "runAfter": {
+                                "Get_project": [
+                                  "Succeeded"
+                                ]
+                              }
+                            },
+                            "Derived_secure_site": {
+                              "type": "Compose",
+                              "inputs": "@not(equals(coalesce(outputs('Get_project')?['body/SecurityClassification/Value'],outputs('Get_project')?['body/SecurityClassification'],'Standard'),'Standard'))",
+                              "runAfter": {
+                                "Derived_client_id": [
+                                  "Succeeded"
+                                ]
+                              }
+                            },
+                            "Derived_photo_policy": {
+                              "type": "Compose",
+                              "inputs": "@if(outputs('Derived_secure_site'),'prohibited','allowed')",
+                              "runAfter": {
+                                "Derived_secure_site": [
+                                  "Succeeded"
+                                ]
+                              }
+                            },
+                            "Derived_profile_version": {
+                              "type": "Compose",
+                              "inputs": "@concat('Projects:',string(body('Parse_payload')?['projectItemId']),':',formatDateTime(outputs('Get_project')?['body/Modified'],'yyyyMMddHHmmss'))",
+                              "runAfter": {
+                                "Derived_photo_policy": [
+                                  "Succeeded"
+                                ]
+                              }
+                            },
+                            "Project_policy_matches": {
+                              "type": "If",
+                              "expression": "@and(equals(int(coalesce(body('Parse_payload')?['clientItemId'],0)),outputs('Derived_client_id')),equals(bool(body('Parse_payload')?['secureSiteApplied']),outputs('Derived_secure_site')),equals(body('Parse_payload')?['photoPolicyApplied'],outputs('Derived_photo_policy')),equals(ticks(body('Parse_payload')?['projectProfileModified']),ticks(outputs('Get_project')?['body/Modified'])))",
+                              "actions": {
+                                "Is_correction": {
+                                  "type": "If",
+                                  "expression": "@not(empty(body('Parse_payload')?['supersedesCaptureId']))",
+                                  "actions": {
+                                    "Find_superseded_capture": {
+                                      "type": "OpenApiConnection",
+                                      "inputs": {
+                                        "host": {
+                                          "connectionName": "shared_sharepointonline",
+                                          "operationId": "GetItems",
+                                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+                                        },
+                                        "parameters": {
+                                          "dataset": "@parameters('edn_UWCSite')",
+                                          "table": "@parameters('edn_UWCWorkLog')",
+                                          "$filter": "@concat('WorkCaptureID eq ''',replace(body('Parse_payload')?['supersedesCaptureId'],'''',''''''),'''')",
+                                          "$top": 2
+                                        },
+                                        "authentication": "@parameters('$authentication')"
+                                      },
+                                      "runAfter": {}
+                                    },
+                                    "One_valid_superseded_capture": {
+                                      "type": "If",
+                                      "expression": "@and(equals(length(body('Find_superseded_capture')?['value']),1),equals(string(first(body('Find_superseded_capture')?['value'])?['WorkCaptureProjectID']),string(body('Parse_payload')?['projectItemId'])))",
+                                      "actions": {
+                                        "Set_correction_revision": {
+                                          "type": "SetVariable",
+                                          "inputs": {
+                                            "name": "vRevision",
+                                            "value": "@add(int(first(body('Find_superseded_capture')?['value'])?['WorkCaptureRevision']),1)"
+                                          },
+                                          "runAfter": {}
+                                        },
+                                        "Authorise_correction_create": {
+                                          "type": "SetVariable",
+                                          "inputs": {
+                                            "name": "vCanCreate",
+                                            "value": true
+                                          },
+                                          "runAfter": {
+                                            "Set_correction_revision": [
+                                              "Succeeded"
+                                            ]
+                                          }
+                                        }
+                                      },
+                                      "else": {
+                                        "actions": {
+                                          "Set_invalid_correction_message": {
+                                            "type": "SetVariable",
+                                            "inputs": {
+                                              "name": "vMessage",
+                                              "value": "Rejected — superseded capture is missing, ambiguous, or belongs to another project"
+                                            },
+                                            "runAfter": {}
+                                          }
+                                        }
+                                      },
+                                      "runAfter": {
+                                        "Find_superseded_capture": [
+                                          "Succeeded"
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "else": {
+                                    "actions": {
+                                      "Set_initial_revision": {
+                                        "type": "SetVariable",
+                                        "inputs": {
+                                          "name": "vRevision",
+                                          "value": 1
+                                        },
+                                        "runAfter": {}
+                                      },
+                                      "Authorise_initial_create": {
+                                        "type": "SetVariable",
+                                        "inputs": {
+                                          "name": "vCanCreate",
+                                          "value": true
+                                        },
+                                        "runAfter": {
+                                          "Set_initial_revision": [
+                                            "Succeeded"
+                                          ]
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "runAfter": {}
+                                },
+                                "Create_is_authorised": {
+                                  "type": "If",
+                                  "expression": "@equals(variables('vCanCreate'),true)",
+                                  "actions": {
+                                    "Create_work_log": {
+                                      "type": "OpenApiConnection",
+                                      "inputs": {
+                                        "host": {
+                                          "connectionName": "shared_sharepointonline",
+                                          "operationId": "PostItem",
+                                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+                                        },
+                                        "parameters": {
+                                          "dataset": "@parameters('edn_UWCSite')",
+                                          "table": "@parameters('edn_UWCWorkLog')",
+                                          "item/Title": "@concat('[SYNTHETIC UWC V1] ',variables('vCaptureId'))",
+                                          "item/WorkDate": "@body('Parse_payload')?['workDate']",
+                                          "item/ClientLookup/Id": "@if(equals(outputs('Derived_client_id'),0),null,outputs('Derived_client_id'))",
+                                          "item/ProjectLookup/Id": "@int(body('Parse_payload')?['projectItemId'])",
+                                          "item/TaskReference": "@body('Parse_payload')?['taskReference']",
+                                          "item/WorkType/Value": "@body('Parse_payload')?['workType']",
+                                          "item/Hours": "@div(float(body('Parse_payload')?['durationMinutes']),60)",
+                                          "item/Billable": false,
+                                          "item/Project": "@outputs('Get_project')?['body/Title']",
+                                          "item/Client": "@coalesce(outputs('Get_project')?['body/ClientLookup/Value'],'')",
+                                          "item/TechnicalSummary": "@trim(body('Parse_payload')?['workSummary'])",
+                                          "item/WorkCaptureID": "@variables('vCaptureId')",
+                                          "item/WorkCaptureSubmissionKey": "@variables('vSubmissionKey')",
+                                          "item/WorkCaptureSchemaVersion": "1.0.0",
+                                          "item/WorkCaptureProjectID": "@string(body('Parse_payload')?['projectItemId'])",
+                                          "item/WorkCaptureClientID": "@if(equals(outputs('Derived_client_id'),0),'',string(outputs('Derived_client_id')))",
+                                          "item/DurationMinutes": "@int(body('Parse_payload')?['durationMinutes'])",
+                                          "item/WorkSummary": "@trim(body('Parse_payload')?['workSummary'])",
+                                          "item/OutcomeStatus/Value": "@body('Parse_payload')?['outcomeStatus']",
+                                          "item/BillingTreatment/Value": "non_billable",
+                                          "item/FollowUpRequired": "@body('Parse_payload')?['followUpRequired']",
+                                          "item/FollowUpSummary": "@if(body('Parse_payload')?['followUpRequired'],trim(body('Parse_payload')?['followUpSummary']),'')",
+                                          "item/FollowUpDue": "@if(empty(body('Parse_payload')?['followUpDue']),null,body('Parse_payload')?['followUpDue'])",
+                                          "item/EvidenceRequirementApplied/Value": "@body('Parse_payload')?['evidenceRequirement']",
+                                          "item/EvidenceStatus/Value": "@if(equals(body('Parse_payload')?['evidenceRequirement'],'required'),'pending','not_required')",
+                                          "item/SecureSiteApplied": "@outputs('Derived_secure_site')",
+                                          "item/PhotoPolicyApplied/Value": "@outputs('Derived_photo_policy')",
+                                          "item/CaptureMethod/Value": "mobile_app",
+                                          "item/SourceAppVersion": "uwc-v1-test-1.0.0",
+                                          "item/CapturedAt": "@utcNow()",
+                                          "item/ProjectProfileVersion": "@outputs('Derived_profile_version')",
+                                          "item/FactOrigin/Value": "human_confirmed",
+                                          "item/DefaultedFieldsJson": "[\"clientItemId\",\"captureMethod\",\"capturedAt\",\"factOrigin\"]",
+                                          "item/WorkCaptureRevision": "@variables('vRevision')",
+                                          "item/SupersedesWorkCaptureID": "@body('Parse_payload')?['supersedesCaptureId']",
+                                          "item/CorrectionReason": "@trim(body('Parse_payload')?['correctionReason'])"
+                                        },
+                                        "authentication": "@parameters('$authentication')"
+                                      },
+                                      "runAfter": {}
+                                    },
+                                    "Get_created_work_log": {
+                                      "type": "OpenApiConnection",
+                                      "inputs": {
+                                        "host": {
+                                          "connectionName": "shared_sharepointonline",
+                                          "operationId": "GetItem",
+                                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+                                        },
+                                        "parameters": {
+                                          "dataset": "@parameters('edn_UWCSite')",
+                                          "table": "@parameters('edn_UWCWorkLog')",
+                                          "id": "@outputs('Create_work_log')?['body/ID']"
+                                        },
+                                        "authentication": "@parameters('$authentication')"
+                                      },
+                                      "runAfter": {
+                                        "Create_work_log": [
+                                          "Succeeded"
+                                        ]
+                                      }
+                                    },
+                                    "Set_engineer_from_author": {
+                                      "type": "OpenApiConnection",
+                                      "inputs": {
+                                        "host": {
+                                          "connectionName": "shared_sharepointonline",
+                                          "operationId": "PatchItem",
+                                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+                                        },
+                                        "parameters": {
+                                          "dataset": "@parameters('edn_UWCSite')",
+                                          "table": "@parameters('edn_UWCWorkLog')",
+                                          "id": "@outputs('Get_created_work_log')?['body/ID']",
+                                          "item/Title": "@outputs('Get_created_work_log')?['body/Title']",
+                                          "item/Engineer/Claims": "@outputs('Get_created_work_log')?['body/Author/Claims']"
+                                        },
+                                        "authentication": "@parameters('$authentication')"
+                                      },
+                                      "runAfter": {
+                                        "Get_created_work_log": [
+                                          "Succeeded"
+                                        ]
+                                      }
+                                    },
+                                    "Set_saved_status": {
+                                      "type": "SetVariable",
+                                      "inputs": {
+                                        "name": "vStatus",
+                                        "value": "saved"
+                                      },
+                                      "runAfter": {
+                                        "Set_engineer_from_author": [
+                                          "Succeeded"
+                                        ]
+                                      }
+                                    },
+                                    "Set_saved_item_id": {
+                                      "type": "SetVariable",
+                                      "inputs": {
+                                        "name": "vItemId",
+                                        "value": "@string(outputs('Create_work_log')?['body/ID'])"
+                                      },
+                                      "runAfter": {
+                                        "Set_saved_status": [
+                                          "Succeeded"
+                                        ]
+                                      }
+                                    },
+                                    "Set_saved_item_url": {
+                                      "type": "SetVariable",
+                                      "inputs": {
+                                        "name": "vItemUrl",
+                                        "value": "@concat(parameters('edn_UWCSite'),'/Lists/Work%20Log/DispForm.aspx?ID=',variables('vItemId'))"
+                                      },
+                                      "runAfter": {
+                                        "Set_saved_item_id": [
+                                          "Succeeded"
+                                        ]
+                                      }
+                                    },
+                                    "Set_saved_evidence_status": {
+                                      "type": "SetVariable",
+                                      "inputs": {
+                                        "name": "vEvidenceStatus",
+                                        "value": "@if(equals(body('Parse_payload')?['evidenceRequirement'],'required'),'pending','not_required')"
+                                      },
+                                      "runAfter": {
+                                        "Set_saved_item_url": [
+                                          "Succeeded"
+                                        ]
+                                      }
+                                    },
+                                    "Set_saved_message": {
+                                      "type": "SetVariable",
+                                      "inputs": {
+                                        "name": "vMessage",
+                                        "value": "Saved"
+                                      },
+                                      "runAfter": {
+                                        "Set_saved_evidence_status": [
+                                          "Succeeded"
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "else": {
+                                    "actions": {}
+                                  },
+                                  "runAfter": {
+                                    "Is_correction": [
+                                      "Succeeded"
+                                    ]
+                                  }
+                                }
+                              },
+                              "else": {
+                                "actions": {
+                                  "Set_policy_rejection_message": {
+                                    "type": "SetVariable",
+                                    "inputs": {
+                                      "name": "vMessage",
+                                      "value": "Rejected — project, client, or secure/photo policy changed; refresh the entry"
+                                    },
+                                    "runAfter": {}
+                                  }
+                                }
+                              },
+                              "runAfter": {
+                                "Derived_profile_version": [
+                                  "Succeeded"
+                                ]
+                              }
+                            }
+                          }
+                        },
+                        "runAfter": {}
+                      }
+                    }
+                  },
+                  "runAfter": {
+                    "Find_existing_capture": [
+                      "Succeeded"
+                    ]
+                  }
+                }
+              },
+              "else": {
+                "actions": {
+                  "Set_invalid_payload_message": {
+                    "type": "SetVariable",
+                    "inputs": {
+                      "name": "vMessage",
+                      "value": "Rejected — invalid or out-of-bound synthetic V1 payload"
+                    },
+                    "runAfter": {}
+                  }
+                }
+              },
+              "runAfter": {
+                "Parse_payload": [
+                  "Succeeded"
+                ]
+              }
+            }
+          },
+          "runAfter": {
+            "vCanCreate": [
+              "Succeeded"
+            ]
+          }
+        },
+        "CATCH": {
+          "type": "Scope",
+          "actions": {
+            "Catch_status": {
+              "type": "SetVariable",
+              "inputs": {
+                "name": "vStatus",
+                "value": "rejected"
+              },
+              "runAfter": {}
+            },
+            "Catch_capture_id": {
+              "type": "SetVariable",
+              "inputs": {
+                "name": "vCaptureId",
+                "value": ""
+              },
+              "runAfter": {
+                "Catch_status": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Catch_item_id": {
+              "type": "SetVariable",
+              "inputs": {
+                "name": "vItemId",
+                "value": ""
+              },
+              "runAfter": {
+                "Catch_capture_id": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Catch_item_url": {
+              "type": "SetVariable",
+              "inputs": {
+                "name": "vItemUrl",
+                "value": ""
+              },
+              "runAfter": {
+                "Catch_item_id": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Catch_evidence_status": {
+              "type": "SetVariable",
+              "inputs": {
+                "name": "vEvidenceStatus",
+                "value": ""
+              },
+              "runAfter": {
+                "Catch_item_url": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Catch_message": {
+              "type": "SetVariable",
+              "inputs": {
+                "name": "vMessage",
+                "value": "@concat('Not saved — flow error; correlation ',workflow()?['run']?['name'])"
+              },
+              "runAfter": {
+                "Catch_evidence_status": [
+                  "Succeeded"
+                ]
+              }
+            }
+          },
+          "runAfter": {
+            "TRY": [
+              "Failed",
+              "TimedOut"
+            ]
+          }
+        },
+        "Respond_to_Power_Apps": {
+          "type": "Response",
+          "kind": "PowerApp",
+          "inputs": {
+            "statusCode": 200,
+            "body": {
+              "status": "@variables('vStatus')",
+              "captureId": "@variables('vCaptureId')",
+              "workLogItemId": "@variables('vItemId')",
+              "workLogItemUrl": "@variables('vItemUrl')",
+              "evidenceStatus": "@variables('vEvidenceStatus')",
+              "message": "@variables('vMessage')"
+            },
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "title": "status",
+                  "type": "string",
+                  "x-ms-dynamically-added": true
+                },
+                "captureId": {
+                  "title": "captureId",
+                  "type": "string",
+                  "x-ms-dynamically-added": true
+                },
+                "workLogItemId": {
+                  "title": "workLogItemId",
+                  "type": "string",
+                  "x-ms-dynamically-added": true
+                },
+                "workLogItemUrl": {
+                  "title": "workLogItemUrl",
+                  "type": "string",
+                  "x-ms-dynamically-added": true
+                },
+                "evidenceStatus": {
+                  "title": "evidenceStatus",
+                  "type": "string",
+                  "x-ms-dynamically-added": true
+                },
+                "message": {
+                  "title": "message",
+                  "type": "string",
+                  "x-ms-dynamically-added": true
+                }
+              }
+            }
+          },
+          "runAfter": {
+            "CATCH": [
+              "Succeeded",
+              "Skipped"
+            ]
+          }
+        }
+      }
+    },
+    "templateName": ""
+  },
+  "schemaVersion": "1.0.0.0"
+}

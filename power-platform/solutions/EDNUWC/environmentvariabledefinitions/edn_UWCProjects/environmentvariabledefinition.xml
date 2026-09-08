@@ -1,0 +1,18 @@
+<environmentvariabledefinition schemaname="edn_UWCProjects">
+  <apiid>/providers/microsoft.powerapps/apis/shared_sharepointonline</apiid>
+  <description default="SharePoint data-source binding for the EDN Projects list.">
+    <label description="SharePoint data-source binding for the EDN Projects list." languagecode="1033" />
+  </description>
+  <displayname default="EDN UWC Projects List">
+    <label description="EDN UWC Projects List" languagecode="1033" />
+  </displayname>
+  <introducedversion>1.0.0.0</introducedversion>
+  <iscustomizable>1</iscustomizable>
+  <isrequired>0</isrequired>
+  <parameterkey>table</parameterkey>
+  <parentdefinitionid>
+    <schemaname>edn_UWCSite</schemaname>
+  </parentdefinitionid>
+  <secretstore>0</secretstore>
+  <type>100000004</type>
+</environmentvariabledefinition>

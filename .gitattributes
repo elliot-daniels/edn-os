@@ -1,2 +1,4 @@
 config/work-capture-v1-activation-manifest.json text eol=lf
 power-platform/work-capture/canvas/EDNWorkCapture/Src/*.pa.yaml text eol=lf
+power-platform/solutions/**/*.json text eol=lf
+power-platform/solutions/**/*.xml text eol=lf
