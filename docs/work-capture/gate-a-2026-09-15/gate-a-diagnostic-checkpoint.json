@@ -1,0 +1,115 @@
+{
+  "status": "BLOCKED_NOT_FROZEN_FOR_RUNTIME",
+  "gate_a_complete": false,
+  "gate_b_authorized": false,
+  "gate_b_executed": false,
+  "reviewed_commit": "4f76f915c14a26c6f2c52c2557cce9b16b1b2f64",
+  "branch": "feature/uwc-solution-scaffold",
+  "environment_id": "0813c3a4-765f-eafe-9a6a-05ebf0521bc6",
+  "dataverse_url": "https://orga4aa16b5.crm6.dynamics.com/",
+  "solution": "EDNUWC",
+  "solution_id": "2a8fa4f7-f5a5-f111-b8de-002248991d3a",
+  "developer_app_id": "eb306bf3-a897-455c-abc9-a3c4f51da858",
+  "developer_app_component": "edn_ednworkcapture_070e3",
+  "component_identity_evidence": "Component name supplied by owner; solution object inventory could not be loaded.",
+  "flow": {
+    "name": "UWC-AcceptCapture-v1",
+    "id": "c648c824-55a6-f111-b8de-002248991d3a",
+    "state": "Off",
+    "runs": 0,
+    "observed_utc_date": "2026-09-14",
+    "owner": "Elliot Daniels",
+    "binding": "failed",
+    "diagnostic_session_id": "88be42db-828d-40ef-ba45-2d6880e96db6"
+  },
+  "checkers": {
+    "flow_errors": 0,
+    "flow_warnings": [
+      "This flow is off"
+    ],
+    "app_formula_issues": 0,
+    "app_accessibility_findings": 16,
+    "app_data_source_warnings": [
+      "Unused Projects",
+      "Unused Clients"
+    ],
+    "observed_utc_date": "2026-09-14",
+    "post_repair_check": false
+  },
+  "fixtures": {
+    "client_id": 5,
+    "client_modified": "2026-09-08T07:03:39Z",
+    "project_id": 4,
+    "project_modified": "2026-09-08T07:06:00Z",
+    "project_code": "SYNTH-UWC-ACCEPT-01",
+    "status": "Active",
+    "client_lookup": 5,
+    "security_classification": "Secure Client - No Photos",
+    "secure_site_applied": true,
+    "photo_policy_applied": "prohibited",
+    "work_log_count": 0,
+    "exact_timestamp_verified_via": "SharePoint REST GET rendered in authenticated browser"
+  },
+  "connection_reference": {
+    "logical_name": "edn_UWCSharePoint",
+    "display_name": "EDN UWC SharePoint",
+    "connector": "shared_sharepointonline",
+    "account": "elliot@ednsystems.com.au",
+    "run_only_mode": "Provided by run-only user",
+    "exact_connection_id": null,
+    "status": "Account and invoker mode verified in flow UI; Dataverse mapping ID not exported"
+  },
+  "environment_variables": {
+    "edn_UWCSite": {
+      "repository_workflow_default": "https://edn123.sharepoint.com/sites/EDNSystems",
+      "live_current_value_verified": false
+    },
+    "edn_UWCWorkLog": {
+      "repository_workflow_default": "7b6d10ec-c009-422a-9802-c907d3d4f57f",
+      "live_current_value_verified": false
+    },
+    "edn_UWCProjects": {
+      "repository_workflow_default": "66944251-b9a3-40cc-9a59-05538e200c19",
+      "live_current_value_verified": false
+    },
+    "edn_UWCClients": {
+      "repository_workflow_default": "3d55c612-9799-4462-9474-7f0ca5a10b24",
+      "live_current_value_verified": false
+    }
+  },
+  "hashes": {
+    "algorithm": "SHA-256",
+    "repository_worktree_workflow": "44debaedd83e15c62604acafbf04dbd40e5f6c4a4420099b8cdfc3705149b659",
+    "repository_git_blob_workflow": "c07db6251e55a6242c5b883cdd2a9c636e2237c4d7db8411983213d224259397",
+    "final_live_workflow": null,
+    "authentic_post_binding_solution_zip": null,
+    "note": "Worktree and Git blob hashes are byte-specific; neither is a verified final live hash."
+  },
+  "validation": {
+    "existing_work_capture_tests_passed": 39,
+    "pytest_warning": "Existing pytest cache directory access denied; test result unaffected",
+    "solution_json_parsed": 1,
+    "solution_xml_parsed": 7,
+    "six_payloads_match_repository_schema": true,
+    "pac_round_trip": "not performed: installed PAC denied by local filesystem"
+  },
+  "changes": {
+    "microsoft_configuration_saved": false,
+    "records_created_or_changed": false,
+    "default_environment_touched": false,
+    "flow_enabled_or_invoked": false
+  },
+  "blockers": [
+    "Binding failure reproduced; root cause not proven. Disabled state is a hypothesis that cannot be tested under current authority.",
+    "Dataverse requests password verification; no credentials supplied to agent.",
+    "Installed PAC CLI is inaccessible to shell despite read permission grant.",
+    "No authentic post-binding solution export, final hashes or resolved live environment-variable inventory."
+  ],
+  "review_findings": [
+    "Repository receipt URLs use /Lists/Work%20Log/; verified actual RootFolder is /sites/EDNSystems/Lists/WorkLog.",
+    "Live trigger is named When_Power_Apps_calls_a_flow_(V2), while reviewed source uses manual; requires authentic export reconciliation.",
+    "Existing replay branch can PatchItem to repair a missing Engineer field; zero-write replay is conditional.",
+    "Catch branch labels failure Not saved even when a preceding create may have succeeded. Ambiguous outcomes require read-only reconciliation, never a new-key retry.",
+    "Reviewed package has no Developer canvas app component; imported app package identifies isSolutionAware=false at origin. This is historical metadata, not proof of current solution membership."
+  ]
+}
