@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Protocol
 
 from edn.memory.storage import SQLiteEmailStore
@@ -42,4 +43,33 @@ class SQLiteFTSKeywordRetriever:
                 fts_rank=item.fts_rank,
             )
             for item in ranked
+        )
+
+
+class RecentCandidateRetriever(Protocol):
+    def retrieve_recent_candidates(
+        self, *, since: datetime, until: datetime, limit: int
+    ) -> tuple[RetrievalCandidate, ...]: ...
+
+
+class SQLiteRecentEmailRetriever:
+    """Recent correspondence from the existing local email source of truth."""
+
+    def __init__(self, store: SQLiteEmailStore) -> None:
+        self._store = store
+
+    def retrieve_recent_candidates(
+        self, *, since: datetime, until: datetime, limit: int
+    ) -> tuple[RetrievalCandidate, ...]:
+        return tuple(
+            RetrievalCandidate(
+                record,
+                0.0,
+                0,
+                source_explanations=(
+                    "bounded_sent_time_window",
+                    "newest_first",
+                ),
+            )
+            for record in self._store.recent(since=since, until=until, limit=limit)
         )

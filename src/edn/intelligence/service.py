@@ -72,7 +72,9 @@ class IntelligenceService:
     ) -> IntelligenceResponse:
         """Build the user-invoked brief without widening request authority."""
         return self.answer(
-            replace(request, query="What do I need to know today?"),
+            replace(
+                request, query="What do I need to know today?", retrieval_mode="recent"
+            ),
             now=now,
             session_id=session_id,
         )
@@ -152,4 +154,5 @@ class IntelligenceService:
             priorities,
             proposals,
             daily_brief,
+            context.source_coverage,
         )

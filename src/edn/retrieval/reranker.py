@@ -38,7 +38,12 @@ class DeterministicReranker:
         candidates: tuple[RetrievalCandidate, ...],
     ) -> tuple[ScoredCandidate, ...]:
         newest = max(
-            (item.record.sent_at for item in candidates if item.record.sent_at),
+            (
+                item.record.sent_at
+                for item in candidates
+                if item.record.sent_at is not None
+                and item.record.sent_at.tzinfo is not None
+            ),
             default=None,
         )
         scored = tuple(
@@ -117,7 +122,11 @@ class DeterministicReranker:
         ):
             add_signal("identifier match", self.weights.identifier)
 
-        if newest is not None and record.sent_at is not None:
+        if (
+            newest is not None
+            and record.sent_at is not None
+            and record.sent_at.tzinfo is not None
+        ):
             threshold = newest - timedelta(days=self.weights.recent_window_days)
             if record.sent_at >= threshold:
                 add_signal("recent", self.weights.recent)

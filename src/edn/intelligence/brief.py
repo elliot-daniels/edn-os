@@ -16,7 +16,9 @@ from edn.intelligence.models import (
     FreshnessState,
     IntelligencePriority,
     StatementKind,
+    TemporalState,
 )
+from edn.intelligence.temporal import temporal_state
 
 
 @dataclass(frozen=True, slots=True)
@@ -235,6 +237,10 @@ class DailyIntelligenceComposer:
             recurrence = policy.recurrence
             evidence_quality = policy.evidence_quality
             section = policy.section
+        if item.timestamp_kind == "calendar_event_end" and temporal_state(
+            item, now
+        ) in {TemporalState.EXPIRED_PAST_EVENT, TemporalState.UNKNOWN_UNDETERMINED}:
+            section = BriefSectionKind.RISKS_GAPS
         corroboration_points = min(max(corroborating_sources - 1, 0), 3)
         score = (
             freshness_points * 5
@@ -302,11 +308,33 @@ class DailyIntelligenceComposer:
         ranked: tuple[_RankedEvidence, ...],
     ) -> None:
         present = {item.evidence.capability_id for item in ranked}
+        covered = {source.capability_id for source in context.source_coverage}
+        for source in context.source_coverage:
+            if source.status == "retrieved":
+                continue
+            reason = ", ".join(source.reasons) or "no_matching_evidence"
+            sections[BriefSectionKind.RISKS_GAPS].append(
+                DailyBriefItem(
+                    f"coverage:{source.capability_id}",
+                    BriefSectionKind.RISKS_GAPS,
+                    StatementKind.UNKNOWN,
+                    f"Source coverage: {source.capability_id}",
+                    f"{source.status}: {source.returned_count} returned, "
+                    f"{source.admitted_count} admitted, {source.selected_count} "
+                    f"included in this bounded brief ({reason}); completeness is "
+                    "unknown. No matching evidence does not establish that "
+                    "nothing requires attention.",
+                    (),
+                    FreshnessState.UNKNOWN,
+                    0,
+                    source.reasons,
+                )
+            )
         unavailable_ids = {
             item.partition(":")[0] for item in context.unavailable_capabilities
         }
         for capability_id in self.expected_capabilities:
-            if capability_id in present:
+            if capability_id in present or capability_id in covered:
                 continue
             reason = (
                 "source unavailable under current capability or authority state"
@@ -328,7 +356,7 @@ class DailyIntelligenceComposer:
             )
         for gap in context.unavailable_capabilities:
             capability_id = gap.partition(":")[0]
-            if capability_id in self.expected_capabilities:
+            if capability_id in self.expected_capabilities or capability_id in covered:
                 continue
             sections[BriefSectionKind.RISKS_GAPS].append(
                 DailyBriefItem(
@@ -350,6 +378,15 @@ def _freshness(
 ) -> FreshnessState:
     if item.source_timestamp is None or policy is None:
         return FreshnessState.UNKNOWN
+    if item.timestamp_kind == "calendar_event_end":
+        state = temporal_state(item, now)
+        if state is TemporalState.EXPIRED_PAST_EVENT:
+            return FreshnessState.STALE
+        if state is TemporalState.UNKNOWN_UNDETERMINED:
+            return FreshnessState.UNKNOWN
+        return FreshnessState.CURRENT
+    if item.source_timestamp > now and item.capability_id != "calendar.search":
+        return FreshnessState.UNKNOWN
     age = now - item.source_timestamp.astimezone(now.tzinfo)
     if age <= policy.current_for:
         return FreshnessState.CURRENT
@@ -368,11 +405,7 @@ def _source_origin(item: ContextEvidence) -> str:
     connector_ids = {
         ref.record.source.connector_id.casefold() for ref in item.provenance
     }
-    return (
-        "synthetic_fixture"
-        if "synthetic" in connector_ids
-        else "authorised_source"
-    )
+    return "synthetic_fixture" if "synthetic" in connector_ids else "authorised_source"
 
 
 def _corroboration_counts(

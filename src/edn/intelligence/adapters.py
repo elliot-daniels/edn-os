@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Protocol
 
 from edn.connectors import ConnectorRequest
+from edn.connectors.errors import SourceUnavailableError
 from edn.connectors.local_files import LocalFilesConnector
 from edn.connectors.microsoft_calendar import CalendarWindow, MicrosoftCalendarConnector
 from edn.connectors.microsoft_outlook import MailWindow, MicrosoftOutlookConnector
@@ -15,6 +16,7 @@ from edn.core import CapabilityUseDecision, EvidenceRef, SourceRef, UniversalRec
 from edn.intelligence.models import ContextEvidence, IntelligenceRequest
 from edn.knowledge_graph.persistence import KnowledgeGraphStore
 from edn.retrieval import RetrievalEngine
+from edn.retrieval.engine import RetrievalError
 
 
 class SourceAdapter(Protocol):
@@ -82,8 +84,19 @@ class EmailRetrievalAdapter:
         now: datetime,
         authority: CapabilityUseDecision,
     ) -> tuple[ContextEvidence, ...]:
-        del now, authority
-        evidence = self.engine.retrieve(request.query, limit=limit)
+        del authority
+        try:
+            evidence = (
+                self.engine.retrieve_recent(
+                    since=now - timedelta(days=7), until=now, limit=min(limit, 10)
+                )
+                if request.retrieval_mode == "recent"
+                else self.engine.retrieve(request.query, limit=limit)
+            )
+        except RetrievalError as error:
+            raise SourceUnavailableError(
+                "Local email retrieval is unavailable."
+            ) from error
         return tuple(
             ContextEvidence(
                 context_id=f"email:{item.evidence_id}",
@@ -99,8 +112,12 @@ class EmailRetrievalAdapter:
                         f"email-{item.evidence_id}",
                     ),
                 ),
-                source_timestamp=item.sent_at,
-                timestamp_kind="email_sent_at" if item.sent_at is not None else None,
+                source_timestamp=item.sent_at
+                if item.sent_at is not None and item.sent_at.tzinfo is not None
+                else None,
+                timestamp_kind="email_sent_at"
+                if item.sent_at is not None and item.sent_at.tzinfo is not None
+                else None,
             )
             for index, item in enumerate(evidence)
         )

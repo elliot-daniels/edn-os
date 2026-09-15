@@ -62,10 +62,13 @@ class IntelligenceRequest:
     security_domain: SecurityDomain
     classification: Classification
     resource_scope: tuple[str, ...] = ()
+    retrieval_mode: str = "search"
 
     def __post_init__(self) -> None:
         if not self.query.strip():
             raise ValueError("query must not be blank")
+        if self.retrieval_mode not in {"search", "recent"}:
+            raise ValueError("unsupported retrieval mode")
         if not self.principal.allows_domain(self.security_domain):
             raise ValueError("requested domain is not active for this principal")
 
@@ -155,6 +158,25 @@ class AssembledContext:
     evidence: tuple[ContextEvidence, ...]
     unavailable_capabilities: tuple[str, ...]
     global_knowledge: tuple[GlobalKnowledge, ...] = ()
+    source_coverage: tuple[SourceCoverage, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class SourceCoverage:
+    """One bounded retrieval attempt, never a claim of source completeness."""
+
+    capability_id: str
+    status: str
+    returned_count: int = 0
+    admitted_count: int = 0
+    selected_count: int = 0
+    reasons: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.status not in {"retrieved", "empty", "unavailable", "partial"}:
+            raise ValueError("invalid source coverage status")
+        if not 0 <= self.selected_count <= self.admitted_count <= self.returned_count:
+            raise ValueError("invalid source coverage counts")
 
 
 @dataclass(frozen=True, slots=True)
@@ -239,6 +261,7 @@ class IntelligenceResponse:
     priorities: tuple[IntelligencePriority, ...] = ()
     proposed_actions: tuple[ActionProposal, ...] = ()
     daily_brief: DailyIntelligenceBrief | None = None
+    source_coverage: tuple[SourceCoverage, ...] = ()
 
     @property
     def source_families(self) -> tuple[str, ...]:

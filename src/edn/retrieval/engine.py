@@ -5,9 +5,15 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Iterable, Sequence
 from dataclasses import replace
+from datetime import datetime
 
 from edn.memory.storage import DatabaseBusyError, SQLiteEmailStore
-from edn.retrieval.keyword import CandidateRetriever, SQLiteFTSKeywordRetriever
+from edn.retrieval.keyword import (
+    CandidateRetriever,
+    RecentCandidateRetriever,
+    SQLiteFTSKeywordRetriever,
+    SQLiteRecentEmailRetriever,
+)
 from edn.retrieval.models import (
     RetrievalCandidate,
     RetrievalEvidence,
@@ -63,6 +69,7 @@ class RetrievalEngine:
         candidate_limit: int = DEFAULT_CANDIDATE_LIMIT,
         excerpt_characters: int = DEFAULT_EXCERPT_CHARACTERS,
         supplemental_retrievers: Sequence[CandidateRetriever] = (),
+        recent_retriever: RecentCandidateRetriever | None = None,
     ) -> None:
         if candidate_limit < 1:
             raise ValueError("candidate_limit must be at least 1")
@@ -73,6 +80,7 @@ class RetrievalEngine:
         self._candidate_limit = candidate_limit
         self._excerpt_characters = excerpt_characters
         self._supplemental_retrievers = tuple(supplemental_retrievers)
+        self._recent_retriever = recent_retriever
 
     @classmethod
     def from_store(
@@ -91,6 +99,36 @@ class RetrievalEngine:
             candidate_limit=candidate_limit,
             excerpt_characters=excerpt_characters,
             supplemental_retrievers=supplemental_retrievers,
+            recent_retriever=SQLiteRecentEmailRetriever(store),
+        )
+
+    def retrieve_recent(
+        self, *, since: datetime, until: datetime, limit: int = DEFAULT_EVIDENCE_LIMIT
+    ) -> tuple[RetrievalEvidence, ...]:
+        """Return time-ordered evidence without a generic keyword query."""
+        if not 1 <= limit <= MAX_EVIDENCE_LIMIT:
+            raise ValueError("recent evidence limit must be between 1 and 10")
+        if since.tzinfo is None or until.tzinfo is None or since > until:
+            raise ValueError(
+                "recent evidence window must be ordered and timezone-aware"
+            )
+        if self._recent_retriever is None:
+            raise RetrievalError("Recent email retrieval is not configured.")
+        try:
+            candidates = self._recent_retriever.retrieve_recent_candidates(
+                since=since, until=until, limit=limit
+            )
+        except (DatabaseBusyError, sqlite3.Error) as error:
+            raise RetrievalError("Recent email evidence is unavailable.") from error
+        return tuple(
+            self._to_evidence(
+                ScoredCandidate(
+                    item, 0.0, float(limit - index), item.source_explanations
+                ),
+                index,
+                (),
+            )
+            for index, item in enumerate(candidates[:limit], start=1)
         )
 
     def retrieve(

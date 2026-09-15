@@ -303,6 +303,32 @@ class SQLiteEmailStore:
         """Search subject, sender and body using FTS5."""
         return [item.record for item in self.search_ranked(query, limit=limit)]
 
+    def recent(
+        self, *, since: datetime, until: datetime, limit: int = 10
+    ) -> tuple[EmailRecord, ...]:
+        """Read a bounded sent-time window; never substitute import time for age.
+
+        UTC offsets are compared as instants. Undated/naive timestamps and future
+        messages cannot establish recent business activity. Existing databases
+        remain read-only; this query does not initialise or migrate them.
+        """
+        if since.tzinfo is None or until.tzinfo is None or since > until:
+            raise ValueError("recent email window must be ordered and timezone-aware")
+        if not 1 <= limit <= 25:
+            raise ValueError("recent email limit must be between 1 and 25")
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM emails
+                WHERE julianday(sent_at) BETWEEN julianday(?) AND julianday(?)
+                  AND (sent_at LIKE '%Z' OR substr(sent_at, -6, 1) IN ('+', '-'))
+                ORDER BY julianday(sent_at) DESC, source_record_key
+                LIMIT ?
+                """,
+                (since.isoformat(), until.isoformat(), limit),
+            ).fetchall()
+        return tuple(_row_to_record(row) for row in rows)
+
     def search_ranked(
         self,
         query: str,

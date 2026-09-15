@@ -50,6 +50,7 @@ from edn.intelligence.models import (
     IntelligenceRequest,
     IntelligenceResponse,
     IntelligenceStatement,
+    SourceCoverage,
     StatementKind,
     TemporalState,
 )
@@ -193,6 +194,7 @@ __all__ = [
     "SharePointEvidenceAdapter",
     "SourceAdapter",
     "SourceBriefPolicy",
+    "SourceCoverage",
     "StatementKind",
     "SyntheticModelProvider",
     "TemporalState",
