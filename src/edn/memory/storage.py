@@ -7,8 +7,9 @@ import sqlite3
 import time
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager, suppress
+from contextvars import ContextVar
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TypeVar
 
@@ -35,6 +36,13 @@ CREATE TABLE IF NOT EXISTS emails (
     message_id TEXT,
     body_text TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS email_import_status (
+    source_id TEXT PRIMARY KEY,
+    status TEXT NOT NULL,
+    observed_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS emails_sent_instant
+ON emails(julianday(sent_at) DESC, source_record_key);
 CREATE VIRTUAL TABLE IF NOT EXISTS emails_fts USING fts5(
     subject, sender, body_text, content='emails', content_rowid='id'
 );
@@ -144,6 +152,9 @@ class SQLiteEmailStore:
         self._busy_timeout_ms = busy_timeout_ms
         self._max_lock_retries = max_lock_retries
         self._retry_base_delay_seconds = retry_base_delay_seconds
+        self._import_batch_status: ContextVar[tuple[str, str, datetime] | None] = (
+            ContextVar("email_import_batch_status", default=None)
+        )
 
     def _open_connection(self) -> sqlite3.Connection:
         if self._read_only:
@@ -210,6 +221,9 @@ class SQLiteEmailStore:
             for record in records:
                 cursor = connection.execute(_INSERT_EMAIL, self._record_values(record))
                 imported += int(cursor.rowcount == 1)
+            tracking = self._import_batch_status.get()
+            if tracking is not None:
+                self._write_import_status(connection, *tracking)
             connection.commit()
         except BaseException:
             with suppress(sqlite3.Error):
@@ -328,6 +342,76 @@ class SQLiteEmailStore:
                 (since.isoformat(), until.isoformat(), limit),
             ).fetchall()
         return tuple(_row_to_record(row) for row in rows)
+
+    def record_import_status(
+        self, source_id: str, status: str, observed_at: datetime
+    ) -> None:
+        """Record import lifecycle metadata in initialised stores, never content.
+
+        Old stores remain usable; running initialise is the existing opt-in schema
+        upgrade path. A missing table means freshness remains unknown.
+        """
+        if status not in {"running", "completed", "failed", "interrupted"}:
+            raise ValueError("invalid import status")
+        if observed_at.tzinfo is None:
+            raise ValueError("import observation must be timezone-aware")
+        with self._connect() as connection:
+            self._write_import_status(connection, source_id, status, observed_at)
+
+    @contextmanager
+    def import_batch_status(
+        self, source_id: str, status: str, observed_at: datetime
+    ) -> Iterator[None]:
+        """Persist lifecycle metadata in the same transaction as its email batch."""
+        if status not in {"running", "completed"} or observed_at.tzinfo is None:
+            raise ValueError("invalid batch import metadata")
+        token = self._import_batch_status.set((source_id, status, observed_at))
+        try:
+            yield
+        finally:
+            self._import_batch_status.reset(token)
+
+    @staticmethod
+    def _write_import_status(
+        connection: sqlite3.Connection,
+        source_id: str,
+        status: str,
+        observed_at: datetime,
+    ) -> None:
+        if (
+            connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE name='email_import_status'"
+            ).fetchone()
+            is None
+        ):
+            return
+        connection.execute(
+            "INSERT INTO email_import_status VALUES (?,?,?) ON CONFLICT(source_id) "
+            "DO UPDATE SET status=excluded.status, "
+            "observed_at=excluded.observed_at",
+            (source_id, status, observed_at.astimezone(UTC).isoformat()),
+        )
+
+    def import_status(self) -> tuple[tuple[str, datetime], ...]:
+        """Inspect bounded aggregate import state; absent legacy metadata is unknown."""
+        with self._connect() as connection:
+            if (
+                connection.execute(
+                    "SELECT 1 FROM sqlite_master WHERE name='email_import_status'"
+                ).fetchone()
+                is None
+            ):
+                return ()
+            rows = connection.execute(
+                "SELECT status, MIN(observed_at) AS observed_at, "
+                "MAX(observed_at) AS latest_at "
+                "FROM email_import_status GROUP BY status"
+            ).fetchall()
+        return tuple(
+            (str(row["status"]), datetime.fromisoformat(row[column]))
+            for row in rows
+            for column in ("observed_at", "latest_at")
+        )
 
     def search_ranked(
         self,

@@ -13,6 +13,8 @@ from typing import Any, Protocol, cast
 
 import msal  # type: ignore[import-untyped]
 
+from edn.connectors.errors import SourceUnavailableError
+
 ALLOWED_DELEGATED_SCOPES = frozenset({"User.Read", "Calendars.Read", "Mail.Read"})
 
 
@@ -278,8 +280,10 @@ class MicrosoftGraphCalendarClient:
         try:
             with self._opener(request, timeout=30) as response:
                 return _json_object(response.read())
-        except urllib.error.HTTPError as error:
-            raise RuntimeError("Microsoft Graph read failed safely.") from error
+        except (urllib.error.URLError, TimeoutError) as error:
+            raise SourceUnavailableError(
+                "Microsoft Graph read failed safely."
+            ) from error
 
 
 def _json_object(value: bytes) -> dict[str, Any]:

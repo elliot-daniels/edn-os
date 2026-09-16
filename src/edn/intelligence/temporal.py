@@ -21,7 +21,7 @@ def temporal_state(item: ContextEvidence, reference_time: datetime) -> TemporalS
             return TemporalState.UNKNOWN_UNDETERMINED
         if start.tzinfo is None or end.tzinfo is None:
             return TemporalState.UNKNOWN_UNDETERMINED
-        if end < reference_time:
+        if end <= reference_time:
             return TemporalState.EXPIRED_PAST_EVENT
         if start > reference_time:
             return TemporalState.FUTURE

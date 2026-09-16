@@ -55,8 +55,7 @@ class DailySchedule:
     def __post_init__(self) -> None:
         if not self.schedule_id or self.cadence != "daily":
             raise ValueError("Daily Intelligence requires a daily schedule identity")
-        if self.timezone != EDN_TIMEZONE:
-            raise ValueError(f"schedule timezone must be {EDN_TIMEZONE}")
+        ZoneInfo(self.timezone)
         for value in (
             self.next_expected_run,
             self.last_attempted_run,
@@ -69,16 +68,22 @@ class DailySchedule:
         _aware(now)
         if self.next_expected_run is not None:
             return self
-        local_now = now.astimezone(_ZONE)
-        candidate = _at_local(local_now.date(), self.local_time)
+        zone = ZoneInfo(self.timezone)
+        local_now = now.astimezone(zone)
+        candidate = datetime.combine(local_now.date(), self.local_time, tzinfo=zone)
         if candidate <= local_now:
-            candidate = _at_local(local_now.date() + timedelta(days=1), self.local_time)
+            candidate = datetime.combine(
+                local_now.date() + timedelta(days=1), self.local_time, tzinfo=zone
+            )
         return replace(self, next_expected_run=candidate)
 
     def advance(self, *, after: datetime) -> DailySchedule:
         _aware(after)
-        local_after = after.astimezone(_ZONE)
-        candidate = _at_local(local_after.date() + timedelta(days=1), self.local_time)
+        zone = ZoneInfo(self.timezone)
+        local_after = after.astimezone(zone)
+        candidate = datetime.combine(
+            local_after.date() + timedelta(days=1), self.local_time, tzinfo=zone
+        )
         return replace(self, next_expected_run=candidate)
 
     def to_dict(self) -> dict[str, Any]:
@@ -331,6 +336,25 @@ class DailyOperationsStore:
                 (schedule.schedule_id, json.dumps(schedule.to_dict(), sort_keys=True)),
             )
 
+    def initialise_schedule(self, schedule: DailySchedule) -> DailySchedule:
+        """One schedule per store; initialization cannot overwrite newer state."""
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            rows = connection.execute(
+                "SELECT schedule_id FROM daily_schedules"
+            ).fetchall()
+            if any(row["schedule_id"] != schedule.schedule_id for row in rows):
+                raise ValueError("use a separate operations store for each schedule")
+            connection.execute(
+                "INSERT OR IGNORE INTO daily_schedules VALUES (?,?)",
+                (schedule.schedule_id, json.dumps(schedule.to_dict(), sort_keys=True)),
+            )
+            row = connection.execute(
+                "SELECT payload_json FROM daily_schedules WHERE schedule_id=?",
+                (schedule.schedule_id,),
+            ).fetchone()
+            return DailySchedule.from_dict(json.loads(row["payload_json"]))
+
     def get_schedule(self, schedule_id: str) -> DailySchedule | None:
         with self._connect() as connection:
             row = connection.execute(
@@ -355,6 +379,33 @@ class DailyOperationsStore:
                     json.dumps(run.to_dict(), sort_keys=True),
                 ),
             )
+
+    def claim_run(self, run: DailyRun) -> None:
+        """Insert-only claim: a concurrent tick cannot overwrite its winner."""
+        with self._connect() as connection:
+            connection.execute(
+                "INSERT INTO daily_runs(run_id,scheduled_for,status,payload_json) VALUES (?,?,?,?)",
+                (
+                    run.run_id,
+                    run.scheduled_for.isoformat(),
+                    run.status.value,
+                    json.dumps(run.to_dict(), sort_keys=True),
+                ),
+            )
+
+    def transition_run(self, previous: DailyRun, replacement: DailyRun) -> bool:
+        """Compare the complete prior state so only one retry can claim it."""
+        with self._connect() as connection:
+            cursor = connection.execute(
+                "UPDATE daily_runs SET status=?,payload_json=? WHERE run_id=? AND payload_json=?",
+                (
+                    replacement.status.value,
+                    json.dumps(replacement.to_dict(), sort_keys=True),
+                    previous.run_id,
+                    json.dumps(previous.to_dict(), sort_keys=True),
+                ),
+            )
+            return cursor.rowcount == 1
 
     def get_run(self, run_id: str) -> DailyRun | None:
         with self._connect() as connection:
@@ -417,10 +468,7 @@ class DailyIntelligenceScheduler:
 
     def initialise(self, *, now: datetime) -> DailySchedule:
         self.store.initialise()
-        schedule = self.store.get_schedule(self.schedule.schedule_id) or self.schedule
-        schedule = schedule.initialise(now=now)
-        self.store.save_schedule(schedule)
-        return schedule
+        return self.store.initialise_schedule(self.schedule.initialise(now=now))
 
     def tick(self, *, now: datetime, runner: DailyBriefRunner) -> DailyRun | None:
         schedule = self.initialise(now=now)
@@ -444,6 +492,12 @@ class DailyIntelligenceScheduler:
         scheduled_for = schedule.next_expected_run
         existing = self.store.get_run_for_schedule_time(scheduled_for)
         if existing is not None:
+            if existing.status in {RunStatus.COMPLETED, RunStatus.COMPLETED_WITH_GAPS}:
+                self.store.save_schedule(
+                    replace(
+                        schedule, last_successful_run=existing.completed_at
+                    ).advance(after=scheduled_for)
+                )
             self._event(
                 existing,
                 "duplicate_suppressed",
@@ -462,7 +516,7 @@ class DailyIntelligenceScheduler:
             started_at=now,
         )
         try:
-            self.store.save_run(run)
+            self.store.claim_run(run)
         except sqlite3.IntegrityError:
             existing = self.store.get_run_for_schedule_time(scheduled_for)
             if existing is not None:
@@ -537,7 +591,8 @@ class DailyIntelligenceScheduler:
             failure_code=None,
             failure_detail=None,
         )
-        self.store.save_run(retrying)
+        if not self.store.transition_run(run, retrying):
+            raise ValueError("run was already claimed by another retry")
         self._event(retrying, "run_retry_started", "safe_retry", "running", now=now)
         schedule = self.store.get_schedule(run.schedule_id)
         if schedule is not None:
@@ -600,10 +655,32 @@ class DailyIntelligenceScheduler:
             missed_reason=reason,
             retry_safe=True,
         )
-        self.store.save_run(run)
+        self.store.claim_run(run)
         self._event(run, "run_missed", "scheduled_window_missed", "missed", now=now)
         self.store.save_schedule(schedule.advance(after=schedule.next_expected_run))
         return run
+
+    def recover_interrupted(self, run_id: str, *, now: datetime) -> DailyRun:
+        """Explicit recovery after the caller confirms the old worker has stopped.
+
+        Never automatically steal a running lease; the owner must stop the prior
+        process before invoking this local recovery operation.
+        """
+        run = self.store.get_run(run_id)
+        if run is None or run.status is not RunStatus.RUNNING:
+            raise ValueError("only an interrupted running attempt can be recovered")
+        failed = replace(
+            run,
+            status=RunStatus.FAILED,
+            completed_at=now,
+            failure_code=RunFailureCode.SCHEDULER_INTERRUPTED.value,
+            failure_detail="prior worker confirmed stopped",
+            retry_safe=True,
+        )
+        if not self.store.transition_run(run, failed):
+            raise ValueError("run changed during recovery")
+        self._event(failed, "run_interrupted", "explicit_recovery", "failed", now=now)
+        return failed
 
     def status(self, *, now: datetime) -> DailyOperationalStatus:
         schedule = self.initialise(now=now)
@@ -618,6 +695,7 @@ class DailyIntelligenceScheduler:
         attention = latest is not None and latest.status in {
             RunStatus.FAILED,
             RunStatus.MISSED,
+            RunStatus.RUNNING,
         }
         return DailyOperationalStatus(
             schedule.schedule_id,

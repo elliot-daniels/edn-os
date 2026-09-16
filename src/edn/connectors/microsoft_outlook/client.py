@@ -10,6 +10,8 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any, Protocol, cast
 
+from edn.connectors.errors import SourceUnavailableError
+
 
 class TokenProvider(Protocol):
     def acquire_token(self) -> str: ...
@@ -125,8 +127,10 @@ class MicrosoftGraphOutlookClient:
         try:
             with self._opener(request, timeout=30) as response:
                 value = json.loads(response.read())
-        except urllib.error.HTTPError as error:
-            raise RuntimeError("Microsoft Graph Outlook read failed safely") from error
+        except (urllib.error.URLError, TimeoutError) as error:
+            raise SourceUnavailableError(
+                "Microsoft Graph Outlook read failed safely"
+            ) from error
         if not isinstance(value, dict):
             raise RuntimeError("Microsoft Graph returned an unexpected response")
         return value

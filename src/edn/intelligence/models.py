@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
@@ -89,6 +89,8 @@ class ContextEvidence:
     freshness_state: FreshnessState = FreshnessState.UNKNOWN
     temporal_start: datetime | None = None
     temporal_end: datetime | None = None
+    source_instance_id: str = ""
+    business_facts: BusinessFacts | None = None
 
     def __post_init__(self) -> None:
         if not self.context_id or not self.capability_id:
@@ -171,12 +173,56 @@ class SourceCoverage:
     admitted_count: int = 0
     selected_count: int = 0
     reasons: tuple[str, ...] = ()
+    source_instance_id: str = ""
+    pre_filter_count: int | None = None
+    checked_at: datetime | None = None
+    freshness: str = "unknown"
 
     def __post_init__(self) -> None:
         if self.status not in {"retrieved", "empty", "unavailable", "partial"}:
             raise ValueError("invalid source coverage status")
         if not 0 <= self.selected_count <= self.admitted_count <= self.returned_count:
             raise ValueError("invalid source coverage counts")
+        if (
+            self.pre_filter_count is not None
+            and self.pre_filter_count < self.returned_count
+        ):
+            raise ValueError("pre-filter count cannot be below returned count")
+
+
+@dataclass(frozen=True, slots=True)
+class BusinessFacts:
+    """Projected business fields; status and dates are never inferred from prose."""
+
+    kind: str
+    record_id: str
+    status: str = ""
+    due_date: date | None = None
+    project_id: str = ""
+    client_id: str = ""
+    owner: str = ""
+
+    def __post_init__(self) -> None:
+        if self.kind not in {"project", "client", "action"} or not self.record_id:
+            raise ValueError("invalid business record identity")
+
+
+@dataclass(frozen=True, slots=True)
+class SourceBatch:
+    """Connector-level coverage retained before context admission/selection."""
+
+    evidence: tuple[ContextEvidence, ...]
+    pre_filter_count: int
+    checked_at: datetime
+    truncated: bool = False
+    reasons: tuple[str, ...] = ()
+    freshness: str = "unknown"
+
+    def __post_init__(self) -> None:
+        if self.pre_filter_count < len(self.evidence):
+            raise ValueError("invalid pre-filter count")
+        if self.checked_at.tzinfo is None:
+            raise ValueError("source check time must be timezone-aware")
 
 
 @dataclass(frozen=True, slots=True)

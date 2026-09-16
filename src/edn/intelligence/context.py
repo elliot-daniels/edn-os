@@ -16,6 +16,7 @@ from edn.intelligence.models import (
     ContextEvidence,
     GlobalKnowledge,
     IntelligenceRequest,
+    SourceBatch,
     SourceCoverage,
 )
 
@@ -34,9 +35,11 @@ class ContextAssembler:
     def _validate(self) -> None:
         if not 1 <= self.per_source_limit <= 25 or not 1 <= self.total_limit <= 100:
             raise ValueError("context limits must be positive and bounded")
-        ids = [adapter.capability_id for adapter in self.adapters]
+        ids = [(adapter.capability_id, _instance(adapter)) for adapter in self.adapters]
         if len(set(ids)) != len(ids):
-            raise ValueError("context adapters must have unique capability IDs")
+            raise ValueError(
+                "context adapters must have unique capability/instance IDs"
+            )
 
     def assemble(
         self,
@@ -51,7 +54,10 @@ class ContextAssembler:
         evidence = []
         unavailable = []
         coverage = []
-        for adapter in sorted(self.adapters, key=lambda item: item.capability_id):
+        for adapter in sorted(
+            self.adapters, key=lambda item: (item.capability_id, _instance(item))
+        ):
+            instance = _instance(adapter)
             permission_request = PermissionRequest(
                 f"context:{adapter.capability_id}",
                 request.principal,
@@ -72,11 +78,12 @@ class ContextAssembler:
                         adapter.capability_id,
                         "unavailable",
                         reasons=(decision.reason_code,),
+                        source_instance_id=instance,
                     )
                 )
                 continue
             try:
-                retrieved = adapter.retrieve(
+                result = adapter.retrieve(
                     request,
                     limit=self.per_source_limit,
                     now=now,
@@ -91,16 +98,29 @@ class ContextAssembler:
                         adapter.capability_id,
                         "unavailable",
                         reasons=("connector_failure",),
+                        source_instance_id=instance,
                     )
                 )
                 continue
             reasons: set[str] = set()
+            batch = result if isinstance(result, SourceBatch) else None
+            retrieved = result.evidence if isinstance(result, SourceBatch) else result
+            if batch is not None:
+                reasons.update(batch.reasons)
+                if batch.truncated:
+                    reasons.add("source_truncated")
+                if batch.pre_filter_count > len(retrieved):
+                    reasons.add("source_records_filtered")
             if len(retrieved) >= self.per_source_limit:
                 reasons.add("source_limit_reached")
             admitted = 0
             seen: dict[str, ContextEvidence] = {}
             conflicts: set[str] = set()
             for item in retrieved[: self.per_source_limit]:
+                if item.source_instance_id and item.source_instance_id != instance:
+                    reasons.add("evidence_instance_mismatch")
+                    continue
+                item = replace(item, source_instance_id=instance)
                 if item.capability_id != adapter.capability_id:
                     reasons.add("evidence_capability_mismatch")
                     continue
@@ -133,6 +153,10 @@ class ContextAssembler:
                     len(retrieved),
                     admitted,
                     reasons=tuple(sorted(reasons)),
+                    source_instance_id=instance,
+                    pre_filter_count=batch.pre_filter_count if batch else None,
+                    checked_at=batch.checked_at if batch else None,
+                    freshness=batch.freshness if batch else "unknown",
                 )
             )
         # A citation ID cannot identify two different source records. Reject both
@@ -144,6 +168,7 @@ class ContextAssembler:
         for index, source in enumerate(coverage):
             removed = sum(
                 item.capability_id == source.capability_id
+                and item.source_instance_id == source.source_instance_id
                 and item.context_id in collisions
                 for item in evidence
             )
@@ -159,11 +184,13 @@ class ContextAssembler:
         evidence = [item for item in evidence if item.context_id not in collisions]
         # Every adapter is already bounded. Round-robin keeps one prolific source
         # from crowding all other authorised families out of the final context.
-        families: dict[str, list[ContextEvidence]] = {}
+        families: dict[tuple[str, str], list[ContextEvidence]] = {}
         for item in sorted(
             evidence, key=lambda value: (-value.score, value.context_id)
         ):
-            families.setdefault(item.capability_id, []).append(item)
+            families.setdefault(
+                (item.capability_id, item.source_instance_id), []
+            ).append(item)
         balanced: list[ContextEvidence] = []
         while families and len(balanced) < self.total_limit:
             for family in sorted(tuple(families)):
@@ -175,7 +202,9 @@ class ContextAssembler:
                     break
         for index, source in enumerate(coverage):
             selected = sum(
-                item.capability_id == source.capability_id for item in balanced
+                item.capability_id == source.capability_id
+                and item.source_instance_id == source.source_instance_id
+                for item in balanced
             )
             selection_reasons = source.reasons
             if selected < source.admitted_count:
@@ -197,3 +226,10 @@ class ContextAssembler:
             global_knowledge,
             tuple(coverage),
         )
+
+
+def _instance(adapter: SourceAdapter) -> str:
+    value = getattr(adapter, "source_instance_id", "")
+    if not isinstance(value, str):
+        raise ValueError("source instance identity must be text")
+    return value

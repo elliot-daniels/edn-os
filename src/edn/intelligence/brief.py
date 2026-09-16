@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from edn.intelligence.business_brief import business_items
 from edn.intelligence.models import (
     AssembledContext,
     BriefSectionKind,
@@ -120,6 +121,8 @@ class DailyIntelligenceComposer:
     """Build a typed owner brief from already-authorised bounded evidence."""
 
     maximum_priorities: int = 10
+    deadline_priorities_only: bool = False
+    timezone: str = "Australia/Sydney"
     policies: tuple[SourceBriefPolicy, ...] = DEFAULT_SOURCE_POLICIES
     expected_capabilities: tuple[str, ...] = (
         "calendar.search",
@@ -158,7 +161,10 @@ class DailyIntelligenceComposer:
             kind: [] for kind in BriefSectionKind
         }
         self._add_summary(section_items, ranked)
-        for index, item in enumerate(ranked[: self.maximum_priorities], start=1):
+        nonbusiness = tuple(
+            item for item in ranked if item.evidence.business_facts is None
+        )
+        for index, item in enumerate(nonbusiness[: self.maximum_priorities], start=1):
             fact = _fact_item(item, index)
             section_items[item.section].append(fact)
             if item.freshness in {FreshnessState.STALE, FreshnessState.UNKNOWN}:
@@ -170,6 +176,7 @@ class DailyIntelligenceComposer:
                 value
                 for value in ranked
                 if value.freshness in {FreshnessState.CURRENT, FreshnessState.AGEING}
+                and not self.deadline_priorities_only
             ),
             start=1,
         ):
@@ -181,6 +188,8 @@ class DailyIntelligenceComposer:
             section_items[BriefSectionKind.SUGGESTED_ACTIONS].append(
                 _action_item(item, index)
             )
+        for business_item in business_items(context, now=now, timezone=self.timezone):
+            section_items[business_item.section].append(business_item)
         self._add_gaps(section_items, context, ranked)
         sections = tuple(
             DailyBriefSection(kind, _SECTION_TITLES[kind], tuple(section_items[kind]))
@@ -195,6 +204,14 @@ class DailyIntelligenceComposer:
             item
             for item in brief.items
             if item.kind is StatementKind.FACT
+            and (
+                not self.deadline_priorities_only
+                or item.section
+                in {
+                    BriefSectionKind.IMMEDIATE_ATTENTION,
+                    BriefSectionKind.UPCOMING_COMMITMENTS,
+                }
+            )
             and item.section
             not in {BriefSectionKind.RISKS_GAPS, BriefSectionKind.EXECUTIVE_SUMMARY}
         )[: self.maximum_priorities]
@@ -315,10 +332,16 @@ class DailyIntelligenceComposer:
             reason = ", ".join(source.reasons) or "no_matching_evidence"
             sections[BriefSectionKind.RISKS_GAPS].append(
                 DailyBriefItem(
-                    f"coverage:{source.capability_id}",
+                    f"coverage:{source.capability_id}"
+                    + (
+                        f":{source.source_instance_id}"
+                        if source.source_instance_id
+                        else ""
+                    ),
                     BriefSectionKind.RISKS_GAPS,
                     StatementKind.UNKNOWN,
-                    f"Source coverage: {source.capability_id}",
+                    f"Source coverage: {source.capability_id} "
+                    f"{source.source_instance_id}",
                     f"{source.status}: {source.returned_count} returned, "
                     f"{source.admitted_count} admitted, {source.selected_count} "
                     f"included in this bounded brief ({reason}); completeness is "

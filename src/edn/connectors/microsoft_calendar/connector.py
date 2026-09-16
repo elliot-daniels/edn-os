@@ -127,7 +127,13 @@ class MicrosoftCalendarConnector:
                     rejected.get("category_not_admitted", 0) + 1
                 )
                 continue
-            event = self._event(item)
+            try:
+                event = self._event(item)
+            except (ValueError, KeyError, TypeError):
+                rejected["invalid_or_ambiguous_event"] = (
+                    rejected.get("invalid_or_ambiguous_event", 0) + 1
+                )
+                continue
             if event is None or event.end < start or event.start >= end:
                 rejected["outside_requested_window"] = (
                     rejected.get("outside_requested_window", 0) + 1
@@ -259,7 +265,14 @@ def _graph_datetime(value: object, fallback_timezone: str) -> datetime:
     parsed = datetime.fromisoformat(str(value["dateTime"]).replace("Z", "+00:00"))
     if parsed.tzinfo is None:
         timezone_name = str(value.get("timeZone") or fallback_timezone)
-        parsed = parsed.replace(tzinfo=ZoneInfo(timezone_name))
+        zone = ZoneInfo(timezone_name)
+        candidates = tuple(parsed.replace(tzinfo=zone, fold=fold) for fold in (0, 1))
+        if candidates[0].utcoffset() != candidates[1].utcoffset() or any(
+            candidate.astimezone(UTC).astimezone(zone).replace(tzinfo=None) != parsed
+            for candidate in candidates
+        ):
+            raise ValueError("ambiguous or nonexistent local event timestamp")
+        parsed = candidates[0]
     return parsed
 
 

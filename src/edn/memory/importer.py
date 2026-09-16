@@ -7,6 +7,7 @@ import json
 import mailbox
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime
 from email.message import Message
 from pathlib import Path
 from typing import Literal
@@ -111,6 +112,7 @@ def import_mbox(
     batches_committed = 0
     pending: list[EmailRecord] = []
     source = mailbox.mbox(path, create=False)
+    source_id = hashlib.sha256(str(path.resolve()).encode()).hexdigest()
 
     def emit(status: ProgressStatus) -> None:
         if progress is not None:
@@ -125,11 +127,14 @@ def import_mbox(
                 )
             )
 
-    def commit_pending() -> None:
+    def commit_pending(*, completed: bool = False) -> None:
         nonlocal imported, skipped, batches_committed
         if not pending:
             return
-        batch_result = store.add_many(pending)
+        with store.import_batch_status(
+            source_id, "completed" if completed else "running", datetime.now(UTC)
+        ):
+            batch_result = store.add_many(pending)
         imported += batch_result.imported
         skipped += batch_result.skipped
         batches_committed += 1
@@ -138,6 +143,8 @@ def import_mbox(
 
     try:
         for message in source:
+            if len(pending) >= batch_size:
+                commit_pending()
             pending.append(
                 _parse_mbox_message(
                     message,
@@ -145,13 +152,15 @@ def import_mbox(
                 )
             )
             processed += 1
-            if len(pending) >= batch_size:
-                commit_pending()
-        commit_pending()
+        commit_pending(completed=True)
+        if not processed:
+            store.record_import_status(source_id, "completed", datetime.now(UTC))
     except KeyboardInterrupt:
+        store.record_import_status(source_id, "interrupted", datetime.now(UTC))
         emit("interrupted")
         raise
     except Exception:
+        store.record_import_status(source_id, "failed", datetime.now(UTC))
         emit("failed")
         raise
     finally:

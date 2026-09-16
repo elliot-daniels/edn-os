@@ -13,7 +13,7 @@ from edn.connectors.microsoft_calendar import CalendarWindow, MicrosoftCalendarC
 from edn.connectors.microsoft_outlook import MailWindow, MicrosoftOutlookConnector
 from edn.connectors.microsoft_sharepoint import MicrosoftSharePointConnector
 from edn.core import CapabilityUseDecision, EvidenceRef, SourceRef, UniversalRecordRef
-from edn.intelligence.models import ContextEvidence, IntelligenceRequest
+from edn.intelligence.models import ContextEvidence, IntelligenceRequest, SourceBatch
 from edn.knowledge_graph.persistence import KnowledgeGraphStore
 from edn.retrieval import RetrievalEngine
 from edn.retrieval.engine import RetrievalError
@@ -22,7 +22,8 @@ from edn.retrieval.engine import RetrievalError
 class SourceAdapter(Protocol):
     capability_id: str
     operation: str
-    resource_scope: tuple[str, ...]
+    @property
+    def resource_scope(self) -> tuple[str, ...]: ...
 
     def retrieve(
         self,
@@ -31,7 +32,7 @@ class SourceAdapter(Protocol):
         limit: int,
         now: datetime,
         authority: CapabilityUseDecision,
-    ) -> tuple[ContextEvidence, ...]: ...
+    ) -> tuple[ContextEvidence, ...] | SourceBatch: ...
 
 
 @dataclass(slots=True)
