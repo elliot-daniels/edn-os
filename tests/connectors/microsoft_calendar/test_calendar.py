@@ -114,7 +114,7 @@ def _request(
 ) -> ConnectorRequest:
     principal = PrincipalContext("elliot", "tenant", frozenset({domain}), True)
     purpose = Purpose("weekly-review", "Weekly intelligence")
-    scope = ("edn-calendar", "window:this-week")
+    scope = (connector.config.authority_id, "window:this-week")
     permission_request = PermissionRequest(
         "calendar-policy-request",
         principal,

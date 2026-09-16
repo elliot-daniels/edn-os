@@ -9,6 +9,7 @@ from enum import StrEnum
 from typing import Any, Self
 from zoneinfo import ZoneInfo
 
+from edn.connectors.resource_identity import ProviderResourceIdentity
 from edn.core import Classification, SecurityDomain
 
 
@@ -52,6 +53,7 @@ class CalendarConfig:
     include_body: bool = False
 
     def __post_init__(self) -> None:
+        _ = self.resource_identity
         for value in (self.tenant_id, self.account_id, self.calendar_id):
             if not value.strip() or any(character in value for character in "\r\n"):
                 raise ValueError("calendar identity values must be nonblank")
@@ -63,6 +65,20 @@ class CalendarConfig:
                 raise ValueError("category-required mode needs an exact category")
         elif self.required_category is not None:
             raise ValueError("dedicated-calendar mode does not accept a category")
+
+    @property
+    def resource_identity(self) -> ProviderResourceIdentity:
+        return ProviderResourceIdentity(
+            "microsoft-graph",
+            self.tenant_id,
+            self.account_id,
+            "calendar",
+            self.calendar_id,
+        )
+
+    @property
+    def authority_id(self) -> str:
+        return self.resource_identity.authority_id
 
 
 @dataclass(frozen=True, slots=True)

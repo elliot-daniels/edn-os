@@ -136,14 +136,19 @@ def _validate_live() -> dict[str, Any]:
     )
     now = datetime.now(UTC)
     calendar_result = calendar.search_events(
-        _request(calendar, domain, classification, ("default", "window:this-week")),
+        _request(
+            calendar, domain, classification,
+            (calendar.config.authority_id, "window:this-week"),
+        ),
         window=CalendarWindow.THIS_WEEK,
         now=now,
         limit=LIMIT,
     )
     mail_result = outlook.search_messages(
         _request(
-            outlook, domain, classification, ("me", "inbox", "window:last-7-days")
+            outlook, domain, classification,
+            (outlook.config.authority_id, *outlook.config.authority_folders,
+             "window:last-7-days"),
         ),
         window=MailWindow.LAST_7_DAYS,
         now=now,

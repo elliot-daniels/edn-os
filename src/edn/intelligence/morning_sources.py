@@ -133,11 +133,11 @@ class CalendarSourceAdapter:
     @property
     def source_instance_id(self) -> str:
         config = self.connector.config
-        return f"{config.tenant_id}:{config.account_id}:{config.calendar_id}"
+        return config.authority_id
 
     @property
     def resource_scope(self) -> tuple[str, ...]:
-        return (self.connector.config.calendar_id, f"window:{self.window.value}")
+        return (self.connector.config.authority_id, f"window:{self.window.value}")
 
     def retrieve(
         self,
@@ -193,14 +193,14 @@ class OutlookSourceAdapter:
     @property
     def source_instance_id(self) -> str:
         config = self.connector.config
-        return f"{config.tenant_id}:{config.account_id}:{config.mailbox_id}"
+        return config.authority_id
 
     @property
     def resource_scope(self) -> tuple[str, ...]:
         config = self.connector.config
         return (
-            config.mailbox_id,
-            *(config.authority_folder_ids or config.folder_ids),
+            config.authority_id,
+            *config.authority_folders,
             f"window:{self.window.value}",
         )
 

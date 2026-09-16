@@ -126,7 +126,7 @@ def _authorized_request(
         "approved-operator", domain.tenant_id or "edn", frozenset({domain}), True
     )
     purpose = Purpose("ic009-live-validation", "Approved IC-009 validation")
-    scope = (connector.config.calendar_id, f"window:{window}")
+    scope = (connector.config.authority_id, f"window:{window}")
     permission_request = PermissionRequest(
         "ic009-live-policy",
         principal,

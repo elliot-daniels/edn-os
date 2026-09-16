@@ -22,6 +22,7 @@ from edn.retrieval.engine import RetrievalError
 class SourceAdapter(Protocol):
     capability_id: str
     operation: str
+
     @property
     def resource_scope(self) -> tuple[str, ...]: ...
 
@@ -245,8 +246,8 @@ class OutlookEvidenceAdapter:
     @property
     def resource_scope(self) -> tuple[str, ...]:
         return (
-            self.connector.config.mailbox_id,
-            *self.connector.config.folder_ids,
+            self.connector.config.authority_id,
+            *self.connector.config.authority_folders,
             f"window:{self.window.value}",
         )
 
@@ -347,7 +348,7 @@ class CalendarEvidenceAdapter:
 
     @property
     def resource_scope(self) -> tuple[str, ...]:
-        return (self.connector.config.calendar_id, f"window:{self.window.value}")
+        return (self.connector.config.authority_id, f"window:{self.window.value}")
 
     def retrieve(
         self,

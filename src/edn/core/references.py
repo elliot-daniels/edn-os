@@ -48,6 +48,7 @@ class SourceRef:
     connector_id: str
     source_instance_id: str
     display_name: str
+    provider_resource_id: str | None = None
 
     def __post_init__(self) -> None:
         validate_identifier(self.source_id, "source_id")
@@ -55,15 +56,25 @@ class SourceRef:
         validate_identifier(self.source_instance_id, "source_instance_id")
         if not self.display_name.strip():
             raise ValueError("display_name must not be blank")
+        if self.provider_resource_id is not None and (
+            not self.provider_resource_id.strip()
+            or any(
+                ord(char) < 32 or ord(char) == 127 for char in self.provider_resource_id
+            )
+        ):
+            raise ValueError("provider_resource_id must be nonblank opaque text")
 
     def to_dict(self) -> dict[str, str]:
-        return {
+        result = {
             "schema_version": SCHEMA_VERSION,
             "source_id": self.source_id,
             "connector_id": self.connector_id,
             "source_instance_id": self.source_instance_id,
             "display_name": self.display_name,
         }
+        if self.provider_resource_id is not None:
+            result["provider_resource_id"] = self.provider_resource_id
+        return result
 
     def to_json(self) -> str:
         return _stable_json(self.to_dict())
@@ -76,6 +87,7 @@ class SourceRef:
             connector_id=str(value["connector_id"]),
             source_instance_id=str(value["source_instance_id"]),
             display_name=str(value["display_name"]),
+            provider_resource_id=_optional_str(value.get("provider_resource_id")),
         )
 
 

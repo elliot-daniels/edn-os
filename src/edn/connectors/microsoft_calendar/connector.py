@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -82,7 +83,7 @@ class MicrosoftCalendarConnector:
                 continue
             resources.append(
                 ResourceCandidate(
-                    _safe_id("calendar", identifier),
+                    self.config.authority_id,
                     "calendar",
                     f"msgraph-calendar:{identifier}",
                     request.security_domain,
@@ -177,11 +178,14 @@ class MicrosoftCalendarConnector:
         )
 
     def evidence_ref(self, event: CalendarEvent) -> EvidenceRef:
+        if event.calendar_id != self.config.calendar_id:
+            raise ValueError("event calendar has no configured identity mapping")
         source = SourceRef(
-            "microsoft-calendar.edn",
+            self.config.authority_id,
             CONNECTOR_ID,
-            self.config.calendar_id,
+            self.config.authority_id,
             self.config.calendar_name,
+            provider_resource_id=self.config.calendar_id,
         )
         record = UniversalRecordRef(
             source,
@@ -193,7 +197,7 @@ class MicrosoftCalendarConnector:
             event.last_modified_at.isoformat(),
         )
         digest = hashlib.sha256(
-            f"{self.config.calendar_id}:{event.event_id}".encode()
+            json.dumps([self.config.authority_id, event.event_id]).encode()
         ).hexdigest()
         return EvidenceRef(
             f"calendar-{digest}",
@@ -208,7 +212,7 @@ class MicrosoftCalendarConnector:
             raise PermissionError("calendar domain does not match approved source")
         if request.classification != self.config.classification:
             raise PermissionError("calendar classification does not match source")
-        if self.config.calendar_id not in request.scope:
+        if self.config.authority_id not in request.scope:
             raise PermissionError("request is not bound to the configured calendar")
 
     def _event(self, item: dict[str, Any]) -> CalendarEvent | None:
@@ -274,10 +278,6 @@ def _graph_datetime(value: object, fallback_timezone: str) -> datetime:
             raise ValueError("ambiguous or nonexistent local event timestamp")
         parsed = candidates[0]
     return parsed
-
-
-def _safe_id(prefix: str, native_id: str) -> str:
-    return f"{prefix}:{hashlib.sha256(native_id.encode()).hexdigest()}"
 
 
 def _window_from_scope(scope: tuple[str, ...]) -> CalendarWindow:

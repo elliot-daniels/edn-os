@@ -107,7 +107,11 @@ def _message(identifier: str = "message-one", categories=("EDN",)):
 def _request(connector, *, domain=EDN) -> ConnectorRequest:
     principal = PrincipalContext("owner", "tenant", frozenset({domain}), True)
     purpose = Purpose("current-mail", "Current mail intelligence")
-    scope = ("owner-mailbox", "inbox", "window:last-7-days")
+    scope = (
+        connector.config.authority_id,
+        *connector.config.authority_folders,
+        "window:last-7-days",
+    )
     permission = PermissionRequest(
         "outlook-request",
         principal,
@@ -189,7 +193,9 @@ def test_native_folder_id_can_bind_to_durable_inbox_authority_alias() -> None:
     )
 
     assert config.folder_ids == ("native+/=folder",)
-    assert config.authority_folders == ("inbox",)
+    assert config.authority_folders == tuple(
+        item.authority_id for item in config.folder_identities
+    )
 
 
 def test_live_client_is_get_only_inbox_metadata_and_fails_closed() -> None:
@@ -209,9 +215,7 @@ def test_live_client_is_get_only_inbox_metadata_and_fails_closed() -> None:
 
     client = MicrosoftGraphOutlookClient(_Token(), opener=opener)
     folders = client.folders("me")
-    result = client.messages(
-        "me", "native-inbox", NOW.replace(day=4), NOW, limit=25
-    )
+    result = client.messages("me", "native-inbox", NOW.replace(day=4), NOW, limit=25)
 
     assert folders[0]["id"] == "native-inbox"
     assert result[0]["id"] == "message-one"

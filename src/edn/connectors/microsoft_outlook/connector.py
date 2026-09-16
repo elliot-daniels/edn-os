@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import UTC, datetime
 from typing import Any
 
@@ -140,11 +141,24 @@ class MicrosoftOutlookConnector:
         )
 
     def evidence_ref(self, message: OutlookMessage) -> EvidenceRef:
+        if message.mailbox_id != self.config.mailbox_id:
+            raise ValueError("message mailbox does not match configured source")
+        folder = next(
+            (
+                item
+                for item in self.config.folder_identities
+                if item.provider_id == message.folder_id
+            ),
+            None,
+        )
+        if folder is None:
+            raise ValueError("message folder has no configured identity mapping")
         source = SourceRef(
-            "microsoft-outlook.edn",
+            folder.authority_id,
             CONNECTOR_ID,
-            self.config.mailbox_id,
+            folder.authority_id,
             "Microsoft 365 Outlook Mail",
+            provider_resource_id=folder.provider_id,
         )
         record = UniversalRecordRef(
             source,
@@ -156,12 +170,12 @@ class MicrosoftOutlookConnector:
             message.last_modified_at.isoformat(),
         )
         digest = hashlib.sha256(
-            f"{message.mailbox_id}:{message.message_id}".encode()
+            json.dumps([folder.authority_id, message.message_id]).encode()
         ).hexdigest()
         return EvidenceRef(
             f"outlook-{digest}",
             record,
-            locator=f"folder:{message.folder_id};received:{message.received_at.isoformat()}",
+            locator=f"folder:{folder.authority_id};received:{message.received_at.isoformat()}",
             transformation_id="outlook-mail-metadata",
             transformation_version=CONNECTOR_VERSION,
         )
@@ -171,7 +185,7 @@ class MicrosoftOutlookConnector:
             raise PermissionError("mail domain does not match approved source")
         if request.classification != self.config.classification:
             raise PermissionError("mail classification does not match source")
-        expected = {self.config.mailbox_id, *self.config.authority_folders}
+        expected = {self.config.authority_id, *self.config.authority_folders}
         if not expected <= set(request.scope):
             raise PermissionError(
                 "request is not bound to the configured mailbox scope"

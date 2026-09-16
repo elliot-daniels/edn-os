@@ -6,7 +6,9 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
 
+from edn.connectors.resource_identity import ProviderResourceIdentity
 from edn.core import Classification, SecurityDomain
+from edn.core.security import validate_identifier
 
 
 class MailWindow(StrEnum):
@@ -45,6 +47,8 @@ class OutlookConfig:
     authority_folder_ids: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
+        _ = self.resource_identity
+        _ = self.folder_identities
         identities = (
             self.tenant_id,
             self.account_id,
@@ -69,14 +73,46 @@ class OutlookConfig:
                 raise ValueError("category-required mode needs an exact category")
         elif self.required_category is not None:
             raise ValueError("dedicated-mailbox mode does not accept a category")
+        if self.authority_folder_ids is not None:
+            for alias in self.authority_folder_ids:
+                validate_identifier(alias, "folder_alias")
+            if len(set(self.authority_folder_ids)) != len(self.authority_folder_ids):
+                raise ValueError("folder aliases must be unique")
+        if len(set(self.folder_ids)) != len(self.folder_ids):
+            raise ValueError("provider folders must be unique")
+
+    @property
+    def resource_identity(self) -> ProviderResourceIdentity:
+        return ProviderResourceIdentity(
+            "microsoft-graph",
+            self.tenant_id,
+            self.account_id,
+            "mailbox",
+            self.mailbox_id,
+        )
+
+    @property
+    def authority_id(self) -> str:
+        return self.resource_identity.authority_id
+
+    @property
+    def folder_identities(self) -> tuple[ProviderResourceIdentity, ...]:
+        # Include the parent mailbox in the namespace, without delimiter ambiguity.
+        return tuple(
+            ProviderResourceIdentity(
+                "microsoft-graph",
+                self.tenant_id,
+                self.authority_id,
+                "mail-folder",
+                value,
+            )
+            for value in self.folder_ids
+        )
 
     @property
     def authority_folders(self) -> tuple[str, ...]:
-        return (
-            self.folder_ids
-            if self.authority_folder_ids is None
-            else self.authority_folder_ids
-        )
+        # Legacy aliases remain configuration labels, never standalone authority.
+        return tuple(item.authority_id for item in self.folder_identities)
 
 
 @dataclass(frozen=True, slots=True)
