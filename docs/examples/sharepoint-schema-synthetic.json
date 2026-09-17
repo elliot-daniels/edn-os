@@ -1,0 +1,155 @@
+{
+  "account": "elliot@ednsystems.com.au",
+  "application": "2381e4f6-44bc-4697-ad64-e86513cb9dee",
+  "delete_by": "2026-09-24T06:04:50.844696+00:00",
+  "grant_id": "synthetic-grant",
+  "grant_role": "read",
+  "lists": [
+    {
+      "columns": [
+        {
+          "displayName": "Field 1",
+          "hidden": false,
+          "id": "00000000-0000-0000-0000-000000000001",
+          "name": "Field1",
+          "readOnly": false,
+          "required": false,
+          "text": {
+            "maxLength": 255
+          }
+        }
+      ],
+      "displayName": "Projects",
+      "id": "66944251-b9a3-40cc-9a59-05538e200c19",
+      "list": {
+        "contentTypesEnabled": false,
+        "hidden": false,
+        "template": "genericList"
+      },
+      "webUrl": "https://edn123.sharepoint.com/sites/EDNSystems/Lists/Projects"
+    },
+    {
+      "columns": [
+        {
+          "displayName": "Field 1",
+          "hidden": false,
+          "id": "00000000-0000-0000-0000-000000000001",
+          "name": "Field1",
+          "readOnly": false,
+          "required": false,
+          "text": {
+            "maxLength": 255
+          }
+        }
+      ],
+      "displayName": "Clients",
+      "id": "3d55c612-9799-4462-9474-7f0ca5a10b24",
+      "list": {
+        "contentTypesEnabled": false,
+        "hidden": false,
+        "template": "genericList"
+      },
+      "webUrl": "https://edn123.sharepoint.com/sites/EDNSystems/Lists/Clients"
+    },
+    {
+      "columns": [
+        {
+          "displayName": "Field 1",
+          "hidden": false,
+          "id": "00000000-0000-0000-0000-000000000001",
+          "name": "Field1",
+          "readOnly": false,
+          "required": false,
+          "text": {
+            "maxLength": 255
+          }
+        }
+      ],
+      "displayName": "Actions",
+      "id": "d7079aad-7f18-4164-8bd6-41f5629898bb",
+      "list": {
+        "contentTypesEnabled": false,
+        "hidden": false,
+        "template": "genericList"
+      },
+      "webUrl": "https://edn123.sharepoint.com/sites/EDNSystems/Lists/Actions"
+    }
+  ],
+  "request_budget": 7,
+  "requests": [
+    {
+      "at": "2026-09-17T06:04:50.847147+00:00",
+      "method": "GET",
+      "purpose": "resolve_candidate_site",
+      "sequence": 1,
+      "state": "verified",
+      "url": "https://graph.microsoft.com/v1.0/sites/edn123.sharepoint.com:/sites/EDNSystems?%24select=id%2CdisplayName%2CwebUrl"
+    },
+    {
+      "at": "2026-09-17T06:04:50.849325+00:00",
+      "method": "GET",
+      "purpose": "verify_Projects",
+      "sequence": 2,
+      "state": "verified",
+      "url": "https://graph.microsoft.com/v1.0/sites/edn123.sharepoint.com%2C49cc1059-a4f6-42f7-88bd-9940503ae28f%2C00000000-0000-0000-0000-000000000001/lists/66944251-b9a3-40cc-9a59-05538e200c19?%24select=id%2CdisplayName%2CwebUrl%2Clist"
+    },
+    {
+      "at": "2026-09-17T06:04:50.850688+00:00",
+      "at_column_cap": false,
+      "column_count": 1,
+      "method": "GET",
+      "purpose": "columns_Projects",
+      "sequence": 3,
+      "state": "verified",
+      "url": "https://graph.microsoft.com/v1.0/sites/edn123.sharepoint.com%2C49cc1059-a4f6-42f7-88bd-9940503ae28f%2C00000000-0000-0000-0000-000000000001/lists/66944251-b9a3-40cc-9a59-05538e200c19/columns?%24select=id%2Cname%2CdisplayName%2Crequired%2CreadOnly%2Chidden%2Ctext%2Cnumber%2CdateTime%2Cchoice%2Cboolean%2Clookup%2CpersonOrGroup%2Ccurrency%2Ccalculated%2ChyperlinkOrPicture%2Cterm&%24top=100"
+    },
+    {
+      "at": "2026-09-17T06:04:50.851829+00:00",
+      "method": "GET",
+      "purpose": "verify_Clients",
+      "sequence": 4,
+      "state": "verified",
+      "url": "https://graph.microsoft.com/v1.0/sites/edn123.sharepoint.com%2C49cc1059-a4f6-42f7-88bd-9940503ae28f%2C00000000-0000-0000-0000-000000000001/lists/3d55c612-9799-4462-9474-7f0ca5a10b24?%24select=id%2CdisplayName%2CwebUrl%2Clist"
+    },
+    {
+      "at": "2026-09-17T06:04:50.853853+00:00",
+      "at_column_cap": false,
+      "column_count": 1,
+      "method": "GET",
+      "purpose": "columns_Clients",
+      "sequence": 5,
+      "state": "verified",
+      "url": "https://graph.microsoft.com/v1.0/sites/edn123.sharepoint.com%2C49cc1059-a4f6-42f7-88bd-9940503ae28f%2C00000000-0000-0000-0000-000000000001/lists/3d55c612-9799-4462-9474-7f0ca5a10b24/columns?%24select=id%2Cname%2CdisplayName%2Crequired%2CreadOnly%2Chidden%2Ctext%2Cnumber%2CdateTime%2Cchoice%2Cboolean%2Clookup%2CpersonOrGroup%2Ccurrency%2Ccalculated%2ChyperlinkOrPicture%2Cterm&%24top=100"
+    },
+    {
+      "at": "2026-09-17T06:04:50.854878+00:00",
+      "method": "GET",
+      "purpose": "verify_Actions",
+      "sequence": 6,
+      "state": "verified",
+      "url": "https://graph.microsoft.com/v1.0/sites/edn123.sharepoint.com%2C49cc1059-a4f6-42f7-88bd-9940503ae28f%2C00000000-0000-0000-0000-000000000001/lists/d7079aad-7f18-4164-8bd6-41f5629898bb?%24select=id%2CdisplayName%2CwebUrl%2Clist"
+    },
+    {
+      "at": "2026-09-17T06:04:50.856906+00:00",
+      "at_column_cap": false,
+      "column_count": 1,
+      "method": "GET",
+      "purpose": "columns_Actions",
+      "sequence": 7,
+      "state": "verified",
+      "url": "https://graph.microsoft.com/v1.0/sites/edn123.sharepoint.com%2C49cc1059-a4f6-42f7-88bd-9940503ae28f%2C00000000-0000-0000-0000-000000000001/lists/d7079aad-7f18-4164-8bd6-41f5629898bb/columns?%24select=id%2Cname%2CdisplayName%2Crequired%2CreadOnly%2Chidden%2Ctext%2Cnumber%2CdateTime%2Cchoice%2Cboolean%2Clookup%2CpersonOrGroup%2Ccurrency%2Ccalculated%2ChyperlinkOrPicture%2Cterm&%24top=100"
+    }
+  ],
+  "schema_sha256": "2eb1af4056790664f19bd83a98ec4472262c689ac2a38f7f63e641fac9407549",
+  "schema_version": 1,
+  "scope": "Sites.Selected",
+  "site": {
+    "displayName": "EDN Systems",
+    "id": "edn123.sharepoint.com,49cc1059-a4f6-42f7-88bd-9940503ae28f,00000000-0000-0000-0000-000000000001",
+    "webUrl": "https://edn123.sharepoint.com/sites/EDNSystems"
+  },
+  "started_at": "2026-09-17T06:04:50.844696+00:00",
+  "state": "complete",
+  "synthetic_only": true,
+  "tenant": "aae6ab79-45eb-4829-a04f-595becdb936d"
+}
