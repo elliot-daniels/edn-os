@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
 
+from edn.connectors.admission import AdmissionDecision
 from edn.connectors.resource_identity import ProviderResourceIdentity
 from edn.core import Classification, SecurityDomain
 from edn.core.security import validate_identifier
@@ -30,6 +31,7 @@ class MailWindow(StrEnum):
 class MailScopeMode(StrEnum):
     DEDICATED_EDN = "dedicated-edn"
     CATEGORY_REQUIRED = "category-required"
+    ADMISSION_V2 = "admission-v2"
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,6 +145,8 @@ class OutlookMessage:
 class OutlookRetrievalResult:
     pre_filter_count: int
     messages: tuple[OutlookMessage, ...]
+    decisions: tuple[AdmissionDecision, ...] = ()
+    coverage_reasons: tuple[str, ...] = ()
 
     @property
     def admitted_count(self) -> int:

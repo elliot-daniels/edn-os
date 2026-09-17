@@ -157,6 +157,8 @@ class ContextAssembler:
                     pre_filter_count=batch.pre_filter_count if batch else None,
                     checked_at=batch.checked_at if batch else None,
                     freshness=batch.freshness if batch else "unknown",
+                    admission_decisions=batch.admission_decisions if batch else (),
+                    relationship_sources=batch.relationship_sources if batch else (),
                 )
             )
         # A citation ID cannot identify two different source records. Reject both

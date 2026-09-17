@@ -145,6 +145,17 @@ def render_brief(response: IntelligenceResponse) -> str:
             f"reasons={', '.join(source.reasons) or 'none'}."
         )
     lines.extend(("", "## Evidence", ""))
+    decisions = [
+        d for source in response.source_coverage for d in source.admission_decisions
+    ]
+    if decisions:
+        lines[-2:] = ["## Admission audit", ""]
+        for decision in decisions:
+            lines.append(
+                f"- {decision.record_key}: {decision.outcome.value}; "
+                f"reasons={', '.join(decision.reasons)}; policy={decision.policy_id}."
+            )
+        lines.extend(("", "## Evidence", ""))
     for evidence in response.evidence:
         for ref in evidence.provenance:
             lines.append(

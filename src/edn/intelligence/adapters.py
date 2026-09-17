@@ -248,6 +248,7 @@ class OutlookEvidenceAdapter:
         return (
             self.connector.config.authority_id,
             *self.connector.config.authority_folders,
+            *self.connector.admission_scope,
             f"window:{self.window.value}",
         )
 
@@ -284,7 +285,7 @@ class OutlookEvidenceAdapter:
                 f"received {item.received_at.isoformat()}; "
                 f"importance {item.importance}; read {item.is_read}",
                 float(limit - index),
-                (self.connector.evidence_ref(item),),
+                self.connector.admission_provenance(item, result),
                 item.received_at,
                 "mail_received_at",
             )

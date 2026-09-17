@@ -201,6 +201,7 @@ class OutlookSourceAdapter:
         return (
             config.authority_id,
             *config.authority_folders,
+            *self.connector.admission_scope,
             f"window:{self.window.value}",
         )
 
@@ -229,7 +230,7 @@ class OutlookSourceAdapter:
                 f"From {item.sender}; received {item.received_at.isoformat()}; "
                 f"importance {item.importance}; read {item.is_read}",
                 float(limit - index),
-                (self.connector.evidence_ref(item),),
+                self.connector.admission_provenance(item, result),
                 item.received_at,
                 "mail_received_at",
                 source_instance_id=self.source_instance_id,
@@ -241,8 +242,14 @@ class OutlookSourceAdapter:
             result.pre_filter_count,
             now,
             result.pre_filter_count >= limit,
-            (),
+            result.coverage_reasons,
             "checked",
+            admission_decisions=result.decisions,
+            relationship_sources=(
+                self.connector.admission_policy.source_coverage(now)
+                if self.connector.admission_policy
+                else ()
+            ),
         )
 
 

@@ -15,6 +15,8 @@ from edn.connectors import (
     VerificationStatus,
     require_supported_operation,
 )
+from edn.connectors.admission import AdmissionDecision, AdmissionOutcome
+from edn.connectors.microsoft_outlook.admission import EmailAdmissionPolicy
 from edn.connectors.microsoft_outlook.client import GraphOutlookClient
 from edn.connectors.microsoft_outlook.models import (
     MailScopeMode,
@@ -31,9 +33,27 @@ READ_PERMISSION = "Mail.Read"
 
 
 class MicrosoftOutlookConnector:
-    def __init__(self, config: OutlookConfig, client: GraphOutlookClient) -> None:
+    def __init__(
+        self,
+        config: OutlookConfig,
+        client: GraphOutlookClient,
+        *,
+        admission_policy: EmailAdmissionPolicy | None = None,
+    ) -> None:
         self.config = config
         self.client = client
+        if (config.scope_mode is MailScopeMode.ADMISSION_V2) != (
+            admission_policy is not None
+        ):
+            raise ValueError(
+                "V2 requires an explicit admission policy; V1 cannot use it"
+            )
+        if admission_policy is not None and (
+            admission_policy.security_domain != config.security_domain
+            or admission_policy.classification != config.classification
+        ):
+            raise ValueError("admission policy does not match connector domain")
+        self.admission_policy = admission_policy
         capabilities = tuple(
             CapabilityManifest(
                 capability_id,
@@ -67,6 +87,14 @@ class MicrosoftOutlookConnector:
     def manifest(self) -> ConnectorManifest:
         return self._manifest
 
+    @property
+    def admission_scope(self) -> tuple[str, ...]:
+        return (
+            ()
+            if self.admission_policy is None
+            else (self.admission_policy.authority_id,)
+        )
+
     def search_messages(
         self,
         request: ConnectorRequest,
@@ -95,6 +123,8 @@ class MicrosoftOutlookConnector:
                 )
             )
         messages: list[OutlookMessage] = []
+        if self.admission_policy is not None:
+            return self._admit_batch(raw, start=start, end=end, now=now)
         for item in raw:
             message = self._message(item)
             if message is None or not start <= message.received_at <= end:
@@ -108,6 +138,63 @@ class MicrosoftOutlookConnector:
             )
         )
         return OutlookRetrievalResult(len(raw), admitted)
+
+    def _admit_batch(
+        self,
+        raw: list[dict[str, Any]],
+        *,
+        start: datetime,
+        end: datetime,
+        now: datetime,
+    ) -> OutlookRetrievalResult:
+        policy = self.admission_policy
+        assert policy is not None
+        fingerprints: dict[str, set[str]] = {}
+        for item in raw:
+            key = str(item.get("id", "unidentified"))
+            fingerprints.setdefault(key, set()).add(
+                json.dumps(item, sort_keys=True, default=str)
+            )
+        seen: set[str] = set()
+        decisions: list[AdmissionDecision] = []
+        messages: list[OutlookMessage] = []
+        for item in raw:
+            key = str(item.get("id", "unidentified"))
+            decision = policy.decide(item, now=now)
+            reason = ""
+            message = None
+            if len(fingerprints[key]) > 1:
+                reason = "conflicting_metadata"
+            elif key in seen:
+                reason = "duplicate_record"
+            elif decision.reasons == ("malformed_metadata",):
+                reason = "malformed_metadata"
+            else:
+                try:
+                    message = self._message(item)
+                    if message is None:
+                        reason = "outside_folder_boundary"
+                    elif not start <= message.received_at <= end:
+                        reason = "outside_time_boundary"
+                except (KeyError, TypeError, ValueError):
+                    reason = "malformed_metadata"
+            seen.add(key)
+            if reason:
+                decision = AdmissionDecision(
+                    key, policy.authority_id, AdmissionOutcome.REJECTED, (reason,)
+                )
+            decisions.append(decision)
+            if decision.outcome is AdmissionOutcome.ADMITTED and message is not None:
+                messages.append(message)
+        messages.sort(
+            key=lambda item: (item.received_at, item.message_id), reverse=True
+        )
+        reasons = set(policy.coverage(now))
+        if not messages:
+            reasons.add("no_admissible_evidence")
+        return OutlookRetrievalResult(
+            len(raw), tuple(messages), tuple(decisions), tuple(sorted(reasons))
+        )
 
     def search(self, request: ConnectorRequest) -> SearchResult:
         result = self.search_messages(
@@ -180,12 +267,30 @@ class MicrosoftOutlookConnector:
             transformation_version=CONNECTOR_VERSION,
         )
 
+    def admission_provenance(
+        self, message: OutlookMessage, result: OutlookRetrievalResult
+    ) -> tuple[EvidenceRef, ...]:
+        return (
+            self.evidence_ref(message),
+            *(
+                ref
+                for decision in result.decisions
+                if decision.record_key == message.message_id
+                and decision.outcome is AdmissionOutcome.ADMITTED
+                for ref in decision.relationship_evidence
+            ),
+        )
+
     def _validate_request(self, request: ConnectorRequest) -> None:
         if request.security_domain != self.config.security_domain:
             raise PermissionError("mail domain does not match approved source")
         if request.classification != self.config.classification:
             raise PermissionError("mail classification does not match source")
-        expected = {self.config.authority_id, *self.config.authority_folders}
+        expected = {
+            self.config.authority_id,
+            *self.config.authority_folders,
+            *self.admission_scope,
+        }
         if not expected <= set(request.scope):
             raise PermissionError(
                 "request is not bound to the configured mailbox scope"

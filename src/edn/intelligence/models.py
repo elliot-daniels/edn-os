@@ -7,6 +7,8 @@ from datetime import date, datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from edn.connectors.admission import AdmissionDecision, AdmissionSourceCoverage
+
 if TYPE_CHECKING:
     from edn.intelligence.action_models import ActionProposal
 
@@ -177,6 +179,8 @@ class SourceCoverage:
     pre_filter_count: int | None = None
     checked_at: datetime | None = None
     freshness: str = "unknown"
+    admission_decisions: tuple[AdmissionDecision, ...] = ()
+    relationship_sources: tuple[AdmissionSourceCoverage, ...] = ()
 
     def __post_init__(self) -> None:
         if self.status not in {"retrieved", "empty", "unavailable", "partial"}:
@@ -217,6 +221,8 @@ class SourceBatch:
     truncated: bool = False
     reasons: tuple[str, ...] = ()
     freshness: str = "unknown"
+    admission_decisions: tuple[AdmissionDecision, ...] = ()
+    relationship_sources: tuple[AdmissionSourceCoverage, ...] = ()
 
     def __post_init__(self) -> None:
         if self.pre_filter_count < len(self.evidence):
