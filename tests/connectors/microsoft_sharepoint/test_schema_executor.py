@@ -23,14 +23,15 @@ from edn.connectors.microsoft_sharepoint.schema_executor import (
 )
 from edn.connectors.microsoft_sharepoint.schema_plan import (
     CANDIDATE_LISTS,
-    HISTORICAL_SITE_GUID,
     HOST,
+    SITE_COLLECTION_ID,
     SITE_URL,
+    WEB_ID,
     list_schema_requests,
     site_identity_request,
 )
 
-SITE_ID = f"{HOST},{HISTORICAL_SITE_GUID},00000000-0000-0000-0000-000000000001"
+SITE_ID = f"{HOST},{SITE_COLLECTION_ID},{WEB_ID}"
 
 
 def identity():
@@ -132,7 +133,18 @@ def test_happy_path_exact_seven_calls_and_audit(tmp_path, monkeypatch):
     "changes",
     [
         {"id": "not-composite"},
-        {"id": SITE_ID.replace(HISTORICAL_SITE_GUID, str(UUID(int=6)))},
+        {"id": f"{HOST},{WEB_ID},{SITE_COLLECTION_ID}"},
+        {"id": f"{HOST},{WEB_ID},{WEB_ID}"},
+        {"id": SITE_ID.replace(SITE_COLLECTION_ID, str(UUID(int=7)))},
+        {"id": f"{HOST},{SITE_COLLECTION_ID}"},
+        {"id": SITE_ID + ",extra"},
+        {"id": SITE_ID.replace(SITE_COLLECTION_ID, "invalid")},
+        {"id": SITE_ID.replace(WEB_ID, "")},
+        {"webUrl": SITE_URL + "/"},
+        {"webUrl": SITE_URL + "#fragment"},
+        {"webUrl": SITE_URL.replace("https:", "http:")},
+        {"webUrl": SITE_URL.replace("EDNSystems", "ednsystems")},
+        {"id": SITE_ID.replace(WEB_ID, str(UUID(int=6)))},
         {"id": SITE_ID.replace(HOST, "evil.example")},
         {"id": SITE_ID + "/items"},
         {"webUrl": SITE_URL + "/another"},
@@ -499,3 +511,23 @@ def test_audit_records_attempt_before_transport_and_seven_day_retention(tmp_path
         audit["started_at"]
     ) == timedelta(days=7)
     assert all(r["state"] == "verified" for r in audit["requests"])
+
+
+@pytest.mark.parametrize("bad_id", [
+    f"{HOST},{WEB_ID},{SITE_COLLECTION_ID}",
+    SITE_ID.replace(SITE_COLLECTION_ID, str(UUID(int=7))),
+    SITE_ID.replace(WEB_ID, str(UUID(int=8))),
+    SITE_ID.replace(HOST, "other.sharepoint.com"),
+])
+def test_http_boundary_rejects_each_wrong_identity_before_lists(monkeypatch, bad_id):
+    connection, _ = http_mock(monkeypatch)
+    connection.getresponse.return_value.read.return_value = json.dumps(
+        {"id": bad_id, "displayName": "EDN Systems", "webUrl": SITE_URL}
+    ).encode()
+    transport = SchemaHttpTransport(lambda: "FAKE_SECRET")
+    with pytest.raises(SchemaInspectionError):
+        transport.get(site_identity_request())
+    plan = list_schema_requests(resolved_site_id=SITE_ID, resolved_web_url=SITE_URL)
+    with pytest.raises(SchemaInspectionError):
+        transport.get(plan[0])
+    assert connection.request.call_count == 1

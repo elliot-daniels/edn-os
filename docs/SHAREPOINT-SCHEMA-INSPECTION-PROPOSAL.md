@@ -51,8 +51,9 @@ or continuation requests are permitted.
 
    Maximum one site. Require exact web URL
    `https://edn123.sharepoint.com/sites/EDNSystems` and a composite site ID with
-   host `edn123.sharepoint.com`, site GUID
-   `49cc1059-a4f6-42f7-88bd-9940503ae28f`, and a valid web GUID. Record the returned
+   host `edn123.sharepoint.com`, site-collection ID
+   `b16e7eb5-e3de-4a1a-ba45-6807d771ff26`, and web ID
+   `49cc1059-a4f6-42f7-88bd-9940503ae28f`. Record the returned
    composite ID as `SITE_ID`; never substitute the historical GUID alone.
    A mismatch stops for owner review, without discovery of alternative resources.
 
@@ -131,3 +132,21 @@ authority. UWC remains outside every step.
 
 This text is a proposal. It neither establishes missing Microsoft access nor
 authorizes execution during the Email Admission V2 implementation session.
+
+## Owner-reviewed identity correction (2026-09-19)
+
+Graph IDs represent `hostname,siteCollectionId,webId`. The accepted EDN identity is
+`edn123.sharepoint.com,b16e7eb5-e3de-4a1a-ba45-6807d771ff26,49cc1059-a4f6-42f7-88bd-9940503ae28f`.
+The historical GUID was the web ID, not the site-collection ID. The shared planner
+now verifies all three exact components and the exact canonical URL
+`https://edn123.sharepoint.com/sites/EDNSystems`; no trailing slash, query,
+fragment, alternate casing or swapped components are accepted. Both execution
+boundaries use this verification before dependent requests. This local correction
+confers no consent, selected-site assignment or live inspection authority.
+
+Readiness: use the separate administrator context to inspect the accepted site's
+assignment only after owner approval; create one read assignment only if absent,
+stop on broader/duplicate grants, record its permission ID, and disconnect.
+The EDN runtime retains delegated Sites.Selected without provisioning authority.
+Before schema execution, require grant evidence, verified runtime identity/scopes,
+protected seven-day storage and separate approval for the bounded seven GETs.

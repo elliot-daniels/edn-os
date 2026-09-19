@@ -10,7 +10,8 @@ from uuid import UUID
 
 HOST = "edn123.sharepoint.com"
 SITE_URL = f"https://{HOST}/sites/EDNSystems"
-HISTORICAL_SITE_GUID = "49cc1059-a4f6-42f7-88bd-9940503ae28f"
+WEB_ID = "49cc1059-a4f6-42f7-88bd-9940503ae28f"
+SITE_COLLECTION_ID = "b16e7eb5-e3de-4a1a-ba45-6807d771ff26"
 CANDIDATE_LISTS = (
     ("Projects", "66944251-b9a3-40cc-9a59-05538e200c19"),
     ("Clients", "3d55c612-9799-4462-9474-7f0ca5a10b24"),
@@ -38,6 +39,33 @@ COLUMN_FIELDS = (
 
 
 @dataclass(frozen=True, slots=True)
+class GraphSiteIdentity:
+    """Graph composite identity: hostname, site collection ID, then web ID."""
+
+    hostname: str
+    site_collection_id: str
+    web_id: str
+    web_url: str
+
+
+EXPECTED_SITE = GraphSiteIdentity(HOST, SITE_COLLECTION_ID, WEB_ID, SITE_URL)
+
+
+def verify_site_identity(site_id: str, web_url: str) -> GraphSiteIdentity:
+    parts = site_id.split(",")
+    if len(parts) != 3:
+        raise ValueError("Graph site ID requires exactly three components")
+    hostname, site_collection_id, web_id = parts
+    # Require canonical GUID text as well as exact component semantics.
+    if any(str(UUID(value)) != value for value in (site_collection_id, web_id)):
+        raise ValueError("noncanonical Graph site ID component")
+    identity = GraphSiteIdentity(hostname, site_collection_id, web_id, web_url)
+    if identity != EXPECTED_SITE:
+        raise ValueError("site identity mismatch; owner review required")
+    return identity
+
+
+@dataclass(frozen=True, slots=True)
 class SchemaRequest:
     purpose: str
     url: str
@@ -58,14 +86,7 @@ def site_identity_request() -> SchemaRequest:
 def list_schema_requests(
     *, resolved_site_id: str, resolved_web_url: str
 ) -> tuple[SchemaRequest, ...]:
-    parts = resolved_site_id.split(",")
-    if len(parts) != 3 or parts[0] != HOST or resolved_web_url != SITE_URL:
-        raise ValueError(
-            "site identity differs from the candidate; owner review required"
-        )
-    if str(UUID(parts[1])) != HISTORICAL_SITE_GUID:
-        raise ValueError("historical site GUID differs; do not search other sites")
-    UUID(parts[2])
+    verify_site_identity(resolved_site_id, resolved_web_url)
     base = "https://graph.microsoft.com/v1.0/sites/" + quote(resolved_site_id, safe="")
     requests = []
     for name, identifier in CANDIDATE_LISTS:

@@ -3,15 +3,18 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 
 from edn.connectors.microsoft_sharepoint.schema_plan import (
-    HISTORICAL_SITE_GUID,
+    EXPECTED_SITE,
     HOST,
+    SITE_COLLECTION_ID,
     SITE_URL,
+    WEB_ID,
     list_schema_requests,
     permission_readiness,
     site_identity_request,
+    verify_site_identity,
 )
 
-SITE_ID = f"{HOST},{HISTORICAL_SITE_GUID},00000000-0000-0000-0000-000000000001"
+SITE_ID = f"{HOST},{SITE_COLLECTION_ID},{WEB_ID}"
 
 
 def test_inert_plan_is_exact_bounded_metadata_only():
@@ -37,7 +40,7 @@ def test_inert_plan_is_exact_bounded_metadata_only():
         (SITE_ID, "https://other.example/site"),
         (
             SITE_ID.replace(
-                HISTORICAL_SITE_GUID, "00000000-0000-0000-0000-000000000002"
+                WEB_ID, "00000000-0000-0000-0000-000000000002"
             ),
             SITE_URL,
         ),
@@ -56,3 +59,11 @@ def test_existing_pilot_scopes_are_insufficient_and_selected_scope_is_not_a_gran
         == "blocked_missing_sharepoint_read_permission"
     )
     assert permission_readiness(frozenset({"Sites.Selected"})).startswith("unverified_")
+
+
+def test_verified_composite_identity_has_explicit_component_semantics():
+    assert verify_site_identity(SITE_ID, SITE_URL) == EXPECTED_SITE
+    assert EXPECTED_SITE.hostname == HOST
+    assert EXPECTED_SITE.site_collection_id == SITE_COLLECTION_ID
+    assert EXPECTED_SITE.web_id == WEB_ID
+    assert EXPECTED_SITE.web_url == SITE_URL

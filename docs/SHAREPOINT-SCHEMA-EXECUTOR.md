@@ -3,8 +3,8 @@
 Starting checkpoint: `a7a7058f85af0ad0d7aef85bf24b856a83566daa` on
 `feature/executive-brief-reliability`. No Microsoft authentication, provisioning,
 consent, grant inspection or live schema access occurred. Email Admission V2,
-Core security validation, the inert planner and the operational SharePoint
-connector are unchanged.
+Core security validation and the operational SharePoint connector are unchanged.
+The planner identity correction is documented below.
 
 ## Execution architecture
 
@@ -39,8 +39,9 @@ No supplied transport can confer new inspection authority.
    verification precedes all list calls. Each list's response is verified before
    its columns call. Calling the HTTP transport directly cannot skip those steps.
 3. **Site identity.** Require exact HTTPS host/path via the frozen site request,
-   exact returned site web URL, composite Graph ID, matching historical
-   site-collection GUID and valid web GUID. No discovery/substitution fallback.
+   exact returned site web URL, composite Graph ID, exact site-collection ID
+   `b16e7eb5-e3de-4a1a-ba45-6807d771ff26` and exact web ID
+   `49cc1059-a4f6-42f7-88bd-9940503ae28f`. No discovery/substitution fallback.
 4. **List identity.** Require exact candidate ID and display name. Returned URL
    must be HTTPS on the expected host, beneath `/sites/EDNSystems/Lists/`, with
    one safe list-path segment and no query, fragment or traversal. Do not assume
@@ -110,8 +111,8 @@ completed, not that every SharePoint feature or semantic relationship is known.
 
 The actual executor generated
 [sharepoint-schema-synthetic.json](examples/sharepoint-schema-synthetic.json)
-using fake responses only. Its synthetic web GUID is
-`00000000-0000-0000-0000-000000000001`, not a discovered tenant identifier.
+using fake responses only, with the owner-accepted composite identity configured.
+All list and column responses remain synthetic; this is not live schema evidence.
 The artifact contains the full exact encoded URLs and one synthetic text column
 per list. State: complete; exactly seven GETs; no other transport operation.
 
@@ -177,7 +178,8 @@ protected-storage approval remain responsibilities of the later reviewed host.
   application. Verify the provisioner's identity, client ID, required authority
   and a supported rollback route before making any change.
 - Resolve only `https://edn123.sharepoint.com/sites/EDNSystems`; verify the URL,
-  composite Graph ID and candidate site-collection GUID
+  composite Graph ID and site-collection ID
+  `b16e7eb5-e3de-4a1a-ba45-6807d771ff26` and web ID
   `49cc1059-a4f6-42f7-88bd-9940503ae28f`. Stop on mismatch.
 - Inspect existing application assignments on that site to avoid duplicates.
   This permission read belongs to provisioning, not the seven-call inspection.
@@ -219,3 +221,21 @@ protected-storage approval remain responsibilities of the later reviewed host.
 
 This checklist does not authorize provisioning or inspection. The local build
 session ends after validation and feature-branch publication.
+
+## Owner-reviewed identity correction (2026-09-19)
+
+Graph IDs represent `hostname,siteCollectionId,webId`. The accepted EDN identity is
+`edn123.sharepoint.com,b16e7eb5-e3de-4a1a-ba45-6807d771ff26,49cc1059-a4f6-42f7-88bd-9940503ae28f`.
+The historical GUID was the web ID, not the site-collection ID. The shared planner
+now verifies all three exact components and the exact canonical URL
+`https://edn123.sharepoint.com/sites/EDNSystems`; no trailing slash, query,
+fragment, alternate casing or swapped components are accepted. Both execution
+boundaries use this verification before dependent requests. This local correction
+confers no consent, selected-site assignment or live inspection authority.
+
+Readiness: use the separate administrator context to inspect the accepted site's
+assignment only after owner approval; create one read assignment only if absent,
+stop on broader/duplicate grants, record its permission ID, and disconnect.
+The EDN runtime retains delegated Sites.Selected without provisioning authority.
+Before schema execution, require grant evidence, verified runtime identity/scopes,
+protected seven-day storage and separate approval for the bounded seven GETs.
