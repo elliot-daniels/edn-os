@@ -24,7 +24,8 @@ from edn.connectors.microsoft_sharepoint.schema_executor import (
 OUTPUT = Path(
     r"C:\Users\Admin\Documents\Codex\2026-09-14\files-pasted-by-the-user-edn\pilot-private\schema-8e4599f-one-shot"
 )
-EXECUTION_SID = "S-1-5-21-2158520141-276418557-3228345628-1003"
+PREPARATION_SID = "S-1-5-21-2158520141-276418557-3228345628-1003"
+EXECUTION_SID = "S-1-5-21-2158520141-276418557-3228345628-1004"
 GRANT_ID = (
     "aTowaS50fG1zLnNwLmV4dHwyMzgxZTRmNi00NGJjLTQ2OTctYWQ2NC1lODY1MTNj"
     "YjlkZWVAYWFlNmFiNzktNDVlYi00ODI5LWEwNGYtNTk1YmVjZGI5MzZk"
@@ -41,7 +42,7 @@ def validate_acl(evidence: dict[str, Any]) -> None:
     }
     if (
         evidence.get("execution_sid") != EXECUTION_SID
-        or evidence.get("owner_sid") != EXECUTION_SID
+        or evidence.get("owner_sid") != PREPARATION_SID
         or evidence.get("protected") is not True
         or not str(evidence.get("admin_sid", "")).startswith(
             "S-1-5-21-2158520141-276418557-3228345628-"

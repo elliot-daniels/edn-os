@@ -24,7 +24,7 @@ def acl():
     admin = "S-1-5-21-2158520141-276418557-3228345628-1001"
     return {
         "execution_sid": module.EXECUTION_SID,
-        "owner_sid": module.EXECUTION_SID,
+        "owner_sid": module.PREPARATION_SID,
         "admin_sid": admin,
         "protected": True,
         "rules": [
@@ -48,6 +48,38 @@ def acl():
 
 def test_exact_acl():
     module.validate_acl(acl())
+
+
+def test_offline_preparation_cannot_authorize_network_execution():
+    evidence = acl()
+    evidence["execution_sid"] = module.PREPARATION_SID
+    with pytest.raises(SchemaInspectionError):
+        module.validate_acl(evidence)
+    evidence["execution_sid"] = module.EXECUTION_SID
+    module.validate_acl(evidence)
+
+
+def test_offline_access_entry_is_not_retained():
+    evidence = acl()
+    evidence["rules"][-1]["sid"] = module.PREPARATION_SID
+    with pytest.raises(SchemaInspectionError):
+        module.validate_acl(evidence)
+
+
+def test_storage_transition_failure_after_auth_blocks_transport(monkeypatch):
+    monkeypatch.setattr(
+        module,
+        "check_storage",
+        Mock(side_effect=[None, SchemaInspectionError("identity_transition")]),
+    )
+    app = Mock()
+    app.acquire_token_interactive.return_value = auth()
+    monkeypatch.setattr(module.msal, "PublicClientApplication", Mock(return_value=app))
+    transport = Mock()
+    monkeypatch.setattr(module, "SchemaHttpTransport", transport)
+    with pytest.raises(SchemaInspectionError):
+        module.launch()
+    transport.assert_not_called()
 
 
 @pytest.mark.parametrize(
