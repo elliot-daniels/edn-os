@@ -65,3 +65,44 @@ to retry without separate owner approval. No automated deletion service exists.
 Prior validation: 134 focused tests passed (17 launch cases plus 117 planner/executor
 cases); Ruff and configured strict mypy passed (129 files). Real read-only wrapper
 storage validation passed. Full suite was not rerun for this preparation stage.
+
+
+## Deterministic delivery correction (local/synthetic only)
+
+Authentication prints flushed, sanitized milestones: AUTH: preparing; authority
+ready; browser handoff starting; browser handoff accepted or failed; waiting for
+browser completion; callback received; validating identity and scopes; success,
+or a static failure/cancellation stage. Callback received is reported when MSAL
+returns from the interactive call (including its token exchange), not a separate
+instrumentation hook into the HTTP callback handler.
+
+MSAL construction now sets a 20-second HTTP timeout. This bounds connect/read
+waits for discovery and token exchange; it is not an overall 20-second authority
+transaction deadline. MSAL 1.38.0's own HTTP adapter can retry once, and discovery
+may involve multiple requests. The separate browser/callback wait remains 600
+seconds. No Graph retry policy was changed. Discovery errors, callback timeout,
+identity/scope failures and cancellation block all Graph execution. A failed OS
+handoff is recorded and blocks execution even if a result subsequently arrives;
+MSAL may remain waiting until its finite interactive timeout.
+
+A process-scoped webbrowser.open hook observes the existing system-browser
+handoff and is restored on exit. It accepts only the fixed local landing URL.
+It does not launch a device-code, broker or embedded-browser flow. MSAL receives
+its supported welcome_template and static success/error templates. Elliot sees
+an EDN localhost page with a Continue to Microsoft sign-in link, then the normal
+account/MFA interaction. Never accept unexpected consent. The localhost return
+page says authentication returned and directs Elliot back to Codex for results.
+
+An accepted handoff is not proof of a visible window. The printed fallback is
+only http://localhost:8400?welcome=true, which Elliot can open while this same
+attempt is active. The Microsoft authorization URL is rendered only in the
+memory-only loopback page, never printed or saved by the launcher. Library logging
+is suppressed during authentication and restored afterward so MSAL exception or
+URI diagnostics cannot leak sensitive material. Do not enable debug logging or
+export browser contents during authentication. No token cache is serialized.
+
+No new Entra setting is implemented or verified. Existing localhost desktop
+redirect compatibility and browser accessibility still require the next separately
+approved live attempt. This CLI is single-launch/process scoped and not intended
+for concurrent use inside a shared application process. All storage, scope,
+identity, retention and seven-request execution guards remain in effect.

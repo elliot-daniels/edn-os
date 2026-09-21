@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import stat
 import subprocess
+import webbrowser
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -148,25 +152,111 @@ def validate_auth(result: Any) -> str:
     return token
 
 
+AUTH_NETWORK_TIMEOUT = 20
+AUTH_INTERACTIVE_TIMEOUT = 600
+LANDING_URL = "http://localhost:8400?welcome=true"
+
+
+def progress(message: str) -> None:
+    print("AUTH: " + message, flush=True)
+
+
+@contextmanager
+def browser_delivery() -> Iterator[dict[str, bool]]:
+    """Process-scoped hook for this single-threaded CLI, restored on every exit."""
+    original = webbrowser.open
+    previous_logging = logging.root.manager.disable
+    status = {"failed": False}
+
+    def deliver(url: str, new: int = 0, autoraise: bool = True) -> bool:
+        progress("browser handoff starting")
+        try:
+            accepted = url == LANDING_URL and original(url, new, autoraise)
+        except Exception:
+            accepted = False
+        status["failed"] = not accepted
+        progress("browser handoff accepted" if accepted else "browser handoff failed")
+        if accepted:
+            progress(
+                "handoff is not proof of visibility; open "
+                + LANDING_URL
+                + " manually if needed"
+            )
+            progress("waiting for browser completion")
+        return accepted
+
+    # MSAL can log auth URIs and response details. Emit only our static milestones.
+    logging.disable(logging.CRITICAL)
+    webbrowser.open = deliver
+    try:
+        yield status
+    finally:
+        webbrowser.open = original
+        logging.disable(previous_logging)
+
+
+def authenticate() -> str:
+    progress("preparing")
+    stage = "authority discovery"
+    with browser_delivery() as delivery:
+        try:
+            app = msal.PublicClientApplication(
+                APPLICATION,
+                authority=f"https://login.microsoftonline.com/{TENANT}",
+                token_cache=msal.TokenCache(),
+                exclude_scopes=["offline_access"],
+                timeout=AUTH_NETWORK_TIMEOUT,
+            )
+            progress("authority ready")
+            stage = "browser completion or token exchange"
+            result = app.acquire_token_interactive(
+                scopes=list(SCOPES),
+                login_hint=ACCOUNT,
+                prompt="select_account",
+                timeout=AUTH_INTERACTIVE_TIMEOUT,
+                port=8400,
+                welcome_template=(
+                    "<h1>EDN sign-in</h1>"
+                    '<a href="$auth_uri">Continue to Microsoft sign-in</a>'
+                    "<p>Use Elliot's account. Do not accept unexpected consent.</p>"
+                ),
+                success_template=(
+                    "Authentication returned to EDN. Return to Codex "
+                    "for identity/scope verification and inspection status. "
+                    "You may close this tab."
+                ),
+                error_template="Authentication failed. Return to Codex; do not retry.",
+                auth_uri_callback=lambda _uri: None,
+            )
+            if delivery["failed"]:
+                raise SchemaInspectionError("browser_handoff_failed")
+            progress("callback received")
+            progress("validating identity and scopes")
+            stage = "identity and scopes"
+            token = validate_auth(result)
+            result.clear()
+            progress("success")
+            return token
+        except KeyboardInterrupt:
+            progress("cancelled; no inspection")
+            raise SchemaInspectionError("authentication_cancelled") from None
+        except Exception as exc:
+            from msal.oauth2cli.oauth2 import (  # type: ignore[import-untyped]
+                BrowserInteractionTimeoutError,
+            )
+
+            if delivery["failed"]:
+                stage = "browser handoff"
+            elif isinstance(exc, BrowserInteractionTimeoutError):
+                stage = "browser callback timeout"
+            progress("failed at " + stage + "; no inspection")
+            raise SchemaInspectionError("authentication_delivery_failed") from None
+
+
 def launch() -> Path:
     """Only invoke after separate owner approval of authentication AND inspection."""
     check_storage()
-    app = msal.PublicClientApplication(
-        APPLICATION,
-        authority=f"https://login.microsoftonline.com/{TENANT}",
-        token_cache=msal.TokenCache(),
-        exclude_scopes=["offline_access"],
-    )
-    result = app.acquire_token_interactive(
-        scopes=list(SCOPES),
-        login_hint=ACCOUNT,
-        prompt="select_account",
-        timeout=600,
-        port=8400,
-    )
-    token = validate_auth(result)
-    # No result/token logging or serialization. No refresh or token supplier I/O.
-    result.clear()
+    token = authenticate()
     check_storage()
     identity = SchemaIdentity(
         TENANT, APPLICATION, ACCOUNT, frozenset({"Sites.Selected"}), GRANT_ID

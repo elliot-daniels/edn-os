@@ -180,3 +180,82 @@ def test_auth_failure_never_constructs_transport(monkeypatch):
     with pytest.raises(SchemaInspectionError):
         module.launch()
     transport.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "failure", [TimeoutError("SECRET"), KeyboardInterrupt(), RuntimeError("SECRET")]
+)
+def test_discovery_failure_is_sanitized_and_blocks_graph(monkeypatch, capsys, failure):
+    monkeypatch.setattr(module, "check_storage", lambda: None)
+    monkeypatch.setattr(
+        module.msal, "PublicClientApplication", Mock(side_effect=failure)
+    )
+    transport = Mock()
+    monkeypatch.setattr(module, "SchemaHttpTransport", transport)
+    with pytest.raises(SchemaInspectionError):
+        module.launch()
+    transport.assert_not_called()
+    output = capsys.readouterr()
+    assert "SECRET" not in output.out + output.err
+    assert "AUTH: preparing" in output.out
+
+
+@pytest.mark.parametrize("accepted", [True, False])
+def test_browser_handoff_and_safe_manual_link(monkeypatch, capsys, accepted):
+    browser = Mock(return_value=accepted)
+    monkeypatch.setattr(module.webbrowser, "open", browser)
+    with module.browser_delivery() as status:
+        assert module.webbrowser.open(module.LANDING_URL) is accepted
+        assert status["failed"] is not accepted
+    assert module.webbrowser.open is browser
+    output = capsys.readouterr().out
+    assert ("handoff accepted" if accepted else "handoff failed") in output
+    assert "auth_uri" not in output
+
+
+def test_callback_timeout_and_secrets_never_logged(monkeypatch, capsys):
+    import logging
+
+    from msal.oauth2cli.oauth2 import BrowserInteractionTimeoutError
+
+    monkeypatch.setattr(module, "check_storage", lambda: None)
+    app = Mock()
+
+    def wait(**kwargs):
+        logging.getLogger("msal").warning("SECRET token code state pkce cookie")
+        assert kwargs["timeout"] == 600
+        assert "$auth_uri" in kwargs["welcome_template"]
+        assert "$" not in kwargs["error_template"]
+        raise BrowserInteractionTimeoutError("SECRET")
+
+    app.acquire_token_interactive.side_effect = wait
+    factory = Mock(return_value=app)
+    monkeypatch.setattr(module.msal, "PublicClientApplication", factory)
+    transport = Mock()
+    monkeypatch.setattr(module, "SchemaHttpTransport", transport)
+    with pytest.raises(SchemaInspectionError):
+        module.launch()
+    assert factory.call_args.kwargs["timeout"] == 20
+    assert factory.call_args.kwargs["exclude_scopes"] == ["offline_access"]
+    transport.assert_not_called()
+    output = capsys.readouterr()
+    assert "SECRET" not in output.out + output.err
+    assert "browser callback timeout" in output.out
+
+
+def test_failed_handoff_even_with_synthetic_result_cannot_execute(monkeypatch):
+    monkeypatch.setattr(module, "check_storage", lambda: None)
+    monkeypatch.setattr(module.webbrowser, "open", Mock(side_effect=OSError("SECRET")))
+    app = Mock()
+
+    def interaction(**kwargs):
+        module.webbrowser.open(module.LANDING_URL)
+        return auth()
+
+    app.acquire_token_interactive.side_effect = interaction
+    monkeypatch.setattr(module.msal, "PublicClientApplication", Mock(return_value=app))
+    transport = Mock()
+    monkeypatch.setattr(module, "SchemaHttpTransport", transport)
+    with pytest.raises(SchemaInspectionError):
+        module.launch()
+    transport.assert_not_called()
