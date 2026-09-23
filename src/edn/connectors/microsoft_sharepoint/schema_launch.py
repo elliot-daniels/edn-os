@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import stat
 import subprocess
 import webbrowser
@@ -12,6 +13,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import msal  # type: ignore[import-untyped]
 
@@ -37,7 +39,7 @@ GRANT_ID = (
 SCOPES = ("https://graph.microsoft.com/Sites.Selected",)
 
 
-def validate_acl(evidence: dict[str, Any]) -> None:
+def validate_acl(evidence: dict[str, Any], *, child: bool = False) -> None:
     expected = {
         "S-1-5-18": 2032127,
         "S-1-5-32-544": 2032127,
@@ -46,8 +48,8 @@ def validate_acl(evidence: dict[str, Any]) -> None:
     }
     if (
         evidence.get("execution_sid") != EXECUTION_SID
-        or evidence.get("owner_sid") != PREPARATION_SID
-        or evidence.get("protected") is not True
+        or evidence.get("owner_sid") != (EXECUTION_SID if child else PREPARATION_SID)
+        or evidence.get("protected") is not (not child)
         or not str(evidence.get("admin_sid", "")).startswith(
             "S-1-5-21-2158520141-276418557-3228345628-"
         )
@@ -65,7 +67,7 @@ def validate_acl(evidence: dict[str, Any]) -> None:
             or sid not in expected
             or rule.get("rights") != expected[sid]
             or rule.get("type") != "Allow"
-            or rule.get("inherited") is not False
+            or rule.get("inherited") is not child
             or rule.get("inheritance") != 3
             or rule.get("propagation") != 0
         ):
@@ -73,27 +75,50 @@ def validate_acl(evidence: dict[str, Any]) -> None:
         seen.add(sid)
 
 
-def check_storage() -> None:
-    if os.name != "nt" or not OUTPUT.is_dir():
+def check_path(path: Path) -> None:
+    if not path.is_dir():
         raise SchemaInspectionError("storage_platform_or_missing")
-    for path in (OUTPUT, *OUTPUT.parents):
-        if (
-            path.is_symlink()
-            or getattr(path.lstat(), "st_file_attributes", 0)
+    for ancestor in (path, *path.parents):
+        if ancestor.is_symlink() or (
+            getattr(ancestor.lstat(), "st_file_attributes", 0)
             & stat.FILE_ATTRIBUTE_REPARSE_POINT
         ):
             raise SchemaInspectionError("storage_reparse")
-        if (path / ".git").exists():
+        if (ancestor / ".git").exists():
             raise SchemaInspectionError("storage_inside_git")
     for name, value in os.environ.items():
         if (
             name.lower().startswith(("onedrive", "dropbox", "googledrive"))
             and value
-            and OUTPUT.is_relative_to(Path(value))
+            and path.resolve(strict=True).is_relative_to(Path(value).resolve())
         ):
             raise SchemaInspectionError("storage_cloud_sync")
-    if any(OUTPUT.iterdir()):
+
+
+def check_run_path(path: Path) -> None:
+    if not re.fullmatch(r"run-[0-9a-f]{32}", path.name):
+        raise SchemaInspectionError("storage_run_id")
+    check_path(OUTPUT)
+    check_path(path)
+    root = OUTPUT.resolve(strict=True)
+    resolved = path.resolve(strict=True)
+    if path.parent != OUTPUT or resolved.parent != root or resolved == root:
+        raise SchemaInspectionError("storage_containment")
+    if any(path.iterdir()):
         raise SchemaInspectionError("storage_not_empty_or_prior_attempt")
+
+
+def check_storage(run_directory: Path | None = None) -> None:
+    if os.name != "nt":
+        raise SchemaInspectionError("storage_platform_or_missing")
+    check_path(OUTPUT)
+    validate_acl(inspect_acl(OUTPUT))
+    if run_directory is not None:
+        check_run_path(run_directory)
+        validate_acl(inspect_acl(run_directory), child=True)
+
+
+def inspect_acl(path: Path) -> dict[str, Any]:
     # Read-only security-descriptor inspection, with no authentication or secrets.
     script = r"""
 $ErrorActionPreference='Stop'
@@ -116,7 +141,7 @@ protected=$a.AreAccessRulesProtected;
 rules=$rules} | ConvertTo-Json -Depth 4 -Compress
 """
     # A literal fixed path, never caller-controlled PowerShell input.
-    script = script.replace("$p=$args[0]", "$p='" + str(OUTPUT) + "'")
+    script = script.replace("$p=$args[0]", "$p='" + str(path).replace("'", "''") + "'")
     result = subprocess.run(
         ["pwsh.exe", "-NoProfile", "-NonInteractive", "-Command", script],
         capture_output=True,
@@ -126,7 +151,48 @@ rules=$rules} | ConvertTo-Json -Depth 4 -Compress
     )
     if result.returncode:
         raise SchemaInspectionError("storage_acl_unavailable")
-    validate_acl(json.loads(result.stdout))
+    try:
+        evidence = json.loads(result.stdout)
+        if not isinstance(evidence, dict):
+            raise ValueError
+    except (ValueError, TypeError):
+        raise SchemaInspectionError("storage_acl_unavailable") from None
+    return evidence
+
+
+def storage_probe(directory: Path) -> None:
+    probe = directory / (".storage-test-" + uuid4().hex)
+    created = False
+    try:
+        with probe.open("x", encoding="ascii") as handle:
+            created = True
+            handle.write("EDN harmless storage validation")
+        if probe.read_text(encoding="ascii") != "EDN harmless storage validation":
+            raise OSError
+    except OSError:
+        raise SchemaInspectionError("storage_probe_failed") from None
+    finally:
+        if created:
+            try:
+                probe.unlink()
+                if probe.exists():
+                    raise OSError
+            except OSError:
+                raise SchemaInspectionError("storage_probe_cleanup_failed") from None
+
+
+def prepare_run() -> Path:
+    check_storage()
+    directory = OUTPUT / ("run-" + uuid4().hex)
+    try:
+        directory.mkdir(exist_ok=False)
+    except OSError:
+        raise SchemaInspectionError("storage_run_collision_or_denied") from None
+    # Never reuse/delete a child, including one left empty by failed authentication.
+    check_storage(directory)
+    storage_probe(directory)
+    check_storage(directory)
+    return directory
 
 
 AUTH_VALIDATION_REASONS = frozenset(
@@ -340,13 +406,13 @@ def authenticate() -> str:
 
 def launch() -> Path:
     """Only invoke after separate owner approval of authentication AND inspection."""
-    check_storage()
+    directory = prepare_run()
     token = authenticate()
-    check_storage()
+    check_storage(directory)
     identity = SchemaIdentity(
         TENANT, APPLICATION, ACCOUNT, frozenset({"Sites.Selected"}), GRANT_ID
     )
-    return SchemaExecutor(identity, SchemaHttpTransport(lambda: token)).run(OUTPUT)
+    return SchemaExecutor(identity, SchemaHttpTransport(lambda: token)).run(directory)
 
 
 def main() -> None:

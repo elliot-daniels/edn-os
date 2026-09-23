@@ -8,6 +8,15 @@ from edn.connectors.microsoft_sharepoint import schema_launch as module
 from edn.connectors.microsoft_sharepoint.schema_executor import SchemaInspectionError
 
 
+@pytest.fixture(autouse=True)
+def synthetic_run_preparation(monkeypatch):
+    def prepare():
+        module.check_storage()
+        return module.OUTPUT
+
+    monkeypatch.setattr(module, "prepare_run", prepare)
+
+
 def auth():
     return {
         "access_token": "SYNTHETIC",
@@ -131,7 +140,7 @@ def test_wrong_auth_scopes(scope):
 
 def test_launch_storage_precedes_auth_and_fixed_executor(monkeypatch):
     order = []
-    monkeypatch.setattr(module, "check_storage", lambda: order.append("storage"))
+    monkeypatch.setattr(module, "check_storage", lambda *args: order.append("storage"))
     result = auth()
     app = Mock()
     app.acquire_token_interactive.side_effect = lambda **kw: (
@@ -172,7 +181,7 @@ def test_storage_failure_never_authenticates(monkeypatch):
 
 
 def test_auth_failure_never_constructs_transport(monkeypatch):
-    monkeypatch.setattr(module, "check_storage", lambda: None)
+    monkeypatch.setattr(module, "check_storage", lambda *args: None)
     app = Mock()
     app.acquire_token_interactive.return_value = {"error": "synthetic"}
     monkeypatch.setattr(module.msal, "PublicClientApplication", Mock(return_value=app))
@@ -187,7 +196,7 @@ def test_auth_failure_never_constructs_transport(monkeypatch):
     "failure", [TimeoutError("SECRET"), KeyboardInterrupt(), RuntimeError("SECRET")]
 )
 def test_discovery_failure_is_sanitized_and_blocks_graph(monkeypatch, capsys, failure):
-    monkeypatch.setattr(module, "check_storage", lambda: None)
+    monkeypatch.setattr(module, "check_storage", lambda *args: None)
     monkeypatch.setattr(
         module.msal, "PublicClientApplication", Mock(side_effect=failure)
     )
@@ -219,7 +228,7 @@ def test_callback_timeout_and_secrets_never_logged(monkeypatch, capsys):
 
     from msal.oauth2cli.oauth2 import BrowserInteractionTimeoutError
 
-    monkeypatch.setattr(module, "check_storage", lambda: None)
+    monkeypatch.setattr(module, "check_storage", lambda *args: None)
     app = Mock()
 
     def wait(**kwargs):
@@ -245,7 +254,7 @@ def test_callback_timeout_and_secrets_never_logged(monkeypatch, capsys):
 
 
 def test_failed_handoff_even_with_synthetic_result_cannot_execute(monkeypatch):
-    monkeypatch.setattr(module, "check_storage", lambda: None)
+    monkeypatch.setattr(module, "check_storage", lambda *args: None)
     monkeypatch.setattr(module.webbrowser, "open", Mock(side_effect=OSError("SECRET")))
     app = Mock()
 
@@ -295,7 +304,7 @@ def test_validation_reason_blocks_graph_and_never_leaks(
     target[key] = value
     with pytest.raises(SchemaInspectionError, match="^authentication_" + reason + "$"):
         module.validate_auth(result)
-    monkeypatch.setattr(module, "check_storage", lambda: None)
+    monkeypatch.setattr(module, "check_storage", lambda *args: None)
     monkeypatch.setattr(module, "OUTPUT", tmp_path)
     app = Mock()
     app.acquire_token_interactive.return_value = result
@@ -415,7 +424,7 @@ def test_unapproved_or_similar_scopes_fail(scope):
 
 
 def test_shared_scopes_do_not_expand_operation_authority(monkeypatch):
-    monkeypatch.setattr(module, "check_storage", lambda: None)
+    monkeypatch.setattr(module, "check_storage", lambda *args: None)
     result = auth()
     result["scope"] = "Sites.Selected User.Read Mail.Read Calendars.Read"
     app = Mock()

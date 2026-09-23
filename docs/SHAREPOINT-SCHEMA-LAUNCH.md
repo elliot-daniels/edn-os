@@ -29,45 +29,52 @@ The exact owner-supplied read permission ID is fixed in the wrapper. No permissi
 enumeration, administrator session or operational connector is used. The existing
 planner and both execution guards retain all seven-GET restrictions.
 
-Storage is fixed to the approved `pilot-private/schema-8e4599f-one-shot` folder.
-Read-only PowerShell 7 ACL verification runs before and after authentication.
-Preparation uses CodexSandboxOffline
-(`S-1-5-21-2158520141-276418557-3228345628-1003`). Network-enabled execution must
-use exactly CodexSandboxOnline
-(`S-1-5-21-2158520141-276418557-3228345628-1004`). The preparation SID remains
-the expected folder owner; ownership carries ACL-management rights but does not
-substitute for an execution identity or data-access ACE. The required protected
-ACL permits only Admin, SYSTEM and Administrators Full Control, and Online
-Modify/Synchronize. Offline has no required data-access entry. No inherited or
-additional entries are accepted.
+## Protected parent and unique run storage
 
-The launcher must be invoked after the host enables network access and switches
-identity. It verifies actual identity and ACL before constructing MSAL and again
-before constructing the Graph transport. An earlier offline check never suffices.
-The launcher itself cannot switch Windows identity or edit ACLs.
+The fixed owner-approved parent is:
+`C:\Users\Admin\Documents\Codex\2026-09-14\files-pasted-by-the-user-edn\pilot-private\schema-8e4599f-one-shot`.
+It is not a configurable arbitrary output root. Each separately authorized CLI
+invocation creates exactly one `run-<UUID4 hex>` child with exclusive mkdir.
+For example, a synthetic child is `schema-8e4599f-one-shot/run-00000000000000000000000000000001`.
+Randomness avoids collisions; it is not an access-control mechanism. Existing
+empty/nonempty children are never reused, removed, or selected automatically.
+Authentication failure can leave an empty child; it is not an inspection artifact.
 
-Local correction status: Online SID was resolved and confirmed with whoami after
-the transition. Set-Acl failed with missing SeSecurityPrivilege; subsequent Online
-ACL inspection was denied. The required ACL and Online create/read/delete check
-are NOT yet validated. An owner must apply the exact ACL above, preserving the
-recorded owner, before further authentication. The earlier successful filesystem
-test was under Offline and does not establish Online readiness.
+The parent is checked before child creation. Both paths and all ancestors reject
+reparse points, symlinks, Git ancestry and known cloud-sync roots. Child names
+must match the exact lowercase UUID naming grammar. Both lexical direct-parent
+and strict resolved direct-parent equality are required. Alternate roots,
+traversal, absolute injection and ambiguous resolution fail closed. The parent
+may contain older runs; `storage_not_empty_or_prior_attempt` still applies to the
+selected child, in both launcher and executor. No old retention deadline changes.
 
-The wrapper rejects reparse ancestors, Git ancestry, known cloud-sync paths and
-nonempty output. The owner must prevent path/ACL replacement during execution.
-Known OneDrive roots were checked; unregistered sync software cannot be ruled out.
-No existing pilot retention deadline was changed.
+Network-enabled execution still requires CodexSandboxOnline SID
+`S-1-5-21-2158520141-276418557-3228345628-1004`.
+The protected parent retains exactly four explicit Allow ACEs: Admin, SYSTEM and
+Administrators Full Control, Online Modify/Synchronize; owner is preparation SID
+`S-1-5-21-2158520141-276418557-3228345628-1003`.
+A newly created child must be owned by Online and inherit precisely those four
+ACEs, with inheritance enabled, no explicit or unexpected ACEs. No ACL commands
+modify permissions. ACL inspection is read-only PowerShell 7. If unavailable,
+stop for the established owner/admin verification process; historic parent-only
+attestation cannot verify a new child's ACL, and no generic trust bypass exists.
 
-The executor creates only minimized `schema-inspection.json`, exclusively, at
-actual execution start. Its deletion deadline is that UTC start plus seven days.
-No artifact, attempt marker or retention clock was started during preparation.
-An existing artifact blocks replay, including a stopped attempt. Never delete it
-to retry without separate owner approval. No automated deletion service exists.
+Before authentication, the child passes ACL/containment checks and an exclusive
+harmless create/write/read/delete test. The file is removed in a finally block;
+failed deletion or verification stops execution. Revalidation occurs after the
+probe and again after authentication immediately before transport construction.
+The owner must prevent concurrent path/ACL replacement. Known sync-root checks
+cannot discover unregistered sync software.
 
-Prior validation: 134 focused tests passed (17 launch cases plus 117 planner/executor
-cases); Ruff and configured strict mypy passed (129 files). Real read-only wrapper
-storage validation passed. Full suite was not rerun for this preparation stage.
-
+Only when SchemaExecutor begins retained inspection output does the exclusive
+schema-inspection.json manifest start its UTC retention clock. It records run_id,
+artifact_created_at, started_at, and delete_by exactly seven days later, including
+stopped attempts. Synthetic test directories do not start any live retention.
+Every save includes manifest_content_sha256: SHA-256 of canonical sorted compact
+JSON excluding that hash field itself. Completed runs also retain schema_sha256.
+This is a content hash, not a self-referential whole-file hash; a whole-file SHA-256
+can be calculated read-only for the owner report. No tokens/raw responses are
+persisted and no automated deletion service is installed.
 
 ## Deterministic delivery correction (local/synthetic only)
 
@@ -156,3 +163,16 @@ Local shared-scope validation: 185 focused tests passed; full suite 800 passed,
 92 failed, 1 skipped. Failure identities exactly match executive-baseline.xml
 and guid-full-final.xml (zero new/resolved). Ruff, strict Linux-target mypy
 (129 files) and diff whitespace checks passed. No Microsoft access in this change.
+
+Unique-run storage changes are local/synthetic only. A future live invocation
+must still pass actual Online parent/child ACL and filesystem guards. No live
+authentication or inspection is authorized by these code changes.
+
+Unique-run validation: 205 focused tests passed. Full suite: 820 passed, 92 failed,
+1 skipped; failure identities exactly match executive-baseline.xml and
+shared-scope-full.xml. Ruff, strict Linux-target mypy (129 files) and whitespace
+checks passed. Real local-only storage validation under the exact Online SID
+also passed parent/child ACL, containment and create/read/delete checks. Its
+empty reserved child is run-377affc95716468bb36fa7100c78babf; no authentication,
+retained schema artifact or retention clock was started. A future authorized
+inspection creates a different child and repeats every guard.

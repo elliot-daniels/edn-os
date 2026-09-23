@@ -401,6 +401,8 @@ class SchemaExecutor:
             for p in (output_directory, *output_directory.parents)
         ):
             raise SchemaInspectionError("storage_boundary")
+        if any(output_directory.iterdir()):
+            raise SchemaInspectionError("storage_not_empty_or_prior_attempt")
         destination = output_directory / ARTIFACT_NAME
         try:
             handle = destination.open("x", encoding="utf-8", newline="\n")
@@ -409,6 +411,8 @@ class SchemaExecutor:
         started = datetime.now(UTC)
         manifest: dict[str, Any] = {
             "schema_version": 1,
+            "run_id": output_directory.name,
+            "artifact_created_at": started.isoformat(),
             "started_at": started.isoformat(),
             "delete_by": (started + timedelta(days=7)).isoformat(),
             "state": "started",
@@ -480,6 +484,12 @@ class SchemaExecutor:
 
     @staticmethod
     def _save(handle: IO[str], manifest: dict[str, Any]) -> None:
+        content = {k: v for k, v in manifest.items() if k != "manifest_content_sha256"}
+        manifest["manifest_content_sha256"] = hashlib.sha256(
+            json.dumps(
+                content, sort_keys=True, separators=(",", ":"), allow_nan=False
+            ).encode()
+        ).hexdigest()
         handle.seek(0)
         json.dump(manifest, handle, indent=2, sort_keys=True, allow_nan=False)
         handle.write("\n")
