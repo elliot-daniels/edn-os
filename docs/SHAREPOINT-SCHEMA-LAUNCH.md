@@ -1,4 +1,4 @@
-# Prepared schema launch — not executed
+# Prepared schema launch - separately approved execution only
 
 The dedicated `schema_launch` module wraps `SchemaExecutor` and
 `SchemaHttpTransport`. Importing it performs no I/O. The explicit CLI flag
@@ -17,8 +17,10 @@ MSAL uses the fixed EDN tenant/application and Elliot's account, auth-code/PKCE,
 loopback port 8400 and an in-memory token cache. Only
 `https://graph.microsoft.com/Sites.Selected` is requested as a Graph scope.
 OIDC sign-in scopes are protocol metadata; offline_access is excluded. The
-returned Graph scope set must equal Sites.Selected. The MSAL ID-token claims
-must match tenant, application audience and account. A broader scope result
+returned Graph scope set must contain Sites.Selected and be a subset of the
+explicit shared-application allowlist: Sites.Selected, User.Read, Mail.Read,
+Calendars.Read. The MSAL ID-token claims
+must match tenant, application audience and account. Any scope outside that allowlist
 fails closed; never silently trim its scope metadata. The owner completes sign-in
 personally and must stop at any unexpected consent screen. No token or raw
 authentication result is printed or serialized. No refresh/retry supplier is used.
@@ -106,3 +108,51 @@ redirect compatibility and browser accessibility still require the next separate
 approved live attempt. This CLI is single-launch/process scoped and not intended
 for concurrent use inside a shared application process. All storage, scope,
 identity, retention and seven-request execution guards remain in effect.
+
+## Safe validation diagnostics
+
+Validation failures now print an allowlisted `reason=authentication_*` code:
+result_invalid, response_error, consent_required, claims_missing, tenant_mismatch,
+client_id_mismatch, account_mismatch, required_scope_missing, unexpected_scope,
+scope_format or token_invalid. Checks stop at the first failure. No observed
+claims, raw scope strings, provider descriptions or credentials are printed.
+Only an explicit protocol `consent_required` error gets that classification;
+missing claims/scopes do not prove that application consent is absent.
+
+Sites.Selected must be present. User.Read, Mail.Read and Calendars.Read are
+allowed token scopes for the verified shared EDN application only. They do not
+confer operation authority on this schema executor. Account selection still requires Elliot, never the admin.
+The result dictionary is cleared on validation success and failure. This is not
+a claim of secure memory erasure. No authentication artifacts are persisted.
+
+The prior generic identity-and-scopes failure cannot be diagnosed retroactively:
+the result was not retained. Callback completion alone does not prove successful
+token acquisition, because MSAL can return an error dictionary. A separately
+approved attempt is required to obtain a new non-secret reason; no consent,
+permission or account-policy change is implied by these diagnostics.
+
+Unexpected-scope diagnostics report sorted exact recognized scope names only.
+The safe vocabulary is Sites.Selected, User.Read, Mail.Read, Calendars.Read,
+Sites.Read.All and Sites.FullControl.All. Unknown/case-variant values are
+redacted and flagged. This display vocabulary never changes scope acceptance.
+
+## Owner-reviewed shared application scope policy
+
+The authentication allowlist applies only after the fixed tenant/application and
+Elliot identity checks pass. Required: Sites.Selected. Allowed additional token
+scopes: User.Read, Mail.Read, Calendars.Read. Unknown, malformed and case-variant
+scope names fail closed. Exact https://graph.microsoft.com/ prefixes are removed;
+OIDC metadata scopes retain the existing handling. Sets deduplicate and diagnostic
+names are sorted. Requested Graph scope remains Sites.Selected alone.
+
+SchemaIdentity.scopes describes the operation authority, not all token grants.
+It remains exactly Sites.Selected. The executor and transport retain independent
+exact-request, sequence and seven-request guards. Neither consumes allowed mail
+or calendar scopes as capabilities. The minimized artifact's scope field records
+operation authority, not the entire token scope set. No operational connector is
+involved. This policy does not approve live authentication or schema execution.
+
+Local shared-scope validation: 185 focused tests passed; full suite 800 passed,
+92 failed, 1 skipped. Failure identities exactly match executive-baseline.xml
+and guid-full-final.xml (zero new/resolved). Ruff, strict Linux-target mypy
+(129 files) and diff whitespace checks passed. No Microsoft access in this change.

@@ -129,26 +129,99 @@ rules=$rules} | ConvertTo-Json -Depth 4 -Compress
     validate_acl(json.loads(result.stdout))
 
 
+AUTH_VALIDATION_REASONS = frozenset(
+    {
+        "authentication_result_invalid",
+        "authentication_response_error",
+        "authentication_consent_required",
+        "authentication_claims_missing",
+        "authentication_tenant_mismatch",
+        "authentication_client_id_mismatch",
+        "authentication_account_mismatch",
+        "authentication_required_scope_missing",
+        "authentication_unexpected_scope",
+        "authentication_scope_format",
+        "authentication_token_invalid",
+    }
+)
+
+
+# Applies only after validate_auth verifies this exact tenant and application.
+REQUIRED_OPERATION_SCOPES = frozenset({"Sites.Selected"})
+ALLOWED_APPLICATION_SCOPES = frozenset(
+    {"Sites.Selected", "User.Read", "Mail.Read", "Calendars.Read"}
+)
+
+
+SAFE_SCOPE_NAMES = frozenset(
+    {
+        "Sites.Selected",
+        "User.Read",
+        "Mail.Read",
+        "Calendars.Read",
+        "Sites.Read.All",
+        "Sites.FullControl.All",
+    }
+)
+
+
+def report_unexpected_scopes(scopes: set[str]) -> None:
+    # Emit only exact, reviewed constants, never arbitrary token-response text.
+    # Casing remains significant, just as in the unchanged exact-scope guard.
+    unexpected = scopes - ALLOWED_APPLICATION_SCOPES
+    progress(
+        "scope_diagnostic="
+        + json.dumps(
+            {
+                "expected": sorted(REQUIRED_OPERATION_SCOPES),
+                "allowed": sorted(ALLOWED_APPLICATION_SCOPES),
+                "unexpected": sorted(unexpected & SAFE_SCOPE_NAMES),
+                "unrecognized_redacted": bool(unexpected - SAFE_SCOPE_NAMES),
+            },
+            sort_keys=True,
+        )
+    )
+
+
 def validate_auth(result: Any) -> str:
     if not isinstance(result, dict):
-        raise SchemaInspectionError("authentication_failed")
+        raise SchemaInspectionError("authentication_result_invalid")
+    if "error" in result:
+        # Never echo provider error descriptions or infer consent from missing claims.
+        reason = (
+            "authentication_consent_required"
+            if result.get("error") == "consent_required"
+            else "authentication_response_error"
+        )
+        raise SchemaInspectionError(reason)
     claims = result.get("id_token_claims")
-    if not isinstance(claims, dict) or (
-        claims.get("tid") != TENANT
-        or claims.get("aud") != APPLICATION
-        or str(claims.get("preferred_username", "")).casefold() != ACCOUNT
+    if not isinstance(claims, dict) or any(
+        not isinstance(claims.get(key), str) or not claims[key]
+        for key in ("tid", "aud", "preferred_username")
     ):
-        raise SchemaInspectionError("authentication_identity")
+        raise SchemaInspectionError("authentication_claims_missing")
+    if claims["tid"] != TENANT:
+        raise SchemaInspectionError("authentication_tenant_mismatch")
+    if claims["aud"] != APPLICATION:
+        raise SchemaInspectionError("authentication_client_id_mismatch")
+    if claims["preferred_username"].casefold() != ACCOUNT:
+        raise SchemaInspectionError("authentication_account_mismatch")
+    scope_text = result.get("scope", "")
+    if not isinstance(scope_text, str):
+        raise SchemaInspectionError("authentication_scope_format")
     scopes = {
         scope.removeprefix("https://graph.microsoft.com/")
-        for scope in str(result.get("scope", "")).split()
+        for scope in scope_text.split()
         if scope not in {"openid", "profile", "email", "offline_access"}
     }
+    if "Sites.Selected" not in scopes:
+        raise SchemaInspectionError("authentication_required_scope_missing")
+    if not scopes <= ALLOWED_APPLICATION_SCOPES:
+        report_unexpected_scopes(scopes)
+        raise SchemaInspectionError("authentication_unexpected_scope")
     token = result.get("access_token")
-    if scopes != {"Sites.Selected"}:
-        raise SchemaInspectionError("authentication_scopes")
     if not isinstance(token, str) or not token or "\r" in token or "\n" in token:
-        raise SchemaInspectionError("authentication_token")
+        raise SchemaInspectionError("authentication_token_invalid")
     return token
 
 
@@ -233,8 +306,11 @@ def authenticate() -> str:
             progress("callback received")
             progress("validating identity and scopes")
             stage = "identity and scopes"
-            token = validate_auth(result)
-            result.clear()
+            try:
+                token = validate_auth(result)
+            finally:
+                if isinstance(result, dict):
+                    result.clear()
             progress("success")
             return token
         except KeyboardInterrupt:
@@ -249,7 +325,16 @@ def authenticate() -> str:
                 stage = "browser handoff"
             elif isinstance(exc, BrowserInteractionTimeoutError):
                 stage = "browser callback timeout"
-            progress("failed at " + stage + "; no inspection")
+            reason = "authentication_delivery_failed"
+            if (
+                stage == "identity and scopes"
+                and isinstance(exc, SchemaInspectionError)
+                and len(exc.args) == 1
+                and isinstance(exc.args[0], str)
+                and exc.args[0] in AUTH_VALIDATION_REASONS
+            ):
+                reason = exc.args[0]
+            progress("failed at " + stage + "; reason=" + reason + "; no inspection")
             raise SchemaInspectionError("authentication_delivery_failed") from None
 
 
