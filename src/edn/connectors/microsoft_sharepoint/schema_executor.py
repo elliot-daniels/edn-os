@@ -42,6 +42,104 @@ class SchemaInspectionError(ValueError):
     """Static error codes only: never copy provider content into error/audit text."""
 
 
+FAILURE_CATEGORIES = {
+    "invalid_token_input": "authentication_authorization",
+    "http_authorization": "authentication_authorization",
+    "http_status": "http_status",
+    "graph_error": "graph_error",
+    "malformed_json": "malformed_json",
+    "duplicate_json_key": "malformed_json",
+    "invalid_object": "unexpected_response_shape",
+    "invalid_text": "unexpected_response_shape",
+    "invalid_schema_property": "unexpected_response_shape",
+    "column_limit_or_shape": "unexpected_response_shape",
+    "missing_column_property": "projection_field_incompatibility",
+    "unknown_or_ambiguous_column_type": "unsupported_schema_facet",
+    "operational_content": "prohibited_content",
+    "continuation_prohibited": "pagination",
+    "redirect_prohibited": "redirect",
+    "content_type": "unexpected_response_shape",
+    "content_encoding_prohibited": "unexpected_response_shape",
+    "response_size": "unexpected_response_shape",
+    "list_identity_mismatch": "identity_verification",
+    "list_url_mismatch": "identity_verification",
+    "list_template_mismatch": "identity_verification",
+    "duplicate_column_identity": "identity_verification",
+    "invalid_schema_identifier": "unexpected_response_shape",
+    "missing_schema_property": "projection_field_incompatibility",
+    "site_identity_mismatch": "identity_verification",
+    "request_not_allowlisted": "prohibited_content",
+    "request_order_or_budget": "prohibited_content",
+    "transport_budget_or_replay": "prohibited_content",
+    "transport_exception": "transport",
+    "audit_write_failed": "persistence_audit",
+    "internal_failure": "internal_executor",
+}
+GRAPH_CODES = frozenset(
+    {
+        "accessDenied",
+        "Authorization_RequestDenied",
+        "InvalidAuthenticationToken",
+        "invalidRequest",
+        "BadRequest",
+        "Request_BadRequest",
+        "itemNotFound",
+        "notSupported",
+        "generalException",
+        "serviceNotAvailable",
+        "tooManyRequests",
+    }
+)
+
+
+def diagnostic() -> dict[str, Any]:
+    return dict(
+        stage="prepared",
+        network_dispatch_started=False,
+        network_dispatch_completed=False,
+        response_received=False,
+        http_status=None,
+        content_type=None,
+        response_bytes=None,
+        request_id=None,
+        client_request_id=None,
+        json_parsed=False,
+        validated_records=0,
+        graph_error_code=None,
+        failure_category=None,
+        failure_reason=None,
+        pagination_rejected=False,
+        redirect_rejected=False,
+        prohibited_content_rejected=False,
+    )
+
+
+def record_failure(info: dict[str, Any], exc: Exception) -> None:
+    reason = "internal_failure"
+    if isinstance(exc, SchemaInspectionError) and len(exc.args) == 1:
+        candidate = exc.args[0]
+        if isinstance(candidate, str) and candidate in FAILURE_CATEGORIES:
+            reason = candidate
+    elif isinstance(exc, (OSError, http.client.HTTPException)):
+        reason = "transport_exception"
+    info.update(
+        failure_reason=reason,
+        failure_category=FAILURE_CATEGORIES[reason],
+        pagination_rejected=reason == "continuation_prohibited",
+        redirect_rejected=reason == "redirect_prohibited",
+        prohibited_content_rejected=reason == "operational_content",
+    )
+
+
+def safe_uuid(value: object) -> str | None:
+    if isinstance(value, str) and len(value) == 36:
+        try:
+            return str(UUID(value))
+        except ValueError:
+            pass
+    return None
+
+
 @dataclass(frozen=True, slots=True)
 class SchemaIdentity:
     """Verified host input; constructing it does not authenticate or verify a grant."""
@@ -110,11 +208,14 @@ class SchemaHttpTransport:
         self._stopped = False
         self._lock = threading.Lock()
         self._sequence = _SchemaSequence()
+        self.diagnostic = diagnostic()
 
     def get(self, request: SchemaRequest) -> SchemaReply:
         with self._lock:
             if self._stopped:
                 raise SchemaInspectionError("transport_stopped")
+            self.diagnostic = diagnostic()
+            info = self.diagnostic
             try:
                 validate_schema_request(request)
                 self._sequence.require_next(request)
@@ -129,6 +230,7 @@ class SchemaHttpTransport:
                 )
                 try:
                     url = urlsplit(request.url)
+                    info.update(stage="dispatch", network_dispatch_started=True)
                     connection.request(
                         "GET",
                         url.path + "?" + url.query,
@@ -137,27 +239,42 @@ class SchemaHttpTransport:
                             "Accept": "application/json",
                         },
                     )
+                    info["network_dispatch_completed"] = True
+                    info["stage"] = "response_headers"
                     response = connection.getresponse()
-                    if response.status != 200:
-                        raise SchemaInspectionError("http_status")
-                    if response.getheader("Location") is not None:
+                    info.update(response_received=True, http_status=response.status)
+                    media = response.getheader("Content-Type", "").split(";")[0]
+                    info["content_type"] = (
+                        media
+                        if media in {"application/json", "text/html", "text/plain"}
+                        else "other"
+                    )
+                    info["request_id"] = safe_uuid(response.getheader("request-id"))
+                    info["client_request_id"] = safe_uuid(
+                        response.getheader("client-request-id")
+                    )
+                    if (
+                        300 <= response.status < 400
+                        or response.getheader("Location") is not None
+                    ):
                         raise SchemaInspectionError("redirect_prohibited")
                     if response.getheader("Content-Encoding") not in (None, "identity"):
                         raise SchemaInspectionError("content_encoding_prohibited")
-                    if (
-                        response.getheader("Content-Type", "").split(";")[0]
-                        != "application/json"
-                    ):
+                    if media != "application/json":
                         raise SchemaInspectionError("content_type")
+                    info["stage"] = "response_body"
                     body = response.read(MAX_BYTES + 1)
-                    if len(body) > MAX_BYTES:
-                        raise SchemaInspectionError("response_size")
+                    info["response_bytes"] = min(len(body), MAX_BYTES + 1)
                     reply = SchemaReply(response.status, body)
-                    self._sequence.accept(request, _decode(reply))
+                    value = _decode(reply, info)
+                    info["stage"] = "schema_validation"
+                    self._sequence.accept(request, value, info)
+                    info["stage"] = "verified"
                     return reply
                 finally:
                     connection.close()
-            except Exception:
+            except Exception as exc:
+                record_failure(info, exc)
                 self._stopped = True
                 raise SchemaInspectionError("transport_failed") from None
 
@@ -201,17 +318,45 @@ def _no_continuation(value: object) -> None:
             _no_continuation(child)
 
 
-def _decode(reply: SchemaReply) -> dict[str, Any]:
-    if reply.status != 200:
-        raise SchemaInspectionError("http_status")
+def _decode(reply: SchemaReply, info: dict[str, Any] | None = None) -> dict[str, Any]:
+    info = info if info is not None else diagnostic()
+    info.update(
+        response_received=True,
+        http_status=reply.status,
+        response_bytes=min(len(reply.body), MAX_BYTES + 1),
+        stage="response_parsing",
+    )
     if len(reply.body) > MAX_BYTES:
         raise SchemaInspectionError("response_size")
     try:
-        value = _object(json.loads(reply.body, object_pairs_hook=_pairs))
-        _no_continuation(value)
-        return value
+        value = json.loads(reply.body, object_pairs_hook=_pairs)
+        info["json_parsed"] = True
+    except SchemaInspectionError:
+        raise
     except (ValueError, TypeError, RecursionError, UnicodeError):
-        raise SchemaInspectionError("invalid_response") from None
+        if reply.status != 200:
+            raise SchemaInspectionError(
+                "http_authorization" if reply.status in (401, 403) else "http_status"
+            ) from None
+        raise SchemaInspectionError("malformed_json") from None
+    value = _object(value)
+    error = value.get("error")
+    if isinstance(error, dict):
+        code = error.get("code")
+        info["graph_error_code"] = (
+            code if isinstance(code, str) and code in GRAPH_CODES else "other"
+        )
+    if reply.status in (401, 403):
+        raise SchemaInspectionError("http_authorization")
+    if reply.status != 200:
+        raise SchemaInspectionError(
+            "graph_error" if error is not None else "http_status"
+        )
+    if error is not None:
+        raise SchemaInspectionError("graph_error")
+    info["stage"] = "content_guards"
+    _no_continuation(value)
+    return value
 
 
 # Only these nested schema properties can survive serialization. Formula,
@@ -287,15 +432,23 @@ def _column(value: object) -> dict[str, Any]:
     output = _project(source, required)
     if output.keys() != required.keys():
         raise SchemaInspectionError("missing_column_property")
-    UUID(output["id"])
+    try:
+        UUID(output["id"])
+    except ValueError:
+        raise SchemaInspectionError("invalid_schema_identifier") from None
     kinds = [key for key in FACETS if key in source and source[key] is not None]
     if len(kinds) != 1:
         raise SchemaInspectionError("unknown_or_ambiguous_column_type")
     kind = kinds[0]
     output[kind] = _project(source[kind], FACETS[kind])
     if kind == "lookup":
-        UUID(output[kind]["listId"])
-        _text(output[kind]["columnName"])
+        try:
+            UUID(output[kind]["listId"])
+            _text(output[kind]["columnName"])
+        except KeyError:
+            raise SchemaInspectionError("missing_schema_property") from None
+        except ValueError:
+            raise SchemaInspectionError("invalid_schema_identifier") from None
     return output
 
 
@@ -315,22 +468,37 @@ class _SchemaSequence:
         if self.index >= 7 or request != self.next_request:
             raise SchemaInspectionError("request_order_or_budget")
 
-    def accept(self, request: SchemaRequest, value: dict[str, Any]) -> dict[str, Any]:
+    def accept(
+        self,
+        request: SchemaRequest,
+        value: dict[str, Any],
+        info: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         self.require_next(request)
         projected: dict[str, Any]
         if self.index == 0:
-            projected = {k: _text(value[k]) for k in ("id", "displayName", "webUrl")}
-            self.plan = (
-                site_identity_request(),
-                *list_schema_requests(
-                    resolved_site_id=projected["id"],
-                    resolved_web_url=projected["webUrl"],
-                ),
-            )
+            try:
+                projected = {
+                    k: _text(value[k]) for k in ("id", "displayName", "webUrl")
+                }
+            except KeyError:
+                raise SchemaInspectionError("missing_schema_property") from None
+            try:
+                self.plan = (
+                    site_identity_request(),
+                    *list_schema_requests(
+                        resolved_site_id=projected["id"],
+                        resolved_web_url=projected["webUrl"],
+                    ),
+                )
+            except ValueError:
+                raise SchemaInspectionError("site_identity_mismatch") from None
         elif self.index % 2:
             name, identifier = CANDIDATE_LISTS[(self.index - 1) // 2]
             if value.get("id") != identifier or value.get("displayName") != name:
                 raise SchemaInspectionError("list_identity_mismatch")
+            if "webUrl" not in value or "list" not in value:
+                raise SchemaInspectionError("missing_schema_property")
             web_url = _text(value["webUrl"])
             parsed = urlsplit(web_url)
             path = unquote(parsed.path)
@@ -364,7 +532,11 @@ class _SchemaSequence:
             columns = value.get("value")
             if not isinstance(columns, list) or not 1 <= len(columns) <= 100:
                 raise SchemaInspectionError("column_limit_or_shape")
-            projected_columns = [_column(c) for c in columns]
+            projected_columns = []
+            for column in columns:
+                projected_columns.append(_column(column))
+                if info is not None:
+                    info["validated_records"] = len(projected_columns)
             for key in ("id", "name"):
                 if len({c[key].casefold() for c in projected_columns}) != len(columns):
                     raise SchemaInspectionError("duplicate_column_identity")
@@ -433,7 +605,10 @@ class SchemaExecutor:
                 sequence = _SchemaSequence()
                 while (request := sequence.next_request) is not None:
                     value = self._get(request, manifest, handle)
-                    projected = sequence.accept(request, value)
+                    entry = manifest["requests"][-1]
+                    entry["diagnostic"]["stage"] = "schema_validation"
+                    projected = sequence.accept(request, value, entry["diagnostic"])
+                    entry["diagnostic"]["stage"] = "verified"
                     manifest["requests"][-1]["state"] = "verified"
                     if request.purpose == "resolve_candidate_site":
                         manifest["site"] = projected
@@ -452,7 +627,11 @@ class SchemaExecutor:
                         separators=(",", ":"),
                     ).encode()
                 ).hexdigest()
-            except Exception:
+            except Exception as exc:
+                if manifest["requests"]:
+                    info = manifest["requests"][-1]["diagnostic"]
+                    if info["failure_reason"] is None:
+                        record_failure(info, exc)
                 manifest["state"] = "stopped"
                 manifest["error"] = "schema_inspection_failed"
                 self._save(handle, manifest)
@@ -465,25 +644,43 @@ class SchemaExecutor:
     ) -> dict[str, Any]:
         validate_schema_request(request)
         audit = manifest["requests"]
-        if len(audit) >= 7 or any(r["url"] == request.url for r in audit):
+        if len(audit) >= 7 or any(r["purpose"] == request.purpose for r in audit):
             raise SchemaInspectionError("request_budget_or_replay")
-        entry = {
+        entry: dict[str, Any] = {
             "sequence": len(audit) + 1,
             "method": "GET",
-            "url": request.url,
+            "endpoint_class": (
+                "site_identity"
+                if request.purpose == "resolve_candidate_site"
+                else "list_columns"
+                if request.purpose.startswith("columns_")
+                else "list_identity"
+            ),
+            "diagnostic": diagnostic(),
             "purpose": request.purpose,
             "at": datetime.now(UTC).isoformat(),
             "state": "attempted",
         }
         audit.append(entry)
         self._save(handle, manifest)  # Durable attempt before even a failing GET.
-        reply = self._transport.get(request)
-        value = _decode(reply)
+        try:
+            reply = self._transport.get(request)
+        finally:
+            if isinstance(self._transport, SchemaHttpTransport):
+                entry["diagnostic"] = self._transport.diagnostic.copy()
+        value = _decode(reply, entry["diagnostic"])
         entry["state"] = "received"
         return value
 
     @staticmethod
     def _save(handle: IO[str], manifest: dict[str, Any]) -> None:
+        try:
+            SchemaExecutor._write_manifest(handle, manifest)
+        except Exception:
+            raise SchemaInspectionError("audit_write_failed") from None
+
+    @staticmethod
+    def _write_manifest(handle: IO[str], manifest: dict[str, Any]) -> None:
         content = {k: v for k, v in manifest.items() if k != "manifest_content_sha256"}
         manifest["manifest_content_sha256"] = hashlib.sha256(
             json.dumps(
