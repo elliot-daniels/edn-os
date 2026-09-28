@@ -73,10 +73,8 @@ incompatibility. No claim is made that an unsupported live facet was observed.
 ## Smallest proposed live diagnostic
 
 Prefer site identity -> Projects identity -> Projects columns -> STOP, maximum
-three GETs in one fresh run, same projection and guards, no retry. The current
-launcher still plans seven on success. Before authorizing this smaller attempt,
-add/review a tested explicit three-request stop mode; do not rely on manually
-interrupting a seven-request run. No authentication or retry is authorized here.
+three GETs in one fresh run, same projection and guards, no retry. Use the explicit tested projects_schema_diagnostic mode; the default full mode
+still plans seven on success. Do not rely on manually interrupting a full run. No authentication or retry is authorized here.
 
 Validation: 222 focused tests passed; full suite 837 passed, 92 failed, 1 skipped.
 The failure identities exactly match executive-baseline.xml and

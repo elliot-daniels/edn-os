@@ -17,6 +17,7 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from enum import Enum
 from pathlib import Path
 from typing import IO, Any, Protocol
 from urllib.parse import unquote, urlsplit
@@ -40,6 +41,21 @@ ACCOUNT = "elliot@ednsystems.com.au"
 
 class SchemaInspectionError(ValueError):
     """Static error codes only: never copy provider content into error/audit text."""
+
+
+class SchemaMode(Enum):
+    FULL = "full_schema_inspection"
+    PROJECTS_DIAGNOSTIC = "projects_schema_diagnostic"
+
+    @property
+    def budget(self) -> int:
+        return 3 if self is SchemaMode.PROJECTS_DIAGNOSTIC else 7
+
+
+def require_mode(mode: SchemaMode) -> SchemaMode:
+    if not isinstance(mode, SchemaMode):
+        raise SchemaInspectionError("invalid_execution_mode")
+    return mode
 
 
 FAILURE_CATEGORIES = {
@@ -202,12 +218,15 @@ class SchemaHttpTransport:
     class never acquires a token and is not instantiated by imports or tests.
     """
 
-    def __init__(self, token_supplier: Callable[[], str]) -> None:
+    def __init__(
+        self, token_supplier: Callable[[], str], mode: SchemaMode = SchemaMode.FULL
+    ) -> None:
+        self._mode = require_mode(mode)
         self._token_supplier = token_supplier
         self._used: set[str] = set()
         self._stopped = False
         self._lock = threading.Lock()
-        self._sequence = _SchemaSequence()
+        self._sequence = _SchemaSequence(self._mode)
         self.diagnostic = diagnostic()
 
     def get(self, request: SchemaRequest) -> SchemaReply:
@@ -219,7 +238,7 @@ class SchemaHttpTransport:
             try:
                 validate_schema_request(request)
                 self._sequence.require_next(request)
-                if len(self._used) >= 7 or request.url in self._used:
+                if len(self._used) >= self._mode.budget or request.url in self._used:
                     raise SchemaInspectionError("transport_budget_or_replay")
                 self._used.add(request.url)  # Consume before token/network work.
                 token = self._token_supplier()
@@ -455,7 +474,8 @@ def _column(value: object) -> dict[str, Any]:
 class _SchemaSequence:
     """Shared identity/order guard for executor and actual HTTP boundary."""
 
-    def __init__(self) -> None:
+    def __init__(self, mode: SchemaMode = SchemaMode.FULL) -> None:
+        self._mode = require_mode(mode)
         self.plan: tuple[SchemaRequest, ...] = (site_identity_request(),)
         self.index = 0
 
@@ -465,7 +485,7 @@ class _SchemaSequence:
 
     def require_next(self, request: SchemaRequest) -> None:
         validate_schema_request(request)
-        if self.index >= 7 or request != self.next_request:
+        if self.index >= self._mode.budget or request != self.next_request:
             raise SchemaInspectionError("request_order_or_budget")
 
     def accept(
@@ -490,7 +510,7 @@ class _SchemaSequence:
                         resolved_site_id=projected["id"],
                         resolved_web_url=projected["webUrl"],
                     ),
-                )
+                )[: self._mode.budget]
             except ValueError:
                 raise SchemaInspectionError("site_identity_mismatch") from None
         elif self.index % 2:
@@ -552,7 +572,13 @@ class SchemaExecutor:
     boundary. One exclusive artifact is also the durable no-retry marker.
     """
 
-    def __init__(self, identity: SchemaIdentity, transport: SchemaTransport) -> None:
+    def __init__(
+        self,
+        identity: SchemaIdentity,
+        transport: SchemaTransport,
+        mode: SchemaMode = SchemaMode.FULL,
+    ) -> None:
+        self._mode = require_mode(mode)
         self._identity = identity
         self._transport = transport
         self._started = False
@@ -588,7 +614,8 @@ class SchemaExecutor:
             "started_at": started.isoformat(),
             "delete_by": (started + timedelta(days=7)).isoformat(),
             "state": "started",
-            "request_budget": 7,
+            "request_budget": self._mode.budget,
+            "execution_mode": self._mode.value,
             "tenant": self._identity.tenant,
             "application": self._identity.application,
             "account": self._identity.account,
@@ -602,7 +629,7 @@ class SchemaExecutor:
         with handle:
             self._save(handle, manifest)
             try:
-                sequence = _SchemaSequence()
+                sequence = _SchemaSequence(self._mode)
                 while (request := sequence.next_request) is not None:
                     value = self._get(request, manifest, handle)
                     entry = manifest["requests"][-1]
@@ -644,7 +671,9 @@ class SchemaExecutor:
     ) -> dict[str, Any]:
         validate_schema_request(request)
         audit = manifest["requests"]
-        if len(audit) >= 7 or any(r["purpose"] == request.purpose for r in audit):
+        if len(audit) >= self._mode.budget or any(
+            r["purpose"] == request.purpose for r in audit
+        ):
             raise SchemaInspectionError("request_budget_or_replay")
         entry: dict[str, Any] = {
             "sequence": len(audit) + 1,

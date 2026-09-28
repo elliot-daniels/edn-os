@@ -176,3 +176,31 @@ also passed parent/child ACL, containment and create/read/delete checks. Its
 empty reserved child is run-377affc95716468bb36fa7100c78babf; no authentication,
 retained schema artifact or retention clock was started. A future authorized
 inspection creates a different child and repeats every guard.
+
+## Explicit Projects-only diagnostic mode
+
+The future separately approved CLI mode is:
+`--approved-authenticate-and-inspect --mode projects_schema_diagnostic`.
+It is represented by SchemaMode.PROJECTS_DIAGNOSTIC, not a caller-selected numeric
+budget. Its plan is exactly site identity, Projects identity, Projects columns.
+Both executor and HTTP transport construct their own mode-bound sequences and
+budget checks. After the third verified response, no next request exists; a
+fourth transport call fails before token retrieval/network dispatch. Clients,
+Actions and arbitrary endpoints are unreachable in this mode. Identity checks
+still gate each dependent request. Any failure consumes the attempt without retry.
+
+Full mode (default or --mode full_schema_inspection) retains its seven-operation
+plan. Selecting that mode requires full-operation owner authority; CLI flags do
+not confer authority. Unknown/repeated mode arguments, abbreviated options and
+numeric budget parameters fail before storage/authentication. The Python API
+requires an actual SchemaMode enum instance and rejects strings/integers.
+
+The audit records execution_mode and request_budget (3 or 7), plus the existing
+safe detailed diagnostics, unique child run ID, retention and content hash.
+Completed means the selected plan completed, not that all three lists were read.
+No existing artifact/deadline is changed. This local update performs no live run.
+
+Three-mode validation: 243 focused tests passed. Full suite: 858 passed, 92 failed,
+1 skipped. Failure identities exactly match executive-baseline.xml and
+schema-diagnostic-full.xml. Ruff, strict Linux-target mypy (129 files) and
+whitespace checks passed. Zero Microsoft access; no live artifacts changed.

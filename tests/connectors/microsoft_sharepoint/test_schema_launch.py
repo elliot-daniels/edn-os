@@ -150,7 +150,8 @@ def test_launch_storage_precedes_auth_and_fixed_executor(monkeypatch):
     monkeypatch.setattr(module.msal, "PublicClientApplication", factory)
     transport = Mock()
 
-    def make_transport(supplier):
+    def make_transport(supplier, mode):
+        assert mode is module.SchemaMode.FULL
         assert supplier() == "SYNTHETIC"
         order.append("transport")
         return transport

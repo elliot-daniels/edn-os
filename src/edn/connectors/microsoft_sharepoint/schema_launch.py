@@ -25,6 +25,8 @@ from edn.connectors.microsoft_sharepoint.schema_executor import (
     SchemaHttpTransport,
     SchemaIdentity,
     SchemaInspectionError,
+    SchemaMode,
+    require_mode,
 )
 
 OUTPUT = Path(
@@ -404,27 +406,38 @@ def authenticate() -> str:
             raise SchemaInspectionError("authentication_delivery_failed") from None
 
 
-def launch() -> Path:
+def launch(mode: SchemaMode = SchemaMode.FULL) -> Path:
     """Only invoke after separate owner approval of authentication AND inspection."""
+    mode = require_mode(mode)
     directory = prepare_run()
     token = authenticate()
     check_storage(directory)
     identity = SchemaIdentity(
         TENANT, APPLICATION, ACCOUNT, frozenset({"Sites.Selected"}), GRANT_ID
     )
-    return SchemaExecutor(identity, SchemaHttpTransport(lambda: token)).run(directory)
+    return SchemaExecutor(identity, SchemaHttpTransport(lambda: token, mode), mode).run(
+        directory
+    )
 
 
 def main() -> None:
     import argparse
+    import sys
 
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--approved-authenticate-and-inspect", action="store_true")
+    parser.add_argument(
+        "--mode",
+        choices=[mode.value for mode in SchemaMode],
+        default=SchemaMode.FULL.value,
+    )
+    if sum(arg == "--mode" or arg.startswith("--mode=") for arg in sys.argv[1:]) > 1:
+        parser.error("execution mode must be specified at most once")
     args = parser.parse_args()
     if not args.approved_authenticate_and_inspect:
         parser.error("separate owner approval required; no authentication started")
     try:
-        path = launch()
+        path = launch(SchemaMode(args.mode))
     except Exception:
         raise SystemExit(
             "Schema launch stopped safely; do not retry automatically"
