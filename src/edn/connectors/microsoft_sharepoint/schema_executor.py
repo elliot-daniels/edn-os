@@ -68,7 +68,23 @@ FAILURE_CATEGORIES = {
     "invalid_object": "unexpected_response_shape",
     "invalid_text": "unexpected_response_shape",
     "invalid_schema_property": "unexpected_response_shape",
-    "column_limit_or_shape": "unexpected_response_shape",
+    **dict.fromkeys(
+        (
+            "columns_top_level_not_object",
+            "columns_value_missing",
+            "columns_value_not_array",
+            "columns_empty",
+            "columns_limit_exceeded",
+            "column_record_not_object",
+            "column_required_field_type_invalid",
+            "column_facet_shape_invalid",
+            "column_unexpected_shape",
+        ),
+        "unexpected_response_shape",
+    ),
+    "column_required_field_missing": "projection_field_incompatibility",
+    "column_type_facet_ambiguous": "unsupported_schema_facet",
+    "column_type_facet_unsupported": "unsupported_schema_facet",
     "missing_column_property": "projection_field_incompatibility",
     "unknown_or_ambiguous_column_type": "unsupported_schema_facet",
     "operational_content": "prohibited_content",
@@ -121,6 +137,8 @@ def diagnostic() -> dict[str, Any]:
         client_request_id=None,
         json_parsed=False,
         validated_records=0,
+        column_ordinal=None,
+        column_facet=None,
         graph_error_code=None,
         failure_category=None,
         failure_reason=None,
@@ -235,6 +253,9 @@ class SchemaHttpTransport:
                 raise SchemaInspectionError("transport_stopped")
             self.diagnostic = diagnostic()
             info = self.diagnostic
+            info["endpoint_class"] = (
+                "list_columns" if request.purpose.startswith("columns_") else "identity"
+            )
             try:
                 validate_schema_request(request)
                 self._sequence.require_next(request)
@@ -358,6 +379,8 @@ def _decode(reply: SchemaReply, info: dict[str, Any] | None = None) -> dict[str,
                 "http_authorization" if reply.status in (401, 403) else "http_status"
             ) from None
         raise SchemaInspectionError("malformed_json") from None
+    if not isinstance(value, dict) and info.get("endpoint_class") == "list_columns":
+        raise SchemaInspectionError("columns_top_level_not_object")
     value = _object(value)
     error = value.get("error")
     if isinstance(error, dict):
@@ -438,8 +461,33 @@ def _project(value: object, fields: dict[str, str]) -> dict[str, Any]:
     return output
 
 
-def _column(value: object) -> dict[str, Any]:
-    source = _object(value)
+# Known unprojected metadata may be discarded; any other property is rejected
+# rather than accidentally accepting a new, unsupported type facet.
+COLUMN_METADATA = frozenset(
+    {
+        "@odata.context",
+        "@odata.type",
+        "columnGroup",
+        "description",
+        "defaultValue",
+        "enforceUniqueValues",
+        "indexed",
+        "isDeletable",
+        "isReorderable",
+        "isSealed",
+        "propagateChanges",
+        "sourceContentType",
+        "validation",
+        "sourceColumn",
+    }
+)
+UNSUPPORTED_FACETS = frozenset({"geolocation", "thumbnail", "contentApprovalStatus"})
+
+
+def _column(value: object, info: dict[str, Any] | None = None) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise SchemaInspectionError("column_record_not_object")
+    source = value
     required = {
         "id": "str",
         "name": "str",
@@ -448,26 +496,47 @@ def _column(value: object) -> dict[str, Any]:
         "readOnly": "bool",
         "hidden": "bool",
     }
-    output = _project(source, required)
-    if output.keys() != required.keys():
-        raise SchemaInspectionError("missing_column_property")
+    if any(key not in source for key in required):
+        raise SchemaInspectionError("column_required_field_missing")
     try:
+        output = _project(source, required)
         UUID(output["id"])
-    except ValueError:
-        raise SchemaInspectionError("invalid_schema_identifier") from None
-    kinds = [key for key in FACETS if key in source and source[key] is not None]
-    if len(kinds) != 1:
-        raise SchemaInspectionError("unknown_or_ambiguous_column_type")
+    except (SchemaInspectionError, ValueError):
+        raise SchemaInspectionError("column_required_field_type_invalid") from None
+    if any(source.get(key) is not None for key in UNSUPPORTED_FACETS):
+        if info is not None:
+            info["column_facet"] = "unsupported"
+        raise SchemaInspectionError("column_type_facet_unsupported")
+    if (
+        source.keys()
+        - required.keys()
+        - FACETS.keys()
+        - COLUMN_METADATA
+        - UNSUPPORTED_FACETS
+    ):
+        raise SchemaInspectionError("column_unexpected_shape")
+    kinds = [key for key in FACETS if source.get(key) is not None]
+    if len(kinds) > 1:
+        if info is not None:
+            info["column_facet"] = "ambiguous"
+        raise SchemaInspectionError("column_type_facet_ambiguous")
+    if not kinds:
+        # Graph documents base-only columns for types it cannot represent.
+        # Preserve uncertainty explicitly; never infer a type or adapter capability.
+        if info is not None:
+            info["column_facet"] = "unavailable"
+        output["type_status"] = "unavailable"
+        return output
     kind = kinds[0]
-    output[kind] = _project(source[kind], FACETS[kind])
-    if kind == "lookup":
-        try:
+    if info is not None:
+        info["column_facet"] = kind
+    try:
+        output[kind] = _project(source[kind], FACETS[kind])
+        if kind == "lookup":
             UUID(output[kind]["listId"])
             _text(output[kind]["columnName"])
-        except KeyError:
-            raise SchemaInspectionError("missing_schema_property") from None
-        except ValueError:
-            raise SchemaInspectionError("invalid_schema_identifier") from None
+    except (SchemaInspectionError, KeyError, ValueError):
+        raise SchemaInspectionError("column_facet_shape_invalid") from None
     return output
 
 
@@ -549,12 +618,20 @@ class _SchemaSequence:
                 "list": info,
             }
         else:
-            columns = value.get("value")
-            if not isinstance(columns, list) or not 1 <= len(columns) <= 100:
-                raise SchemaInspectionError("column_limit_or_shape")
+            if "value" not in value:
+                raise SchemaInspectionError("columns_value_missing")
+            columns = value["value"]
+            if not isinstance(columns, list):
+                raise SchemaInspectionError("columns_value_not_array")
+            if not columns:
+                raise SchemaInspectionError("columns_empty")
+            if len(columns) > 100:
+                raise SchemaInspectionError("columns_limit_exceeded")
             projected_columns = []
-            for column in columns:
-                projected_columns.append(_column(column))
+            for ordinal, column in enumerate(columns):
+                if info is not None:
+                    info.update(column_ordinal=ordinal, column_facet=None)
+                projected_columns.append(_column(column, info))
                 if info is not None:
                     info["validated_records"] = len(projected_columns)
             for key in ("id", "name"):
@@ -697,6 +774,7 @@ class SchemaExecutor:
         finally:
             if isinstance(self._transport, SchemaHttpTransport):
                 entry["diagnostic"] = self._transport.diagnostic.copy()
+        entry["diagnostic"]["endpoint_class"] = entry["endpoint_class"]
         value = _decode(reply, entry["diagnostic"])
         entry["state"] = "received"
         return value

@@ -335,7 +335,7 @@ def test_lookup_preserved_without_target_traversal(tmp_path):
 @pytest.mark.parametrize(
     "change",
     [
-        {"text": None},
+        {"text": []},
         {"required": "false"},
         {"choice": {"choices": ["x"]}},
         {"id": "bad"},

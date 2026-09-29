@@ -29,9 +29,9 @@ from edn.connectors.microsoft_sharepoint import schema_executor as m
         (200, b"{SECRET", {}, "malformed_json", "malformed_json"),
         (
             200,
-            {"value": [dict(column(), text=None, unsupported={"secret": "SECRET"})]},
+            {"value": [dict(column(), text=None, geolocation={"secret": "SECRET"})]},
             {},
-            "unknown_or_ambiguous_column_type",
+            "column_type_facet_unsupported",
             "unsupported_schema_facet",
         ),
         (
@@ -53,14 +53,14 @@ from edn.connectors.microsoft_sharepoint import schema_executor as m
             200,
             {"value": None},
             {},
-            "column_limit_or_shape",
+            "columns_value_not_array",
             "unexpected_response_shape",
         ),
         (
             200,
             {"value": [{"id": "SECRET"}]},
             {},
-            "missing_column_property",
+            "column_required_field_missing",
             "projection_field_incompatibility",
         ),
         (
@@ -144,7 +144,10 @@ def test_unknown_properties_discarded_and_partial_validation_count(tmp_path):
     from test_schema_executor import FakeTransport
 
     values = responses()
-    values[2]["value"] = [dict(column(), extra="SECRET"), dict(column(2), text=None)]
+    values[2]["value"] = [
+        dict(column(), description="SECRET"),
+        dict(column(2), text=[]),
+    ]
     with pytest.raises(m.SchemaInspectionError):
         m.SchemaExecutor(identity(), FakeTransport(values)).run(tmp_path)
     text = (tmp_path / m.ARTIFACT_NAME).read_text()
