@@ -2,7 +2,19 @@
 
 > October pre-promotion correction: UWC no-flow/submission statements below describe the recorded August stage. Later excluded branch 839e75c records a blocked Developer flow/binding attempt. No working capture path or current production state is verified. See [authority reconciliation](docs/sprint/AUTHORITY-RECONCILIATION.md).
 
-## October repair candidate
+## Authoritative October technical baseline
+
+Elliot approved PR #2 promotion and a normal merge. `main` now contains merge `c85938c44ef230b5e4574b084d709f263b92adc0` with parents previous main `5414dc10d6e92d36fa5c52811875cead5898d30e` and exact successor `a81bda7bfa6674c767aeac607ec281da6fd980c0`. The full 160-commit integration ancestry and all six Operations commits are preserved. Merge and successor trees are both `36009599fd9e05e4f2910c36d5dfd8e42565ee9c`. Start every new issue from current main and record its exact SHA; never use an old feature branch as the authority.
+
+[Hosted run 36867437110](https://github.com/elliot-daniels/edn-os/actions/runs/36867437110): Linux Python 3.11 and 3.12 each passed all 1,089 tests; Windows passed 997 with the same 92 baseline failures and no skips, and its strict baseline guard passed. Linux lint, native types (135 files), integrity, whitespace and clean tree passed; Windows integrity passed. All checkout logs identify PR test merge `27b3bfc44becd23f8bcd3c19b73a7d60b1f4b1e9`, whose tree equals the exact successor. Separate independent review found no actionable delta defects.
+
+No technical blocker remains for synthetic development on this baseline. Production is not deployed or accepted. Windows protected-store support remains limited; local native Windows typing has 15 inherited errors, offline IMS Pester has three missing Add-PnPField mock-command failures, and live integrations/real NTFS ACLs are unverified. August grants remain expired. Separate UWC flow assets remain excluded and inactive under this task. Current settings enforcement is manual pending the protection proposal in issue #4; CI execution is established, not yet a claim of branch protection.
+
+[Baseline and evidence](docs/sprint/OCTOBER-BASELINE.md) · [Shared workflow](MULTI_AGENT_WORKFLOW.md) · [Issue queue](docs/sprint/OCTOBER-2026-TICKETS.md).
+
+The sections below retain dated audit evidence. Old branches, test counts, HOLD statements and remote divergence descriptions are historical, superseded for the October technical baseline by this section. Historical development-state JSON and frozen UWC manifests are not current grants and remain unchanged.
+
+## Historical October repair candidate
 
 Candidate branch: `feature/october-prepromotion-repairs`, based on immutable
 `48d902ef9e98c17c0488bc7164d3d9bf9c0a01a9`. This branch retains all six Operations
@@ -17,7 +29,7 @@ Current authority/configuration and proposed PR checks are reconciled locally.
 The implementation and prior verification below remain historical audit evidence;
 current repair validation is recorded in the linked repair document.
 
-## Inspected baseline and remote divergence
+## Historical inspected baseline and remote divergence
 
 Implementation audited at `0b2a0bac1419af32106bf1c17a388f3e9b0cdd5f` on local `feature/operations-v1`. Original checkout was clean and remains untouched. Onboarding was prepared in a separate clone on `docs/october-agent-onboarding`. This snapshot describes the implementation parent; the documentation commit is identified by Git history.
 
@@ -45,7 +57,7 @@ Other remote heads: IMS `6d1f46a`, Intelligence Core `5604215`, Memory `b16199f`
 - Website intake belongs to a separate repository. Its handoff describes SharePoint writes; its code and live service were not audited in this task. There is no job-request Event adapter in EDN OS.
 - An approved encrypted runtime path and local mail authentication are not established by this audit. E:\ is a documented default, not proof of encryption or an existing drive. No production database was created.
 
-## Verification
+## Historical audit verification
 
 Windows / Python 3.12.14, reused development dependency environment, fresh synthetic temporary paths. Full Python suite: **941 passed, 92 failed, 1 skipped**, 32.29 seconds. Ruff passed. Mypy with Linux target passed for **135 source files**. Full pytest does not cover the IMS Pester suite. PST extraction tool acceptance and real source imports were not run.
 

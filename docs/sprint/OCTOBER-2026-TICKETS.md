@@ -1,6 +1,25 @@
 # First October development tickets
 
-Draft repository tickets, not published GitHub issues. All use synthetic data unless separately gated. Elliot owns priority/merge decisions; Dot owns technical specification and independent review; Grok is the proposed implementer. Estimates are rough engineering effort, excluding owner decisions and live access. Exact base SHA is assigned after OCT-01. No ticket authorizes production or Microsoft changes.
+Published GitHub issue queue; descriptions below preserve the initial proposal, while linked issues record current status and claims. All use synthetic data unless separately gated. Elliot owns priority/merge decisions; Dot owns technical specification and independent review; Grok is the proposed implementer. Estimates are rough engineering effort, excluding owner decisions and live access. Authoritative October merge is c85938c44ef230b5e4574b084d709f263b92adc0; each issue records its actual current-main base SHA. No ticket authorizes production or Microsoft changes.
+
+
+## Published control plane
+
+| Ticket | Issue | Current status |
+| --- | --- | --- |
+| OCT-01 | [#3](https://github.com/elliot-daniels/edn-os/issues/3) | accepted/merged, closed |
+| OCT-02 | [#4](https://github.com/elliot-daniels/edn-os/issues/4) | ready; CI implemented, enforcement decision pending |
+| OCT-03 | [#5](https://github.com/elliot-daniels/edn-os/issues/5) | ready |
+| OCT-04 | [#6](https://github.com/elliot-daniels/edn-os/issues/6) | proposed/dependency blocked |
+| OCT-05 | [#7](https://github.com/elliot-daniels/edn-os/issues/7) | ready |
+| OCT-06 | [#8](https://github.com/elliot-daniels/edn-os/issues/8) | proposed/dependency blocked |
+| OCT-07 | [#9](https://github.com/elliot-daniels/edn-os/issues/9) | proposed/dependency blocked |
+| OCT-08 | [#10](https://github.com/elliot-daniels/edn-os/issues/10) | proposed/dependency blocked |
+| OCT-09 | [#11](https://github.com/elliot-daniels/edn-os/issues/11) | ready |
+
+CI is established; OCT-02 now tracks enforcement proposal/contribution-flow evidence. Technical validation dependencies on OCT-02 are satisfied; repository settings remain owner-gated. Website contract and schema-overlap dependencies still apply. No issue is automatically claimed.
+
+## Historical initial ticket specifications
 
 ## OCT-01 — Establish the shared integration baseline (1–2 days)
 

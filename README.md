@@ -1,5 +1,7 @@
 # EDN OS
 
+October technical baseline accepted on 1 October 2026: authoritative `main` merge `c85938c44ef230b5e4574b084d709f263b92adc0`, validated source `a81bda7bfa6674c767aeac607ec281da6fd980c0`. See [baseline record](docs/sprint/OCTOBER-BASELINE.md) and [agent onboarding](docs/sprint/AGENT-ONBOARDING.md). This approves repository development, not deployment or live access.
+
 > October pre-promotion correction: UWC no-flow/submission statements below describe the recorded August stage. Later excluded branch 839e75c records a blocked Developer flow/binding attempt. No working capture path or current production state is verified. See [authority reconciliation](docs/sprint/AUTHORITY-RECONCILIATION.md).
 
 > Build the world's best operating system for specialist engineering consultancies.
