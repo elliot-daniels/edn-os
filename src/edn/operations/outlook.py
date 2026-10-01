@@ -12,8 +12,10 @@ from edn.connectors.microsoft_outlook.client import (
     MicrosoftGraphOutlookClient,
     TokenProvider,
 )
-from edn.operations.models import Event
+from edn.operations.models import Event, validate_attachments
 from edn.operations.storage import EventStore
+
+MAX_PAGE_RECORDS = 50
 
 
 def validate_window(start: datetime, end: datetime) -> None:
@@ -72,7 +74,7 @@ class OperationsOutlookClient(MicrosoftGraphOutlookClient):
                 "$filter": f"receivedDateTime ge {start.astimezone(UTC).isoformat()} "
                 f"and receivedDateTime le {end.astimezone(UTC).isoformat()}",
                 "$orderby": "receivedDateTime desc",
-                "$top": "50",
+                "$top": str(MAX_PAGE_RECORDS),
             }
         )
         url = continuation or f"{prefix}?{query}"
@@ -99,6 +101,8 @@ def mail_event(mailbox: str, payload: dict[str, Any]) -> Event:
         or body.get("contentType", "text").casefold() != "text"
     ):
         raise ValueError("Operations mail requires a plain-text body")
+    attachments = payload.get("attachments", [])
+    validate_attachments(attachments)
     parties = []
     for role, recipients in (
         ("from", [payload.get("from", {})]),
@@ -119,7 +123,7 @@ def mail_event(mailbox: str, payload: dict[str, Any]) -> Event:
         parties=tuple(parties),
         subject=str(payload.get("subject", "")),
         body=str(body.get("content", "")),
-        attachments=tuple(payload.get("attachments", [])),
+        attachments=tuple(attachments),
         needs_action=payload.get("flag", {}).get("flagStatus") == "flagged",
         raw_payload=payload,
     )
@@ -152,6 +156,8 @@ def ingest_mailbox(
         values = page.get("value")
         if not isinstance(values, list):
             raise ValueError("Graph mail page has no message collection")
+        if len(values) > MAX_PAGE_RECORDS:
+            raise ValueError("Graph mail page exceeds record limit")
         for payload in values:
             try:
                 if not isinstance(payload, dict):

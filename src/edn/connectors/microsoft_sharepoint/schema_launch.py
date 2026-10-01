@@ -216,9 +216,7 @@ AUTH_VALIDATION_REASONS = frozenset(
 
 # Applies only after validate_auth verifies this exact tenant and application.
 REQUIRED_OPERATION_SCOPES = frozenset({"Sites.Selected"})
-ALLOWED_APPLICATION_SCOPES = frozenset(
-    {"Sites.Selected", "User.Read", "Mail.Read", "Calendars.Read"}
-)
+ALLOWED_APPLICATION_SCOPES = REQUIRED_OPERATION_SCOPES
 
 
 SAFE_SCOPE_NAMES = frozenset(

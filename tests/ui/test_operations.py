@@ -1,3 +1,5 @@
+import json
+import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -71,3 +73,29 @@ def test_missing_configuration_and_empty_inbox(tmp_path, monkeypatch):
     assert not app.exception
     assert app.info[0].value == "No events match these filters."
     assert len(app.selectbox) == 1  # No fictional client/project/job catalogue.
+
+
+def test_corrupt_attachment_metadata_fails_safely_without_writing(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "events.db"
+    store = EventStore(path)
+    store.initialise()
+    event = Event(
+        "outlook", "edn@example.com", "m1", datetime.now(UTC), "inbound", "email"
+    )
+    store.insert(event)
+    payload = event.to_dict()
+    payload["attachments"] = [None]
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "UPDATE operations_events SET payload=?", (json.dumps(payload),)
+        )
+    before = path.read_bytes()
+    monkeypatch.setenv("EDN_OPERATIONS_DB", str(path))
+    app = AppTest.from_file(str(APP)).run()
+    assert not app.exception
+    assert (
+        app.error[0].value == "Operations database is unavailable or not initialized."
+    )
+    assert path.read_bytes() == before

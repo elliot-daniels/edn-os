@@ -69,11 +69,21 @@ with that tenant's approved app/account and only its mailbox addresses, pointing
 at the same Operations database. The unified store keeps mailbox provenance
 separate; a token for one tenant does not grant mail access in another tenant.
 
-The legacy metadata-only Outlook connector remains unchanged by default.
+The legacy Outlook projection remains metadata-only; the shared transport now
+rejects redirects and caps response bytes.
 Operations has a separate explicit content-read client. Every mail request is a
 GET scoped to a configured mailbox Inbox, with a bounded window of at most 31
 days and up to 100 pages of 50 messages. Continuations must remain on the same
-Graph host and mailbox resource. Failed records are counted without bodies in
+Graph host and mailbox resource. Default transport rejects every redirect before
+following it, and bearer headers are excluded from urllib redirect copying.
+Each response is read with a 1,048,576-byte cap plus one overflow byte; oversized
+responses stop before persistence. A page with more than 50 records is rejected
+before any record on that page is inserted, even when its response is small.
+Attachment metadata must be a list/tuple of nonempty objects containing only
+id/name/contentType/size/isInline/@odata.type; string, nonnegative integer size
+and boolean inline types are checked. Binary/unknown fields are rejected.
+Event serialization revalidates mutable nested metadata before database access;
+decoding rejects corrupt historical metadata safely in the read-only Inbox. Failed records are counted without bodies in
 logs; page exhaustion/malformed records yield `complete=false` and nonzero exit.
 Network failure stops the command; already committed Events are replay-safe.
 Narrow the window and replay if a run reaches the page limit. There is no

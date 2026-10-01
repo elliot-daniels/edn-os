@@ -17,9 +17,9 @@ MSAL uses the fixed EDN tenant/application and Elliot's account, auth-code/PKCE,
 loopback port 8400 and an in-memory token cache. Only
 `https://graph.microsoft.com/Sites.Selected` is requested as a Graph scope.
 OIDC sign-in scopes are protocol metadata; offline_access is excluded. The
-returned Graph scope set must contain Sites.Selected and be a subset of the
-explicit shared-application allowlist: Sites.Selected, User.Read, Mail.Read,
-Calendars.Read. The MSAL ID-token claims
+returned Graph scope set must be exactly Sites.Selected after existing Graph-prefix
+normalization and OIDC metadata handling. User.Read, Mail.Read and Calendars.Read
+are rejected on this schema path. The MSAL ID-token claims
 must match tenant, application audience and account. Any scope outside that allowlist
 fails closed; never silently trim its scope metadata. The owner completes sign-in
 personally and must stop at any unexpected consent screen. No token or raw
@@ -126,9 +126,8 @@ claims, raw scope strings, provider descriptions or credentials are printed.
 Only an explicit protocol `consent_required` error gets that classification;
 missing claims/scopes do not prove that application consent is absent.
 
-Sites.Selected must be present. User.Read, Mail.Read and Calendars.Read are
-allowed token scopes for the verified shared EDN application only. They do not
-confer operation authority on this schema executor. Account selection still requires Elliot, never the admin.
+Sites.Selected is the only accepted Graph token scope. Shared-app tokens carrying
+User.Read, Mail.Read or Calendars.Read fail closed before inspection. Account selection still requires Elliot, never the admin.
 The result dictionary is cleared on validation success and failure. This is not
 a claim of secure memory erasure. No authentication artifacts are persisted.
 
@@ -143,21 +142,27 @@ The safe vocabulary is Sites.Selected, User.Read, Mail.Read, Calendars.Read,
 Sites.Read.All and Sites.FullControl.All. Unknown/case-variant values are
 redacted and flagged. This display vocabulary never changes scope acceptance.
 
-## Owner-reviewed shared application scope policy
+## October exact-scope policy
 
-The authentication allowlist applies only after the fixed tenant/application and
-Elliot identity checks pass. Required: Sites.Selected. Allowed additional token
-scopes: User.Read, Mail.Read, Calendars.Read. Unknown, malformed and case-variant
-scope names fail closed. Exact https://graph.microsoft.com/ prefixes are removed;
-OIDC metadata scopes retain the existing handling. Sets deduplicate and diagnostic
-names are sorted. Requested Graph scope remains Sites.Selected alone.
+The schema launcher accepts exactly Sites.Selected after fixed tenant/application
+and Elliot identity checks. Exact https://graph.microsoft.com/ prefixes normalize;
+existing OIDC metadata handling remains unchanged. Unknown, broader and case-variant
+Graph scopes fail closed. Requested scope and SchemaIdentity.scopes remain exactly
+Sites.Selected. Independent transport and executor request guards remain unchanged.
 
-SchemaIdentity.scopes describes the operation authority, not all token grants.
-It remains exactly Sites.Selected. The executor and transport retain independent
-exact-request, sequence and seven-request guards. Neither consumes allowed mail
-or calendar scopes as capabilities. The minimized artifact's scope field records
-operation authority, not the entire token scope set. No operational connector is
-involved. This policy does not approve live authentication or schema execution.
+Commit c38c2fb previously accepted User.Read, Mail.Read and Calendars.Read on a
+shared application token. Its documentation called the policy owner-reviewed, but
+records no observed returned scope set or already-approved schema use case that
+requires those additions. The earlier generic failure cannot establish that need.
+The October repair restores the narrower boundary under Elliot's current instruction.
+Operations mail uses a separate authentication path; its Mail.Read requirements do
+not establish schema-launch authority. No consent, app grant or live token changed.
+If future evidence demonstrates that exact-scope authentication cannot serve an
+approved use case, stop before broadening acceptance and present the exact token
+scope requirement, fixed app/account and bounded use case to Elliot for decision.
+
+The following validation counts describe historical commits, not the repaired
+candidate; current candidate evidence is in docs/sprint/PREPROMOTION-REPAIRS.md.
 
 Local shared-scope validation: 185 focused tests passed; full suite 800 passed,
 92 failed, 1 skipped. Failure identities exactly match executive-baseline.xml

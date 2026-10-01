@@ -22,6 +22,23 @@ EVENT_TYPES = frozenset(
 DIRECTIONS = frozenset({"inbound", "outbound", "internal"})
 
 
+def validate_attachments(attachments: object) -> None:
+    """Accept projected metadata only, including Graph's type annotation."""
+    if not isinstance(attachments, (tuple, list)):
+        raise ValueError("Attachments must be a metadata collection")
+    allowed = {"id", "name", "contentType", "size", "isInline", "@odata.type"}
+    for item in attachments:
+        if not isinstance(item, dict) or not item or not item.keys() <= allowed:
+            raise ValueError("Invalid attachment metadata")
+        for name in ("id", "name", "contentType", "@odata.type"):
+            if name in item and not isinstance(item[name], str):
+                raise ValueError("Attachment text metadata must be strings")
+        if "size" in item and (type(item["size"]) is not int or item["size"] < 0):
+            raise ValueError("Attachment size must be a nonnegative integer")
+        if "isInline" in item and type(item["isInline"]) is not bool:
+            raise ValueError("Attachment inline metadata must be boolean")
+
+
 @dataclass(frozen=True)
 class Event:
     source: str
@@ -45,6 +62,7 @@ class Event:
     id: str = field(default_factory=lambda: str(uuid4()))
 
     def __post_init__(self) -> None:
+        validate_attachments(self.attachments)
         if any(
             not value.strip()
             for value in (self.source, self.source_account, self.external_id, self.id)
@@ -57,6 +75,7 @@ class Event:
                 raise ValueError("Event timestamps must be timezone-aware")
 
     def to_dict(self) -> dict[str, Any]:
+        validate_attachments(self.attachments)
         payload = asdict(self)
         for name in ("occurred_at", "created_at"):
             payload[name] = getattr(self, name).astimezone(UTC).isoformat()
@@ -65,6 +84,7 @@ class Event:
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> Event:
         values = dict(payload)
+        validate_attachments(values.get("attachments"))
         for name in ("occurred_at", "created_at"):
             values[name] = datetime.fromisoformat(values[name])
         for name in ("parties", "attachments", "ai_actions"):

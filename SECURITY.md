@@ -27,3 +27,18 @@ Stop dependent work and escalate to Elliot for new source access, data-root/ACL 
 Expired Work Capture/PA-005/PA-009/delegation records are never reusable approval. Any fresh live-read acceptance requires its own exact scope and current owner authority; do not bundle consent expansion into a coding ticket. Do not create or activate an EDN delegated grant for this sprint merely because the feature exists.
 
 If sensitive material is discovered accidentally, stop copying it, avoid printing it, inform Elliot with metadata only and arrange owner-led containment. Do not rotate credentials or alter access as an unsolicited fix.
+
+## October transport and metadata repairs
+
+Schema authentication accepts only Sites.Selected (existing exact Graph-prefix
+normalization and OIDC metadata handling retained). Mail permissions belong to the
+separate Operations authentication path and do not widen schema acceptance.
+Outlook's default transport rejects redirects and excludes Authorization from
+redirectable headers. Reads are capped at 1,048,576 response bytes; Operations
+rejects pages exceeding 50 records before that page is persisted, independently
+of byte size. Up to 100 pages and a 31-day window remain the existing total bounds.
+Attachment containers and projected metadata types are checked on ingestion,
+Event construction, decoding and serialization before storage. Invalid records
+are counted as failures; previously committed pages remain replay-safe on retry.
+These controls do not establish current live mailbox access or protected Windows
+runtime support.

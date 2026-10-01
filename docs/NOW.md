@@ -1,5 +1,7 @@
 # EDN Operations v1
 
+> October pre-promotion correction: UWC no-flow/submission statements below describe the recorded August stage. Later excluded branch 839e75c records a blocked Developer flow/binding attempt. No working capture path or current production state is verified. See [authority reconciliation](sprint/AUTHORITY-RECONCILIATION.md).
+
 ## Current objective
 Build EDN Operations Inbox: one local view of incoming business activity.
 Adapt the existing Python, SQLite, Streamlit and Microsoft Graph stack.

@@ -333,12 +333,7 @@ def test_invalid_result_has_safe_reason():
     "scope",
     [
         "Sites.Selected",
-        "Sites.Selected User.Read",
-        "Sites.Selected Mail.Read",
-        "Sites.Selected Calendars.Read",
-        "Sites.Selected User.Read Mail.Read Calendars.Read",
         "https://graph.microsoft.com/Sites.Selected openid profile",
-        "Sites.Selected https://graph.microsoft.com/Mail.Read",
     ],
 )
 def test_expected_identity_and_scopes_pass(scope):
@@ -410,6 +405,10 @@ def test_scope_diagnostic_redacts_arbitrary_material_and_preserves_casing(capsys
 @pytest.mark.parametrize(
     "scope",
     [
+        "Sites.Selected User.Read",
+        "Sites.Selected Mail.Read",
+        "Sites.Selected Calendars.Read",
+        "Sites.Selected https://graph.microsoft.com/Mail.Read",
         "Sites.Selected Unknown.Read",
         "Sites.Selected mail.read",
         "Sites.Selected Mail.ReadWrite",
@@ -424,7 +423,7 @@ def test_unapproved_or_similar_scopes_fail(scope):
         module.validate_auth(result)
 
 
-def test_shared_scopes_do_not_expand_operation_authority(monkeypatch):
+def test_shared_scopes_rejected_before_transport_or_executor(monkeypatch):
     monkeypatch.setattr(module, "check_storage", lambda *args: None)
     result = auth()
     result["scope"] = "Sites.Selected User.Read Mail.Read Calendars.Read"
@@ -434,8 +433,10 @@ def test_shared_scopes_do_not_expand_operation_authority(monkeypatch):
     monkeypatch.setattr(module, "SchemaHttpTransport", Mock())
     executor = Mock()
     monkeypatch.setattr(module, "SchemaExecutor", executor)
-    module.launch()
-    assert executor.call_args.args[0].scopes == frozenset({"Sites.Selected"})
+    with pytest.raises(SchemaInspectionError, match="authentication_delivery_failed"):
+        module.launch()
+    module.SchemaHttpTransport.assert_not_called()
+    executor.assert_not_called()
     assert app.acquire_token_interactive.call_args.kwargs["scopes"] == list(
         module.SCOPES
     )

@@ -1,0 +1,472 @@
+{
+  "baseline_sha": "48d902ef9e98c17c0488bc7164d3d9bf9c0a01a9",
+  "python": "3.12.14",
+  "os": "Windows",
+  "known_failures": [
+    {
+      "id": "tests.connectors.local_files.test_local_files::test_filesystem_root_and_unsafe_symlink_mode_are_rejected",
+      "category": "posix_root_assertion_on_windows",
+      "required_signature": "approved root must be absolute"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_grant_persists_across_restart_and_audit_is_metadata_only",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_fresh_session_resolves_exact_active_grant",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_active_grant_resolution_fails_on_expiry_scope_drift_and_ambiguity",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_fresh_session_resolution_fails_on_any_grant_tampering",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_expiry_revocation_and_kill_switch_fail_closed",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_revocation_invalidates_already_claimed_operation",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_identity_branch_repository_scope_and_unknown_drift_fail_closed[changes0]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_identity_branch_repository_scope_and_unknown_drift_fail_closed[changes1]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_identity_branch_repository_scope_and_unknown_drift_fail_closed[changes2]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_identity_branch_repository_scope_and_unknown_drift_fail_closed[changes3]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_identity_branch_repository_scope_and_unknown_drift_fail_closed[changes4]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_identity_branch_repository_scope_and_unknown_drift_fail_closed[changes5]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_identity_branch_repository_scope_and_unknown_drift_fail_closed[changes6]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_symlink_path_attack_is_denied",
+      "category": "windows_symlink_privilege",
+      "required_signature": "[WinError 1314]"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_tampering_fails_integrity_validation",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_metadata_audit_tampering_fails_closed",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_claim_row_tampering_fails_integrity_validation",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_replay_and_concurrent_double_claim_are_denied",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_crash_leaves_claim_non_replayable",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_pa009_boundary_drift_cannot_consume_delegation[provider-other.provider]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_pa009_boundary_drift_cannot_consume_delegation[model-other-model]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_pa009_boundary_drift_cannot_consume_delegation[categories-value2]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_pa009_boundary_drift_cannot_consume_delegation[credential_mechanism-new-secret]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_pa009_boundary_drift_cannot_consume_delegation[security_domain-PERSONAL]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_pa009_boundary_drift_cannot_consume_delegation[classification_level-public]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_pa009_boundary_drift_cannot_consume_delegation[max_requests_per_day-3]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_pa009_boundary_drift_cannot_consume_delegation[max_successes_per_day-2]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_pa009_boundary_drift_cannot_consume_delegation[max_retries_per_day-2]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_pa009_boundary_drift_cannot_consume_delegation[max_daily_spend_aud-3.0]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_pa009_boundary_drift_cannot_consume_delegation[max_monthly_spend_aud-21.0]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_pa009_boundary_drift_cannot_consume_delegation[max_output_tokens-2001]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_pa009_boundary_drift_cannot_consume_delegation[preflight_hash-]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_pa009_boundary_drift_cannot_consume_delegation[underlying_controls_verified-False]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_pa009_claim_does_not_modify_independent_budget_ledger",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_pa005_requires_exact_existing_scope_and_underlying_controls",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_git_requires_validation_and_exact_existing_upstream",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegated_authority::test_unsafe_permissions_symlink_store_and_duplicate_grant_fail_closed",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegation_cli::test_resolve_emits_only_bounded_authority_metadata",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegation_cli::test_claim_validate_complete_and_restart_status",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegation_cli::test_cli_claim_never_executes_claimed_repository_operation",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegation_cli::test_pa009_dispatch_requires_exact_independent_control_markers",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegation_cli::test_pa009_dispatch_rejects_noncanonical_preflight_hash",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegation_cli::test_unknown_operation_scope_drift_and_bad_id_fail_closed",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegation_cli::test_expiry_revocation_and_audit_tampering_block_cli",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.development.test_delegation_cli::test_completed_or_missing_claim_cannot_be_completed_again",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_audit_store::test_durable_audit_permissions_atomic_chain_and_separate_process_readback",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_audit_store::test_durable_audit_detects_tampering_and_unsafe_paths",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_budget_store::test_restart_persistence_two_request_retry_success_and_replay",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_budget_store::test_daily_monthly_spend_and_rollovers",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_budget_store::test_concurrent_admission_cannot_double_spend",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_budget_store::test_crash_reservations_and_unknown_transport_remain_counted",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_budget_store::test_historical_activity_bootstrap_fails_closed_until_next_month",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_budget_store::test_owner_opening_balance_blocks_today_persists_and_rolls_month",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_budget_store::test_opening_carry_is_charged_and_tampering_fails_closed",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_budget_store::test_permissions_symlink_and_corruption_fail_closed",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_reconciliation::test_reconciliation_classifies_and_safely_resolves_all_states",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_reconciliation::test_reconciliation_never_revives_or_dispatches_claims",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_reconciliation::test_corrupt_or_unsafe_envelopes_remain_fail_closed",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_projection_survives_process_boundary_and_dispatches_once",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_crash_after_transport_start_is_durably_recoverable_and_not_replayable",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_changed_envelope_invalidates_owner_hash[request]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_changed_envelope_invalidates_owner_hash[model]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_changed_envelope_invalidates_owner_hash[policy]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_changed_envelope_invalidates_owner_hash[category]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_changed_envelope_invalidates_owner_hash[count]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_changed_envelope_invalidates_owner_hash[value]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_provider_configuration_model_and_policy_changes_fail_closed",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_expiry_unsafe_permissions_and_missing_projection_block",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_prohibited_content_and_kill_switch_never_persist_or_dispatch",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_terminal_failure_destroys_envelope_and_preserves_fallback",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_only_one_retryable_failure_can_restore_across_processes",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_non_valid_provider_results_never_persist[incomplete]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_non_valid_provider_results_never_persist[refusal]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_non_valid_provider_results_never_persist[citation]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_non_valid_provider_results_never_persist[schema]",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_terminal_authentication_failure_never_persists_result",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_result_handoff_failure_is_terminal_and_does_not_strand_claim",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_initial_success_is_one_transport_and_zero_retries",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_retryable_initial_failure_then_success_is_exactly_two_transports",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_retryable_initial_failure_then_failed_retry_falls_back",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_retry_authority_mismatch_blocks_second_transport",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_tampered_retry_failure_metadata_blocks_before_transport",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_spend_budget_can_block_retry_without_losing_initial_failure",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_terminal_retry_consumption_blocks_replay",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_preflight_store::test_retry_audit_contains_metadata_only",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_result_store::test_validated_result_persists_and_survives_process_restart",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_result_store::test_owner_review_preserves_types_uncertainty_citations_and_proposal_boundary",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_result_store::test_serialized_result_is_closed_and_excludes_prohibited_data",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_result_store::test_tampering_duplicate_and_unsafe_permissions_fail_closed",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_result_store::test_symlink_paths_and_citation_mismatch_fail_closed",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    },
+    {
+      "id": "tests.intelligence.test_provider_result_store::test_expiry_fails_closed_and_removes_result_without_authority",
+      "category": "missing_posix_geteuid",
+      "required_signature": "module 'os' has no attribute 'geteuid'"
+    }
+  ],
+  "expected_total_tests": 1068,
+  "known_skips": [
+    "tests.connectors.local_files.test_local_files::test_path_traversal_symlink_escape_and_exclusion_are_rejected"
+  ],
+  "collection_floor_provenance": "October repair tree; 48d902e failure identities/signatures remain unchanged"
+}

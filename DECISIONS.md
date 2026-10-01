@@ -20,3 +20,16 @@ This register indexes evidence and distinguishes established constraints from Oc
 Detailed IMS decisions remain in [IMS decision log](docs/ims/EDN-IMS-Decision-Log.md), architecture reviews and owner packs. These records have their own dates/scope. Do not reinterpret dated decisions as permission for a new October deployment.
 
 For a significant new decision, record date, owner, status (proposed/accepted/superseded), exact scope, alternatives, rationale, security/data impact, compatibility, acceptance/rollback and linked issue/PR. An accepted entry needs owner evidence. Rejected alternatives should explain a real tradeoff, not create speculative architecture. When superseding an entry, retain its history and link the successor.
+
+## October pre-promotion repairs — 1 October 2026
+
+Retain all six Operations commits and the existing SQLite/Streamlit/Graph design.
+Restore exact Sites.Selected acceptance on the schema-only launcher: shared-app
+scope documentation does not demonstrate a necessary approved use case for wider
+acceptance. Retain redacted diagnostics and fixed identity/request controls.
+Add redirect rejection, independent byte/page-record caps and typed metadata
+validation as local security fixes. PR checks gate Linux strictly and permit only
+the exact documented Windows baseline identities/signatures. Separate UWC flow
+assets remain excluded. Promotion remains HOLD until Linux runtime and hosted
+PR-workflow checks validate the exact repair candidate; main has not been made
+authoritative.

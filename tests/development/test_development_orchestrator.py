@@ -292,10 +292,7 @@ def test_real_state_accepts_only_declared_local_runtime_paths() -> None:
     state = DevelopmentStateStore(
         root / "config/intelligence-core-development-state.json"
     ).load()
-    expected = (
-        ".venv-wsl/",
-        "docs/intelligence-core/PA-005-OWNER-LIVE-SOURCE-ACTIVATION-PACK.md",
-    )
+    expected: tuple[str, ...] = ()
 
     assert state.expected_dirty_paths == expected
     assert validate_repository(

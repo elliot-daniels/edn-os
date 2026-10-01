@@ -29,7 +29,7 @@ Issue states: proposed -> ready -> claimed -> in progress -> review -> accepted/
 
 OCT-02 proposes a Linux PR workflow for the agreed integration target: install `.[dev]`, full pytest with JUnit, Ruff, strict mypy, relevant config/frozen-manifest integrity checks and whitespace validation. Use read-only repository permissions, no source credentials, no live APIs or real datasets. Avoid exposing private artifacts. Treat PowerShell/Pester tests separately for installer changes.
 
-Current `chore/uwc-linux-validation` workflow triggers only for its own branch/manual dispatch. It is not an all-PR required check. The inspected Operations branch has no CI workflow. Branch protection, reviewer enforcement and staging availability are unverified; OCT-02's report must state what was actually configured versus merely recommended.
+Current `chore/uwc-linux-validation` workflow triggers only for its own branch/manual dispatch. It is not an all-PR required check. The audited Operations base had no CI workflow. The repair candidate adds `.github/workflows/pr-checks.yml` for all PR targets, merge-group and manual execution; it has not run on GitHub. Branch protection, reviewer enforcement and staging availability are unverified; OCT-02's report must state what was actually configured versus merely recommended.
 
 Windows has 92 baseline failures; preserve a machine-readable identity comparison on each relevant change. No new failures are acceptable. A known Windows baseline does not permit a failing Linux release gate. Linux-targeted type checking is not runtime acceptance. Do not suppress security tests to achieve green.
 
@@ -50,3 +50,20 @@ Promotion requires the exact candidate SHA, successful required checks, approved
 ## Definition of done and October evaluation
 
 Done means acceptance behavior demonstrated, no new regressions, required checks on current SHA, independent review, docs current, rollback understood and owner merge approval recorded. Live acceptance is a separate status. Track accepted tickets, cycle time, Elliot minutes per ticket, review defects/rework, regressions, blocked time, agent/tool spend and autonomous completion within scope. Review weekly on 8, 15, 22 and 29 October; final evaluation on 31 October (Sydney dates). No reminder or automation was created.
+
+Pre-promotion status: HOLD. Proposed PR checks and reconciled authority state are prepared locally; original 48d902e remains unchanged and has not been promoted. See [authority reconciliation](docs/sprint/AUTHORITY-RECONCILIATION.md).
+
+## Exact-candidate validation handover
+
+Use the SHA in the repair delivery report, never a moving branch name as evidence.
+Proposed required checks are `Linux synthetic validation (3.11)`,
+`Linux synthetic validation (3.12)` and `Windows baseline regression guard`.
+Confirm their actual hosted names before configuring protection; settings changes
+require Elliot's separate authority. Linux requires zero failures and no broad
+security skips. Windows runs every Python test, then matches only the 92 audited
+identities/signatures and the one known skip; resolved failures are allowed and
+new failures/skips/errors/missing baseline cases or collection shrinkage fail.
+Do not introduce source credentials. IMS Pester checks remain separate for IMS
+changes and require an offline environment with the command surface needed for
+mocking; missing PnP commands are environmental failures, not tenant access.
+See docs/sprint/PREPROMOTION-REPAIRS.md for exact local results and remaining gates.

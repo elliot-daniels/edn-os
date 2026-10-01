@@ -49,8 +49,9 @@ class _Response:
     def __exit__(self, *_args):
         return None
 
-    def read(self) -> bytes:
-        return json.dumps(self.value).encode()
+    def read(self, size: int = -1) -> bytes:
+        content = json.dumps(self.value).encode()
+        return content if size < 0 else content[:size]
 
 
 class _Token:

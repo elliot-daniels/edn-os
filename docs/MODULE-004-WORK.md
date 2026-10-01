@@ -1,5 +1,7 @@
 # Module 004 — Work
 
+> October pre-promotion correction: UWC no-flow/submission statements below describe the recorded August stage. Later excluded branch 839e75c records a blocked Developer flow/binding attempt. No working capture path or current production state is verified. See [authority reconciliation](sprint/AUTHORITY-RECONCILIATION.md).
+
 > **Knowledge Compounds.**
 
 Status: **Approved for Universal Work Capture V1 only**

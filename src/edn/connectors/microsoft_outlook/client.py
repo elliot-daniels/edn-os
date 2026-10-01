@@ -33,6 +33,20 @@ class GraphOutlookClient(Protocol):
     def account(self) -> dict[str, Any]: ...
 
 
+MAX_RESPONSE_BYTES = 1_048_576
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(
+        self, req: Any, fp: Any, code: int, msg: str, headers: Any, newurl: str
+    ) -> None:
+        raise urllib.error.URLError("Graph redirects are not permitted")
+
+
+def _open_without_redirects(request: urllib.request.Request, **kwargs: Any) -> Any:
+    return urllib.request.build_opener(_NoRedirectHandler()).open(request, **kwargs)
+
+
 class MicrosoftGraphOutlookClient:
     """GET-only bounded Graph client with an explicit metadata projection."""
 
@@ -46,11 +60,11 @@ class MicrosoftGraphOutlookClient:
         self,
         token_provider: TokenProvider,
         *,
-        opener: Callable[..., Any] = urllib.request.urlopen,
+        opener: Callable[..., Any] | None = None,
         prefer: str | None = None,
     ) -> None:
         self._token_provider = token_provider
-        self._opener = opener
+        self._opener = opener or _open_without_redirects
         self._prefer = prefer
         self._token: str | None = None
         self._inbox_id: str | None = None
@@ -116,20 +130,28 @@ class MicrosoftGraphOutlookClient:
         return tuple(cast(dict[str, Any], item) for item in raw[:limit])
 
     def _get(self, url: str) -> dict[str, Any]:
+        parsed = urllib.parse.urlsplit(url)
+        if (parsed.scheme, parsed.netloc) != ("https", "graph.microsoft.com"):
+            raise ValueError("Outlook reads require the exact Graph HTTPS origin")
         if self._token is None:
             self._token = self._token_provider.acquire_token()
         request = urllib.request.Request(
             url,
             headers={
-                "Authorization": f"Bearer {self._token}",
                 "Accept": "application/json",
                 **({"Prefer": self._prefer} if self._prefer else {}),
             },
             method="GET",
         )
+        # Default transport rejects redirects. Unredirected credentials also
+        # prevent credential copying by urllib if an alternate opener is injected.
+        request.add_unredirected_header("Authorization", f"Bearer {self._token}")
         try:
             with self._opener(request, timeout=30) as response:
-                value = json.loads(response.read())
+                content = response.read(MAX_RESPONSE_BYTES + 1)
+                if len(content) > MAX_RESPONSE_BYTES:
+                    raise SourceUnavailableError("Graph response exceeds byte limit")
+                value = json.loads(content)
         except (urllib.error.URLError, TimeoutError) as error:
             raise SourceUnavailableError(
                 "Microsoft Graph Outlook read failed safely"
@@ -139,4 +161,4 @@ class MicrosoftGraphOutlookClient:
         return value
 
 
-# This client cannot send, mutate, retrieve bodies, MIME content, or attachments.
+# Legacy methods remain metadata-only; Operations supplies its own content projection.

@@ -5,6 +5,8 @@ description: Continue EDN Intelligence Core development from repository-owned st
 
 # EDN Intelligence Core Builder
 
+October audit restriction: read AGENTS.md and docs/sprint/AUTHORITY-RECONCILIATION.md first. Historical state/policy never confers current live authority. No push, merge, rebase, reset or deployment is authorized in this audit; the checkpoint-push step below is historical guidance subordinate to current owner instructions.
+
 Continue routine development autonomously while treating repository artifacts—not chat history—as the source of truth.
 
 ## Reconstruct the project

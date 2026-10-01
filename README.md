@@ -1,5 +1,7 @@
 # EDN OS
 
+> October pre-promotion correction: UWC no-flow/submission statements below describe the recorded August stage. Later excluded branch 839e75c records a blocked Developer flow/binding attempt. No working capture path or current production state is verified. See [authority reconciliation](docs/sprint/AUTHORITY-RECONCILIATION.md).
+
 > Build the world's best operating system for specialist engineering consultancies.
 
 ---

@@ -1,5 +1,22 @@
 # Current state — 1 October 2026
 
+> October pre-promotion correction: UWC no-flow/submission statements below describe the recorded August stage. Later excluded branch 839e75c records a blocked Developer flow/binding attempt. No working capture path or current production state is verified. See [authority reconciliation](docs/sprint/AUTHORITY-RECONCILIATION.md).
+
+## October repair candidate
+
+Candidate branch: `feature/october-prepromotion-repairs`, based on immutable
+`48d902ef9e98c17c0488bc7164d3d9bf9c0a01a9`. This branch retains all six Operations
+commits. The exact candidate SHA is Git HEAD and is supplied in the external
+repair delivery report; no main branch has been promoted. Separate UWC solution
+flow assets remain excluded. See [repair evidence](docs/sprint/PREPROMOTION-REPAIRS.md).
+
+Repairs restore exact Sites.Selected schema authentication, reject default
+Outlook redirects, enforce 1 MiB response reads independently of the 50-record
+Operations page cap, and validate attachment metadata before storage/decoding.
+Current authority/configuration and proposed PR checks are reconciled locally.
+The implementation and prior verification below remain historical audit evidence;
+current repair validation is recorded in the linked repair document.
+
 ## Inspected baseline and remote divergence
 
 Implementation audited at `0b2a0bac1419af32106bf1c17a388f3e9b0cdd5f` on local `feature/operations-v1`. Original checkout was clean and remains untouched. Onboarding was prepared in a separate clone on `docs/october-agent-onboarding`. This snapshot describes the implementation parent; the documentation commit is identified by Git history.
@@ -47,7 +64,7 @@ The prior Operations handoff reports the untouched parent `2ed21c6` as 912 passe
 | Module numbers/names in old specs and module map | e.g. MODULE-002-ASK-EDN vs MOD-002 Retrieval, MODULE-003-KNOWLEDGE vs MOD-003 Identity | Preserve identifiers; OCT-09 resolves ownership ambiguity |
 | Dated post-Alpha review says PDF/DOCX unsupported and provider absent | PA-002 and later provider boundary code exist | Treat review as historical; provider presence is not live authority |
 | docs/NOW.md says current Outlook is metadata-only | Legacy connector default is metadata-only; explicit Operations path reads bodies | Clarify distinct paths; preserve legacy boundary |
-| CI available on UWC branch | Operations branch has no .github/workflows | PR checks proposed, not enforced; OCT-02 |
+| CI only on isolated UWC branch at audit | Repair candidate adds all-PR checks | Prepared locally; hosted execution and required protection remain unverified; OCT-02 |
 | Work Log schema active / maker source saved | Historical records only | No current live acceptance claim; approvals require fresh review |
 
 Branch protection, required reviews, staging availability, credential validity, encryption and current deployed version were not verified. Readiness is conditional for synthetic repository work; live operation and production release remain blocked on owner-controlled evidence.

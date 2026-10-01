@@ -42,3 +42,5 @@ Linux is needed to validate the POSIX protected stores. `python -m mypy --platfo
 ## Completion and handover
 
 Provide the issue ID, base and head SHAs, changed behavior, test commands/results, failure identities, security impact, documentation updates and rollback method. List remaining limits and owner decisions. GitHub issue/PR evidence and versioned repository documentation are the durable record; neither Dot's nor Grok's memory is authoritative.
+
+Pre-promotion status: HOLD. Proposed PR checks and reconciled authority state are prepared locally; original 48d902e remains unchanged and has not been promoted. See [authority reconciliation](docs/sprint/AUTHORITY-RECONCILIATION.md).

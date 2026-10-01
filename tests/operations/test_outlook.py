@@ -30,8 +30,9 @@ class Response:
     def __exit__(self, *args):
         pass
 
-    def read(self):
-        return json.dumps(self.payload).encode()
+    def read(self, size=-1):
+        content = json.dumps(self.payload).encode()
+        return content if size < 0 else content[:size]
 
 
 def message(identifier="m1", **changes):
