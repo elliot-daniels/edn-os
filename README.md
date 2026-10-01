@@ -30,24 +30,19 @@ Current delivery objective: **EDN Operations Inbox**. See
 Inbox behavior. The existing email-memory UI remains available through the
 page selector.
 
-### Module 000 — Foundation
+### Engineer onboarding and implemented state
 
-Architecture definition in progress.
+Start with [AGENTS.md](AGENTS.md), then [CURRENT_STATE.md](CURRENT_STATE.md).
+The repository includes implemented Foundation primitives, historical email
+Memory/import/search, retrieval, extractive Ask EDN, evidence-linked knowledge
+graph, governed Intelligence/connectors/jobs and local Operations Inbox.
+Some module specifications describe earlier design intent; implemented state,
+test evidence and discrepancies are recorded in the onboarding layer.
 
-### Module 001 — Memory
-
-Architecture approved; implementation follows Foundation.
-
-Initial implementation objectives (Outlook PST archives):
-
-- [ ] Register source archive and verify PST fingerprint
-- [ ] Complete PST extractor proof of concept (libpff vs readpst)
-- [ ] Select the ingestion adapter (validate Python version compatibility)
-- [ ] Import message metadata, participants, and bodies
-- [ ] Extract and catalogue attachments with full metadata
-- [ ] Store records in SQLite under `E:\EDN OS`
-- [ ] Implement SQLite FTS5 keyword search with resolved provenance
-- [ ] Handle partial failures and produce machine-readable import reports
+See [Architecture](ARCHITECTURE.md), [Data model](DATA_MODEL.md),
+[Integrations](INTEGRATIONS.md), [Security](SECURITY.md), [Decisions](DECISIONS.md),
+[October roadmap](ROADMAP.md) and [multi-agent workflow](MULTI_AGENT_WORKFLOW.md).
+Synthetic implementation is distinct from live source acceptance or release.
 
 ### Module 004 — Work
 
