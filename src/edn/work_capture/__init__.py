@@ -1,0 +1,53 @@
+"""Canonical EDN work-capture contracts and deterministic projections."""
+
+from edn.work_capture.models import (
+    ActorRef,
+    BillingTreatment,
+    CaptureDraft,
+    CaptureMethod,
+    EntityRef,
+    EvidenceKind,
+    EvidenceRef,
+    EvidenceRequirement,
+    EvidenceStatus,
+    FollowUp,
+    OutcomeStatus,
+    PhotoPolicy,
+    ProjectDefaults,
+    RateClass,
+    TechnicalValue,
+    WorkCapture,
+    WorkType,
+)
+from edn.work_capture.service import (
+    ProjectionDestination,
+    ProjectionIntent,
+    ProjectionMode,
+    WorkCapturePlan,
+    compile_capture,
+)
+
+__all__ = [
+    "ActorRef",
+    "BillingTreatment",
+    "CaptureDraft",
+    "CaptureMethod",
+    "EntityRef",
+    "EvidenceKind",
+    "EvidenceRef",
+    "EvidenceRequirement",
+    "EvidenceStatus",
+    "FollowUp",
+    "OutcomeStatus",
+    "PhotoPolicy",
+    "ProjectDefaults",
+    "ProjectionDestination",
+    "ProjectionIntent",
+    "ProjectionMode",
+    "RateClass",
+    "TechnicalValue",
+    "WorkCapture",
+    "WorkCapturePlan",
+    "WorkType",
+    "compile_capture",
+]

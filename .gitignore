@@ -36,6 +36,12 @@ logs/
 attachments/
 indexes/
 exports/
+SharePointInventory/
+GapAssessment/
+*.sharepoint-gap-assessment.json
+EDN-SharePoint-Gap-Assessment-Generated.md
+*.tenant-inventory.json
+*.sharepoint-inventory.json
 poc/output/
 **/probe_libpff.json
 **/probe_readpst.json

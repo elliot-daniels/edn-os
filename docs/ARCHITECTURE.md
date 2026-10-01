@@ -1,5 +1,7 @@
 # EDN OS Architecture
 
+> Onboarding note (1 October 2026): This document preserves earlier Foundation/Memory design intent. For the current implementation inventory and schema discrepancies, read [implemented architecture](../ARCHITECTURE.md), [data model](../DATA_MODEL.md) and [current state](../CURRENT_STATE.md). No redesign or migration is implied.
+
 Implementation-oriented system structure for EDN OS. The full module catalogue,
 ownership map, and dependency rules are in `MODULE-MAP.md`.
 

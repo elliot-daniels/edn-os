@@ -1,0 +1,1262 @@
+{
+  "roadmap_id": "intelligence-core-post-alpha",
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "task_id": "IC-008",
+      "objective": "Provide governed source-neutral retrieval and bounded context.",
+      "prerequisites": [],
+      "authority_actions": [],
+      "risk": "high",
+      "expected_components": [
+        "src/edn/intelligence"
+      ],
+      "acceptance_criteria": [
+        "Implemented and validated before IC-DEV-001"
+      ],
+      "required_tests": [],
+      "stop_conditions": [],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": [
+        "IC-009",
+        "IC-010"
+      ]
+    },
+    {
+      "task_id": "IC-009",
+      "objective": "Provide the tested Calendar-aware conversational Alpha implementation.",
+      "prerequisites": [
+        "IC-008"
+      ],
+      "authority_actions": [],
+      "risk": "high",
+      "expected_components": [
+        "src/edn/connectors/microsoft_calendar",
+        "src/edn/intelligence"
+      ],
+      "acceptance_criteria": [
+        "Synthetic implementation and corrected count reporting validated"
+      ],
+      "required_tests": [],
+      "stop_conditions": [],
+      "dependencies": [
+        "IC-008"
+      ],
+      "status": "completed",
+      "successor_tasks": [
+        "IC-009-LIVE",
+        "IC-010"
+      ]
+    },
+    {
+      "task_id": "IC-DEV-001",
+      "objective": "Build the governed autonomous development-control layer.",
+      "prerequisites": [
+        "IC-009"
+      ],
+      "authority_actions": [
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "config.development.write",
+        "state.development.write"
+      ],
+      "risk": "medium",
+      "expected_components": [
+        "src/edn/development",
+        "config",
+        "tests/development",
+        ".codex/skills"
+      ],
+      "acceptance_criteria": [
+        "Fresh session reconstructs state",
+        "Authority fails closed",
+        "Bounded repair and review loop passes dogfood scenarios"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "Unexpected repository state",
+        "Owner authority boundary",
+        "Repeated identical failure",
+        "Elapsed or task budget exhausted"
+      ],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": [
+        "IC-010"
+      ]
+    },
+    {
+      "task_id": "IC-009-LIVE",
+      "objective": "Validate the read-only Calendar connector with owner-interactive authentication.",
+      "prerequisites": [
+        "IC-DEV-001"
+      ],
+      "authority_actions": [
+        "authentication.interactive",
+        "data.new_access"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "protected live evidence outside Git"
+      ],
+      "acceptance_criteria": [
+        "Calendar count reconciliation and provenance verified"
+      ],
+      "required_tests": [
+        "owner-approved live validation"
+      ],
+      "stop_conditions": [
+        "No owner-approval",
+        "Scope drift",
+        "Authentication unavailable"
+      ],
+      "dependencies": [
+        "microsoft-graph"
+      ],
+      "status": "blocked",
+      "successor_tasks": [
+        "IC-010"
+      ]
+    },
+    {
+      "task_id": "IC-010",
+      "objective": "Implement the deterministic Daily Intelligence brief using authorised source adapters and synthetic Calendar fixtures.",
+      "prerequisites": [
+        "IC-008",
+        "IC-009"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "synthetic.fixture.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare"
+      ],
+      "risk": "medium",
+      "expected_components": [
+        "src/edn/intelligence",
+        "src/edn/ui",
+        "tests/intelligence",
+        "docs/intelligence-core"
+      ],
+      "acceptance_criteria": [
+        "Zero-to-ten priorities",
+        "Every priority has evidence, confidence and next action",
+        "Unknown and capability gaps remain explicit",
+        "No live source access in automated tests"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "New external permission required",
+        "Security-domain ambiguity",
+        "Material architecture change"
+      ],
+      "dependencies": [
+        "IC-008",
+        "IC-009"
+      ],
+      "status": "completed",
+      "successor_tasks": [
+        "IC-011"
+      ]
+    },
+    {
+      "task_id": "IC-011",
+      "objective": "Add a durable authority-bound session reference store.",
+      "prerequisites": [
+        "IC-010"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare"
+      ],
+      "risk": "medium",
+      "expected_components": [
+        "src/edn/intelligence",
+        "tests/intelligence"
+      ],
+      "acceptance_criteria": [
+        "Restart preserves references without widening authority",
+        "Removed authority tombstones evidence"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "Sensitive transcript persistence",
+        "Security-domain ambiguity"
+      ],
+      "dependencies": [
+        "IC-010"
+      ],
+      "status": "completed",
+      "successor_tasks": [
+        "IC-012"
+      ]
+    },
+    {
+      "task_id": "IC-012",
+      "objective": "Implement internal draft and action planning with human approval state.",
+      "prerequisites": [
+        "IC-011"
+      ],
+      "authority_actions": [
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "human_authority.change"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn/intelligence",
+        "src/edn/core"
+      ],
+      "acceptance_criteria": [
+        "Draft cannot execute",
+        "Human approval remains authoritative"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn"
+      ],
+      "stop_conditions": [
+        "Human authority boundary change without approval"
+      ],
+      "dependencies": [
+        "IC-011"
+      ],
+      "status": "completed",
+      "successor_tasks": [
+        "PA-001",
+        "PA-002",
+        "PA-003"
+      ]
+    },
+    {
+      "task_id": "PA-001",
+      "objective": "Wire a durable owner runtime, truthful capability health, startup diagnostics and non-executing proposal review UX.",
+      "prerequisites": [
+        "IC-012"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "synthetic.fixture.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare",
+        "config.development.write"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn",
+        "tests",
+        "docs/intelligence-core"
+      ],
+      "acceptance_criteria": [
+        "SQLite sessions/proposals are default without transcript bodies",
+        "Owner sees exact capability gaps",
+        "Exact-hash approve/reject/supersede works and no executor exists"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "Sensitive transcript persistence",
+        "External execution",
+        "Security ambiguity",
+        "Material architecture change"
+      ],
+      "dependencies": [
+        "IC-012"
+      ],
+      "status": "completed",
+      "successor_tasks": [
+        "PA-004"
+      ]
+    },
+    {
+      "task_id": "PA-002",
+      "objective": "Add governed PDF/DOCX extraction and Local Files evidence retrieval using synthetic content only.",
+      "prerequisites": [
+        "IC-012"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "synthetic.fixture.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn",
+        "tests",
+        "docs/intelligence-core"
+      ],
+      "acceptance_criteria": [
+        "Synthetic documents yield bounded provenance",
+        "Malformed/encrypted/changed content fails closed",
+        "PERSONAL cannot enter EDN context",
+        "No owner root is accessed"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "Owner content required",
+        "External parser service",
+        "Domain loss",
+        "Unbounded expansion"
+      ],
+      "dependencies": [
+        "IC-012"
+      ],
+      "status": "completed",
+      "successor_tasks": [
+        "PA-004"
+      ]
+    },
+    {
+      "task_id": "PA-003",
+      "objective": "Implement bounded read-only current Outlook mail retrieval using synthetic Graph fixtures only.",
+      "prerequisites": [
+        "IC-012"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "synthetic.fixture.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn",
+        "tests",
+        "docs/intelligence-core"
+      ],
+      "acceptance_criteria": [
+        "Read/search/verify only",
+        "Mailbox provenance and scope retained",
+        "Bodies/attachments excluded absent authority",
+        "No live call or mutation"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "Authentication",
+        "New permission",
+        "External access",
+        "Mail mutation"
+      ],
+      "dependencies": [
+        "IC-012"
+      ],
+      "status": "completed",
+      "successor_tasks": [
+        "PA-004"
+      ]
+    },
+    {
+      "task_id": "PA-004",
+      "objective": "Provide progressive capability onboarding ranked by decision value, density, recurrence, freshness and administrative leverage.",
+      "prerequisites": [
+        "PA-001",
+        "PA-002",
+        "PA-003"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "synthetic.fixture.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare",
+        "config.development.write"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn",
+        "tests",
+        "docs/intelligence-core"
+      ],
+      "acceptance_criteria": [
+        "Owner sees readiness and exact missing steps",
+        "Counts/bytes are capacity inputs only",
+        "Requests are exact and rejectable"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "Authority auto-grant",
+        "Volume-only ranking",
+        "Overbroad permission"
+      ],
+      "dependencies": [
+        "PA-001",
+        "PA-002",
+        "PA-003"
+      ],
+      "status": "completed",
+      "successor_tasks": [
+        "PA-005",
+        "PA-006"
+      ]
+    },
+    {
+      "task_id": "PA-005-READY",
+      "objective": "Make the approved PA-005 source set executable without live access.",
+      "prerequisites": [
+        "PA-002",
+        "PA-003",
+        "PA-004"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "synthetic.fixture.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn/connectors",
+        "src/edn/intelligence",
+        "tests",
+        "docs/intelligence-core"
+      ],
+      "acceptance_criteria": [
+        "Combined delegated consent is exactly User.Read, Calendars.Read and Mail.Read",
+        "Calendar, Inbox and selected-file runners are bounded and fail closed",
+        "Synthetic validation performs no live authentication or source access"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "Live authentication",
+        "Live source access",
+        "Permission broadening",
+        "Source mutation"
+      ],
+      "dependencies": [
+        "PA-002",
+        "PA-003",
+        "PA-004"
+      ],
+      "status": "completed",
+      "successor_tasks": [
+        "PA-005"
+      ]
+    },
+    {
+      "task_id": "PA-005-AUTH-REPAIR",
+      "objective": "Replace Security-Defaults-blocked device code with delegated browser authorization-code/PKCE authentication.",
+      "prerequisites": [
+        "PA-005-READY"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn/connectors/microsoft_calendar",
+        "src/edn/intelligence",
+        "tests",
+        "docs/intelligence-core"
+      ],
+      "acceptance_criteria": [
+        "Browser authorization-code flow uses PKCE and no client secret",
+        "Token state is memory-only",
+        "Tenant, account and exact Graph scopes fail closed before source reads",
+        "No live retry occurs during repository validation"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "Tenant security weakening",
+        "Permission broadening",
+        "Token persistence",
+        "Live authentication during tests"
+      ],
+      "dependencies": [
+        "microsoft-identity-platform"
+      ],
+      "status": "completed",
+      "successor_tasks": [
+        "PA-005"
+      ]
+    },
+    {
+      "task_id": "PA-005-APP-BOUNDARY",
+      "objective": "Bind PA-005 to the dedicated single-tenant EDN Intelligence Core public application.",
+      "prerequisites": [
+        "PA-005-AUTH-REPAIR"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn/connectors/microsoft_calendar",
+        "src/edn/intelligence",
+        "tests",
+        "docs/intelligence-core"
+      ],
+      "acceptance_criteria": [
+        "Client is exactly 2381e4f6-44bc-4697-ad64-e86513cb9dee",
+        "Delegated Graph scopes are exactly User.Read, Calendars.Read and Mail.Read",
+        "User.Read is limited to authenticated-user identity verification",
+        "No authentication or Graph request occurs during repository validation"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "Application permission",
+        "Client secret",
+        "Permission broadening",
+        "Live authentication during tests"
+      ],
+      "dependencies": [
+        "microsoft-identity-platform"
+      ],
+      "status": "completed",
+      "successor_tasks": [
+        "PA-005"
+      ]
+    },
+    {
+      "task_id": "PA-005-INBOX-BINDING",
+      "objective": "Bind Graph native Inbox identity to the durable PA-005 `inbox` authority alias.",
+      "prerequisites": [
+        "PA-005-APP-BOUNDARY"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn/connectors/microsoft_outlook",
+        "src/edn/intelligence",
+        "tests"
+      ],
+      "acceptance_criteria": [
+        "Native Graph folder ID remains exact for retrieval and provenance",
+        "Durable authority uses only the approved `inbox` alias",
+        "No other mailbox folder becomes reachable"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "Folder scope broadening",
+        "Provenance loss",
+        "Mailbox write path"
+      ],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": [
+        "PA-005"
+      ]
+    },
+    {
+      "task_id": "PA-005-MAIL-PAGE-BOUNDARY",
+      "objective": "Ignore Graph continuation links while retaining exactly one bounded Inbox page.",
+      "prerequisites": [
+        "PA-005-INBOX-BINDING"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn/connectors/microsoft_outlook",
+        "tests/connectors/microsoft_outlook"
+      ],
+      "acceptance_criteria": [
+        "At most one Inbox messages GET occurs",
+        "At most 25 first-page messages are retained",
+        "Graph continuation links are never followed"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "Second page request",
+        "Retrieval limit broadening",
+        "Mailbox scope broadening"
+      ],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": [
+        "PA-005"
+      ]
+    },
+    {
+      "task_id": "PA-005-DOMAIN-BINDING",
+      "objective": "Bind admitted Microsoft evidence to the EDN Core tenant while independently verifying the Entra tenant.",
+      "prerequisites": [
+        "PA-005-MAIL-PAGE-BOUNDARY"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn/intelligence",
+        "tests/intelligence"
+      ],
+      "acceptance_criteria": [
+        "Entra tenant verification remains exact",
+        "Admitted evidence uses EDN Core tenant edn-local",
+        "Local Files, Calendar and Inbox evidence can share one domain boundary"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "Authentication tenant weakening",
+        "Domain ambiguity",
+        "Cross-domain evidence admission"
+      ],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": [
+        "PA-005"
+      ]
+    },
+    {
+      "task_id": "PA-005",
+      "objective": "Activate separately approved live Calendar, Outlook mail and selected Local Files sources.",
+      "prerequisites": [
+        "IC-009",
+        "PA-002",
+        "PA-003",
+        "PA-004",
+        "PA-005-READY",
+        "PA-005-AUTH-REPAIR",
+        "PA-005-APP-BOUNDARY",
+        "PA-005-INBOX-BINDING",
+        "PA-005-MAIL-PAGE-BOUNDARY",
+        "PA-005-DOMAIN-BINDING"
+      ],
+      "authority_actions": [
+        "authentication.interactive",
+        "data.new_access",
+        "external.permission.new"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn",
+        "tests",
+        "docs/intelligence-core"
+      ],
+      "acceptance_criteria": [
+        "Every source binds exact identity/scope/domain/retention",
+        "Calendar/mail counts reconcile",
+        "Only selected files ingest"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "No owner-approval",
+        "Authentication unavailable",
+        "Scope drift",
+        "Write permission"
+      ],
+      "dependencies": [
+        "IC-009",
+        "PA-002",
+        "PA-003",
+        "PA-004",
+        "PA-005-READY",
+        "PA-005-AUTH-REPAIR",
+        "PA-005-APP-BOUNDARY",
+        "PA-005-INBOX-BINDING",
+        "PA-005-MAIL-PAGE-BOUNDARY",
+        "PA-005-DOMAIN-BINDING"
+      ],
+      "status": "completed",
+      "successor_tasks": [
+        "PA-007"
+      ]
+    },
+    {
+      "task_id": "PA-006",
+      "objective": "Implement synthetic read-only Business OS SharePoint retrieval without coupling mutation tooling.",
+      "prerequisites": [
+        "PA-004"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "synthetic.fixture.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn",
+        "tests",
+        "docs/intelligence-core"
+      ],
+      "acceptance_criteria": [
+        "Business records retain field/security/freshness provenance",
+        "IMS mutation is unreachable",
+        "No live SharePoint access"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "Live access",
+        "Mutation path",
+        "Schema conflict",
+        "Material domain redesign"
+      ],
+      "dependencies": [
+        "PA-004"
+      ],
+      "status": "completed",
+      "successor_tasks": [
+        "PA-007"
+      ]
+    },
+    {
+      "task_id": "PA-007",
+      "objective": "Deliver freshness-aware Daily Intelligence over verified current evidence and evaluate owner usefulness.",
+      "prerequisites": [
+        "PA-005"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "synthetic.fixture.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn",
+        "tests",
+        "docs/intelligence-core"
+      ],
+      "acceptance_criteria": [
+        "Brief distinguishes decisions/commitments/changes/risks",
+        "Ranking uses freshness/corroboration/value",
+        "Gaps remain explicit",
+        "Representative day is owner-reviewed"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "Stale verification",
+        "Domain mixing",
+        "Ungrounded recommendation",
+        "No value after repair"
+      ],
+      "dependencies": [
+        "PA-005"
+      ],
+      "status": "completed",
+      "successor_tasks": [
+        "PA-008"
+      ]
+    },
+    {
+      "task_id": "PA-008",
+      "objective": "Add local scheduled internal briefs, observability, backup/restore and recovery; keep model intelligence and external execution as later owner-governed boundaries.",
+      "prerequisites": [
+        "PA-007"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "synthetic.fixture.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare",
+        "config.development.write"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn",
+        "tests",
+        "docs/intelligence-core"
+      ],
+      "acceptance_criteria": [
+        "No external delivery",
+        "Jobs are resumable and authority-aware",
+        "Protected backup/restore is tested",
+        "Later model/execution boundaries remain non-authorised"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "External effect",
+        "Production install needs owner",
+        "Backup leakage",
+        "Recovery loses authority"
+      ],
+      "dependencies": [
+        "PA-007"
+      ],
+      "status": "completed",
+      "successor_tasks": []
+    },
+    {
+      "task_id": "PA-009-SYNTHETIC",
+      "objective": "Build and validate a synthetic-only provider-neutral model/disclosure boundary without genuine EDN evidence disclosure.",
+      "prerequisites": [
+        "PA-008"
+      ],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "synthetic.fixture.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare",
+        "config.development.write",
+        "state.development.write"
+      ],
+      "risk": "high",
+      "expected_components": [
+        "src/edn/intelligence",
+        "tests/intelligence",
+        "docs/intelligence-core",
+        "config"
+      ],
+      "acceptance_criteria": [
+        "Disclosure decisions and minimum projections fail closed",
+        "Synthetic provider responses preserve provenance and uncertainty",
+        "Classification, domain, leakage and budget conformance passes",
+        "Local fallback and proposal-only boundaries remain available"
+      ],
+      "required_tests": [
+        "python -m pytest",
+        "python -m ruff check .",
+        "python -m mypy src/edn",
+        "git diff --check"
+      ],
+      "stop_conditions": [
+        "External provider access",
+        "Genuine evidence disclosure",
+        "Provider credentials",
+        "Classification or authority weakening"
+      ],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": [
+        "PA-009"
+      ]
+    },
+    {
+      "task_id": "PA-009-ADAPTER",
+      "objective": "Implement the disabled-by-default OpenAI Daily Intelligence adapter and synthetic/provider-boundary controls; stop before genuine EDN disclosure.",
+      "prerequisites": ["PA-009-SYNTHETIC"],
+      "authority_actions": [
+        "repository.read",
+        "code.development.write",
+        "test.development.write",
+        "documentation.write",
+        "synthetic.fixture.write",
+        "validation.pytest",
+        "validation.ruff",
+        "validation.mypy",
+        "validation.whitespace",
+        "git.commit.prepare",
+        "config.development.write",
+        "state.development.write"
+      ],
+      "risk": "critical",
+      "expected_components": ["src/edn/intelligence", "tests/intelligence", "docs/intelligence-core", "config"],
+      "acceptance_criteria": [
+        "OpenAI adapter uses bounded Responses structured output with no tools or state",
+        "Disclosure approval, field policy, audit, credential and local cost controls fail closed",
+        "Synthetic transport validation passes without genuine EDN disclosure",
+        "PA-009 remains disabled pending final owner approval"
+      ],
+      "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy src/edn", "git diff --check"],
+      "stop_conditions": ["Credential creation", "Genuine evidence dispatch", "Provider contract uncertainty", "PA-010 scope"],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": ["PA-009"]
+    },
+    {
+      "task_id": "PA-009-PREFLIGHT",
+      "objective": "Add metadata-only provider preflight, field-level disclosure hardening and hash-bound owner approval before genuine PA-009 dispatch.",
+      "prerequisites": ["PA-009-ADAPTER"],
+      "authority_actions": ["repository.read", "code.development.write", "test.development.write", "documentation.write", "synthetic.fixture.write", "validation.pytest", "validation.ruff", "validation.mypy", "validation.whitespace", "git.commit.prepare", "config.development.write", "state.development.write"],
+      "risk": "critical",
+      "expected_components": ["src/edn/intelligence", "tests/intelligence", "config"],
+      "acceptance_criteria": ["Preflight cannot dispatch", "Only explicitly approved fields project", "Approval binds exact preflight and expires", "Prohibited content and unknown approval fail closed"],
+      "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy src/edn", "git diff --check"],
+      "stop_conditions": ["Genuine provider dispatch", "Broader disclosure", "Security weakening", "PA-010 scope"],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": ["PA-009"]
+    },
+    {
+      "task_id": "PA-009-PROTECTED-HANDOFF",
+      "objective": "Persist only the exact sanitised provider projection in a protected short-lived envelope across the owner-review boundary.",
+      "prerequisites": ["PA-009-PREFLIGHT"],
+      "authority_actions": ["repository.read", "code.development.write", "test.development.write", "documentation.write", "synthetic.fixture.write", "validation.pytest", "validation.ruff", "validation.mypy", "validation.whitespace", "git.commit.prepare", "config.development.write", "state.development.write"],
+      "risk": "critical",
+      "expected_components": ["src/edn/intelligence", "tests/intelligence", "docs/intelligence-core", "config"],
+      "acceptance_criteria": ["Protected projection survives process boundary", "Exact owner-approved hash is revalidated before dispatch", "Expiry, tampering, unsafe permissions and replay fail closed", "Preflight makes zero provider transport calls"],
+      "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy src/edn", "git diff --check"],
+      "stop_conditions": ["Genuine provider dispatch", "Live source access", "Disclosure broadening", "Credential persistence", "PA-010 scope"],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": ["PA-009"]
+    },
+    {
+      "task_id": "PA-009-RETRY-CONTROL-REPAIR",
+      "objective": "Correct PA-009 retry admission, budget accounting and metadata-only failure lineage after the first genuine pilot attempt exposed a retry-control defect.",
+      "prerequisites": ["PA-009-PROTECTED-HANDOFF"],
+      "authority_actions": ["repository.read", "code.development.write", "test.development.write", "documentation.write", "synthetic.fixture.write", "validation.pytest", "validation.ruff", "validation.mypy", "validation.whitespace", "git.commit.prepare", "config.development.write", "state.development.write"],
+      "risk": "critical",
+      "expected_components": ["src/edn/intelligence", "tests/intelligence", "docs/intelligence-core", "config"],
+      "acceptance_criteria": ["One retry means exactly one additional transport attempt", "Retry allowance is consumed only after full admission", "Initial failure remains separately auditable", "Terminal responses, authority drift, replay and budget refusal remain fail closed"],
+      "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy src/edn", "git diff --check"],
+      "stop_conditions": ["Live access", "Credential access", "Protected evidence access", "Disclosure broadening", "PA-010 scope"],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": ["PA-009"]
+    },
+    {
+      "task_id": "PA-009-INVALID-RESPONSE-DIAGNOSTICS",
+      "objective": "Harden content-free invalid-response stage diagnostics and align synthetic raw Responses API fixtures with the documented provider contract.",
+      "prerequisites": ["PA-009-RETRY-CONTROL-REPAIR"],
+      "authority_actions": ["repository.read", "code.development.write", "test.development.write", "documentation.write", "synthetic.fixture.write", "validation.pytest", "validation.ruff", "validation.mypy", "validation.whitespace", "git.commit.prepare", "config.development.write", "state.development.write"],
+      "risk": "critical",
+      "expected_components": ["src/edn/intelligence", "tests/intelligence", "docs/intelligence-core", "config"],
+      "acceptance_criteria": ["Invalid responses retain the external failure class with deterministic content-free stage diagnostics", "Synthetic fixtures exercise documented raw Responses output envelopes", "Strict schema, citation, fallback, retry and disclosure controls remain unchanged", "No provider, live-source, credential or protected-evidence access occurs"],
+      "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy src/edn", "git diff --check"],
+      "stop_conditions": ["Provider or live-source access", "Credential or protected-evidence access", "Diagnostic content leakage", "Schema or disclosure weakening", "PA-010 scope"],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": ["PA-009"]
+    },
+    {
+      "task_id": "PA-009-INCOMPLETE-RESPONSE-DIAGNOSTICS",
+      "objective": "Capture allowlisted HTTP, incomplete-status and numeric usage/cost metadata before terminal PA-009 response parsing.",
+      "prerequisites": ["PA-009-INVALID-RESPONSE-DIAGNOSTICS"],
+      "authority_actions": ["repository.read", "code.development.write", "test.development.write", "documentation.write", "synthetic.fixture.write", "validation.pytest", "validation.ruff", "validation.mypy", "validation.whitespace", "git.commit.prepare", "config.development.write", "state.development.write"],
+      "risk": "critical",
+      "expected_components": ["src/edn/intelligence", "tests/intelligence", "docs/intelligence-core", "config"],
+      "acceptance_criteria": ["Incomplete reasons use closed metadata-only codes", "HTTP and valid numeric usage survive terminal parsing failures", "Returned usage yields a bounded cost estimate and output-ceiling diagnostic", "No provider text, evidence, prompt, credential or protected envelope is accessed or retained"],
+      "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy src/edn", "git diff --check"],
+      "stop_conditions": ["Provider or live-source access", "Credential or protected-envelope access", "Diagnostic content leakage", "Output ceiling broadening", "PA-010 scope"],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": ["PA-009"]
+    },
+    {
+      "task_id": "PA-009-OWNER-RESULT-HANDOFF",
+      "objective": "Persist only fully validated sanitised PA-009 typed results for protected post-process owner review and reconcile protected-envelope hygiene without reviving authority.",
+      "prerequisites": ["PA-009-PROTECTED-HANDOFF", "PA-009-INVALID-RESPONSE-DIAGNOSTICS"],
+      "authority_actions": ["repository.read", "code.development.write", "test.development.write", "documentation.write", "synthetic.fixture.write", "validation.pytest", "validation.ruff", "validation.mypy", "validation.whitespace", "git.commit.prepare", "config.development.write", "state.development.write"],
+      "risk": "critical",
+      "expected_components": ["src/edn/intelligence", "tests/intelligence", "docs/intelligence-core", "config"],
+      "acceptance_criteria": ["Only fully validated successful typed statements persist", "Owner review survives restart without provider authority", "Integrity, ownership, permissions, path safety and 30-day expiry fail closed", "Envelope reconciliation cannot expose projections, revive approval or dispatch"],
+      "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy src/edn", "git diff --check"],
+      "stop_conditions": ["Provider or live-source access", "Credential access", "Raw response or source persistence", "Authority or retention broadening", "PA-010 scope"],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": ["PA-009"]
+    },
+    {
+      "task_id": "PA-009-EVIDENCE-FRESHNESS-AND-TEMPORAL-VALIDITY",
+      "objective": "Derive lifecycle-relative temporal state from already-authorised source metadata and reject time-invalid model statements without broadening disclosure.",
+      "prerequisites": ["PA-009-OWNER-RESULT-HANDOFF"],
+      "authority_actions": ["repository.read", "code.development.write", "test.development.write", "documentation.write", "synthetic.fixture.write", "validation.pytest", "validation.ruff", "validation.mypy", "validation.whitespace", "git.commit.prepare", "config.development.write", "state.development.write"],
+      "risk": "critical",
+      "expected_components": ["src/edn/intelligence", "tests/intelligence", "docs/intelligence-core", "config"],
+      "acceptance_criteria": ["Every projected item has a closed lifecycle-relative temporal state", "Calendar past/current/future and Inbox/Local Files old/recent states derive only from admitted metadata", "Expired events cannot support prospective preparation and historical evidence remains retrospectively useful", "Temporal metadata does not broaden provider disclosure or durable audit/result content"],
+      "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy src/edn", "JSON/JSONL validation", "git diff --check"],
+      "stop_conditions": ["Provider or live-source access", "Credential access", "Disclosure broadening", "Audit/result source-content persistence", "PA-010 scope"],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": ["PA-009"]
+    },
+    {
+      "task_id": "IC-DEV-003-BOUNDED-DELEGATED-AUTHORITY",
+      "objective": "Implement a protected, expiring and revocable owner delegation boundary for repetitive repository and already-approved PA-005/PA-009 operations without weakening their independent controls.",
+      "prerequisites": ["IC-DEV-001", "PA-009-EVIDENCE-FRESHNESS-AND-TEMPORAL-VALIDITY"],
+      "authority_actions": ["repository.read", "code.development.write", "test.development.write", "documentation.write", "config.development.write", "state.development.write", "validation.pytest", "validation.ruff", "validation.mypy", "validation.whitespace", "git.commit.prepare"],
+      "risk": "critical",
+      "expected_components": ["src/edn/development", "tests/development", "docs/intelligence-core", "config"],
+      "acceptance_criteria": ["Grant binds owner/repository/branch/time/operations/source/provider/security/budget/kill-switch scope", "Protected durable store fails closed on expiry, revocation, drift, replay, tampering, concurrency and crash", "Existing PA-005, PA-009, budget and Git controls remain independently mandatory", "No grant is created or activated during repository implementation"],
+      "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy", "JSON/JSONL validation", "git diff --check"],
+      "stop_conditions": ["Grant activation", "Provider or live-source access", "Credential access", "External action", "Security/budget/disclosure weakening", "PA-010 scope"],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": []
+    },
+    {
+      "task_id": "IC-DEV-004-DELEGATED-SESSION-ADOPTION",
+      "objective": "Allow a fresh local session to discover exactly one integrity-validated active delegated grant by owner, repository and branch without chat-carried grant identity.",
+      "prerequisites": ["IC-DEV-003-BOUNDED-DELEGATED-AUTHORITY"],
+      "authority_actions": ["repository.read", "code.development.write", "test.development.write", "documentation.write", "config.development.write", "state.development.write", "validation.pytest", "validation.ruff", "validation.mypy", "validation.whitespace", "git.commit.prepare"],
+      "risk": "high",
+      "expected_components": ["src/edn/development", "tests/development", "docs/intelligence-core", "config"],
+      "acceptance_criteria": ["Fresh session resolves exactly one matching active grant", "Expiry, identity/repository/branch drift, ambiguity and tampering fail closed", "Discovery creates no claim and executes no operation"],
+      "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy", "JSON/JSONL validation", "git diff --check"],
+      "stop_conditions": ["Authority broadening", "Grant mutation", "External action", "PA-010 scope"],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": []
+    },
+    {
+      "task_id": "IC-DEV-005-DELEGATION-LIFECYCLE-CLI",
+      "objective": "Provide one narrow stable command prefix for protected delegated claim resolution and lifecycle reconciliation without adding an operation executor.",
+      "prerequisites": ["IC-DEV-004-DELEGATED-SESSION-ADOPTION"],
+      "authority_actions": ["repository.read", "code.development.write", "test.development.write", "documentation.write", "config.development.write", "state.development.write", "validation.pytest", "validation.ruff", "validation.mypy", "validation.static", "git.commit.prepare"],
+      "risk": "high",
+      "expected_components": ["src/edn/development", "tests/development", "docs/intelligence-core", "config"],
+      "acceptance_criteria": ["Stable CLI resolves, claims, validates, completes and reconciles exact claim metadata", "CLI cannot activate or change grant authority and never executes the claimed operation", "Independent Git, PA-005 and PA-009 controls remain mandatory", "Expiry, revocation, tampering, replay and scope drift fail closed"],
+      "required_tests": ["python -m pytest", "python -m ruff check .", "python -m mypy src/edn", "JSON/JSONL validation", "git diff --check"],
+      "stop_conditions": ["Authority broadening", "Generic executor", "External action", "PA-010 scope"],
+      "dependencies": [],
+      "status": "completed",
+      "successor_tasks": []
+    },
+    {
+      "task_id": "PA-009",
+      "objective": "Integrate an approved global/model provider behind a private-evidence disclosure boundary.",
+      "prerequisites": [
+        "PA-008",
+        "PA-009-SYNTHETIC",
+        "PA-009-ADAPTER"
+        ,"PA-009-PREFLIGHT",
+        "PA-009-PROTECTED-HANDOFF"
+      ],
+      "authority_actions": [
+        "external.permission.new",
+        "data.new_access",
+        "security.scope.expand"
+      ],
+      "risk": "critical",
+      "expected_components": [
+        "separately approved architecture"
+      ],
+      "acceptance_criteria": [
+        "Only approved disclosure leaves device",
+        "Private and global citations remain distinct",
+        "Local fallback remains available"
+      ],
+      "required_tests": [
+        "owner-approved threat model",
+        "synthetic conformance tests"
+      ],
+      "stop_conditions": [
+        "No provider approval",
+        "Private leakage",
+        "Indeterminate retention or cost"
+      ],
+      "dependencies": [
+        "owner-approval"
+      ],
+      "status": "blocked",
+      "successor_tasks": []
+    },
+    {
+      "task_id": "PA-010",
+      "objective": "Specify controlled external execution as a separately governed boundary; this task grants no execution authority.",
+      "prerequisites": [
+        "PA-008"
+      ],
+      "authority_actions": [
+        "product.vision.change",
+        "human_authority.change",
+        "external.permission.new",
+        "production.mutation"
+      ],
+      "risk": "critical",
+      "expected_components": [
+        "separately approved architecture"
+      ],
+      "acceptance_criteria": [
+        "Separate architecture and scope approved",
+        "Approval binds exact operation, payload, target, expiry and idempotency",
+        "Preview, receipt, reconciliation and rollback specified"
+      ],
+      "required_tests": [
+        "owner-approved threat model",
+        "synthetic conformance tests"
+      ],
+      "stop_conditions": [
+        "No separate approval",
+        "Generic execution permission",
+        "Irreversible action without confirmation",
+        "Audit or rollback unresolved"
+      ],
+      "dependencies": [
+        "owner-approval"
+      ],
+      "status": "blocked",
+      "successor_tasks": []
+    }
+  ]
+}

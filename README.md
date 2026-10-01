@@ -1,5 +1,7 @@
 # EDN OS
 
+> October pre-promotion correction: UWC no-flow/submission statements below describe the recorded August stage. Later excluded branch 839e75c records a blocked Developer flow/binding attempt. No working capture path or current production state is verified. See [authority reconciliation](docs/sprint/AUTHORITY-RECONCILIATION.md).
+
 > Build the world's best operating system for specialist engineering consultancies.
 
 ---
@@ -24,24 +26,40 @@ It captures knowledge, automates administration, improves decision making and he
 
 ## Current Status
 
-### Module 000 — Foundation
+Current delivery objective: **EDN Operations Inbox**. See
+[NOW](docs/NOW.md) for the active scope and frozen work, and
+[Operations v1](docs/OPERATIONS-V1.md) for local setup, Outlook ingestion and
+Inbox behavior. The existing email-memory UI remains available through the
+page selector.
 
-Architecture definition in progress.
+### Engineer onboarding and implemented state
 
-### Module 001 — Memory
+Start with [AGENTS.md](AGENTS.md), then [CURRENT_STATE.md](CURRENT_STATE.md).
+The repository includes implemented Foundation primitives, historical email
+Memory/import/search, retrieval, extractive Ask EDN, evidence-linked knowledge
+graph, governed Intelligence/connectors/jobs and local Operations Inbox.
+Some module specifications describe earlier design intent; implemented state,
+test evidence and discrepancies are recorded in the onboarding layer.
 
-Architecture approved; implementation follows Foundation.
+See [Architecture](ARCHITECTURE.md), [Data model](DATA_MODEL.md),
+[Integrations](INTEGRATIONS.md), [Security](SECURITY.md), [Decisions](DECISIONS.md),
+[October roadmap](ROADMAP.md) and [multi-agent workflow](MULTI_AGENT_WORKFLOW.md).
+Synthetic implementation is distinct from live source acceptance or release.
 
-Initial implementation objectives (Outlook PST archives):
+### Module 004 — Work
 
-- [ ] Register source archive and verify PST fingerprint
-- [ ] Complete PST extractor proof of concept (libpff vs readpst)
-- [ ] Select the ingestion adapter (validate Python version compatibility)
-- [ ] Import message metadata, participants, and bodies
-- [ ] Extract and catalogue attachments with full metadata
-- [ ] Store records in SQLite under `E:\EDN OS`
-- [ ] Implement SQLite FTS5 keyword search with resolved provenance
-- [ ] Handle partial failures and produce machine-readable import reports
+Universal Work Capture V1 has a repository-complete synthetic implementation
+and a completed 29-field Work Log schema activation. No acceptance flow, app
+submission path, capture, or live SharePoint content integration exists. The
+2026-08-21 `UWC-AcceptCapture-v1` flow-creation window expired unused and is
+not reusable. A fresh owner GO is required before any further Microsoft
+mutation.
+
+See [Module 004 — Work](docs/MODULE-004-WORK.md) and the
+[Universal Work Capture V1 design](docs/work-capture/UNIVERSAL-WORK-CAPTURE-V1.md).
+The exact saved `EDN Work Capture` canvas scaffold is now represented by its
+generated review source and a hash-bound live-app baseline. See the
+[Power Apps source-control and update handoff](docs/work-capture/POWER-APPS-SOURCE-CONTROL-AND-V1-UPDATE.md).
 
 Development sprints may be used to schedule work, but modules define the durable product architecture.
 
@@ -58,6 +76,63 @@ and dependency rules.
 
 ---
 
+
+## Local Email Search Interface
+
+The first EDN OS browser interface searches an existing email-memory database
+entirely on the local machine. It is read-only and does not create a database
+when the configured path is missing.
+
+While a production import is actively writing, wait for it to finish before
+launching the interface against that database.
+
+```bash
+source /home/elliot/.venvs/edn-os/bin/activate
+cd /home/elliot/projects/edn-os
+
+export EDN_MEMORY_DB="/mnt/f/EDN OS/Database/edn-memory.db"
+
+streamlit run src/edn/ui/app.py \
+  --server.address 127.0.0.1 \
+  --browser.gatherUsageStats false
+```
+
+Open [http://localhost:8501](http://localhost:8501) if the browser does not
+open automatically.
+
+`EDN_MEMORY_DB` is required and must identify an existing, initialized EDN
+email-memory SQLite database. The application binds only to localhost. The
+`--browser.gatherUsageStats false` option disables Streamlit usage statistics.
+Email bodies are rendered only as plain text and remain collapsed by default.
+
+For local development, create a synthetic database rather than copying
+production email data into the repository:
+
+```bash
+python -m edn.memory.cli init /tmp/edn-memory-dev.db
+export EDN_MEMORY_DB=/tmp/edn-memory-dev.db
+
+streamlit run src/edn/ui/app.py \
+  --server.address 127.0.0.1 \
+  --browser.gatherUsageStats false
+```
+
+---
+
+## Ask EDN
+
+The browser UI also includes grounded email question answering. Ask EDN safely
+converts natural-language questions into local FTS5 retrieval, produces a local
+extractive answer, and validates every numbered source citation. No cloud AI or
+external API is used.
+
+Set `EDN_LLM_PROVIDER=extractive` (the default) to enable local answers, or set
+`EDN_LLM_PROVIDER=disabled` to disable answer generation entirely.
+
+See [Module 002.3 — Ask EDN](docs/MODULE-002-ASK-EDN.md) for retrieval,
+citation, privacy, configuration and limitation details.
+
+---
 ## Design Principles
 
 - Local-first

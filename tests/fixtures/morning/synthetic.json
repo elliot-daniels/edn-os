@@ -1,0 +1,28 @@
+{
+  "mode": "synthetic-only",
+  "now": "2026-09-16T08:00:00+10:00",
+  "sources": [
+    {"capability": "email.retrieve", "instance": "archive", "freshness": "stale", "records": [
+      {"id": "mail1", "title": "Atlas drawing revision available", "text": "Synthetic engineer reports revision B is ready for review.", "timestamp": "2026-09-15T14:00:00+10:00", "timestamp_kind": "email_sent_at"}
+    ]},
+    {"capability": "calendar.search", "instance": "calendar", "records": [
+      {"id": "ended", "title": "Ended handover", "text": "Synthetic handover ended at 07:30.", "timestamp": "2026-09-16T07:30:00+10:00", "timestamp_kind": "calendar_event_end", "start": "2026-09-16T07:00:00+10:00", "end": "2026-09-16T07:30:00+10:00"},
+      {"id": "review", "title": "Atlas design review", "text": "Synthetic review starts at 10:00.", "timestamp": "2026-09-16T11:00:00+10:00", "timestamp_kind": "calendar_event_end", "start": "2026-09-16T10:00:00+10:00", "end": "2026-09-16T11:00:00+10:00"}
+    ]},
+    {"capability": "sharepoint.search", "instance": "clients", "records": [
+      {"id": "1", "title": "Synthetic Harbour Works", "text": "Client context only.", "business": {"kind": "client"}}
+    ]},
+    {"capability": "sharepoint.search", "instance": "projects", "records": [
+      {"id": "1", "title": "Atlas", "text": "Active synthetic design project.", "business": {"kind": "project", "status": "active", "client": "1", "due": "2026-09-18"}},
+      {"id": "2", "title": "Closed warehouse", "text": "Inactive synthetic project.", "business": {"kind": "project", "status": "inactive", "due": "2026-09-10"}}
+    ]},
+    {"capability": "sharepoint.search", "instance": "actions", "records": [
+      {"id": "1", "title": "Review beam calculation", "text": "Synthetic open action.", "business": {"kind": "action", "status": "open", "project": "1", "due": "2026-09-15", "owner": "Synthetic engineer"}},
+      {"id": "2", "title": "Confirm design assumptions", "text": "Synthetic due action.", "business": {"kind": "action", "status": "in progress", "project": "1", "due": "2026-09-16"}},
+      {"id": "3", "title": "Future concept review", "text": "Synthetic future action.", "business": {"kind": "action", "status": "open", "project": "1", "due": "2026-10-16"}},
+      {"id": "4", "title": "Completed survey", "text": "Already completed synthetic action.", "business": {"kind": "action", "status": "completed", "project": "1", "due": "2026-09-10"}},
+      {"id": "5", "title": "Inactive project task", "text": "Action attached to inactive project.", "business": {"kind": "action", "status": "open", "project": "2", "due": "2026-09-10"}}
+    ]},
+    {"capability": "local-files.search", "instance": "unavailable-notes", "unavailable": true}
+  ]
+}

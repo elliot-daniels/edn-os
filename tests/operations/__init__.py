@@ -1,0 +1,1 @@
+"""Synthetic Operations acceptance tests."""

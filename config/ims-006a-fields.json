@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0.0",
+  "increment": "IMS-006A",
+  "mode": "additive_optional_fields_only",
+  "site_identity": "explicit-at-runtime",
+  "fields": [
+    {"list":"Assets","list_id":"a7686ada-c94b-417e-ae49-051534494b3c","display_name":"Asset class","internal_name":"IMSAssetClass","type":"Choice","choices":["Information","Software","Service","Physical","Other"],"indexed_recommended":true},
+    {"list":"Assets","list_id":"a7686ada-c94b-417e-ae49-051534494b3c","display_name":"Asset owner","internal_name":"IMSAssetOwner","type":"User","indexed_recommended":true},
+    {"list":"Assets","list_id":"a7686ada-c94b-417e-ae49-051534494b3c","display_name":"Criticality","internal_name":"IMSCriticality","type":"Choice","choices":["Not assessed","Low","Medium","High","Critical"],"indexed_recommended":true},
+    {"list":"Assets","list_id":"a7686ada-c94b-417e-ae49-051534494b3c","display_name":"Information classification","internal_name":"IMSInformationClassification","type":"Choice","choices":["Public","EDN Internal","EDN Confidential","Restricted"],"indexed_recommended":true}
+  ]
+}

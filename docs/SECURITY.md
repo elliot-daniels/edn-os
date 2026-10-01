@@ -1,5 +1,7 @@
 # EDN OS Security Model
 
+> Onboarding note (1 October 2026): For October agent authority and current integration boundaries, also read [sprint security](../SECURITY.md). Historical examples or recorded approvals do not grant either agent live production access or Global Admin.
+
 Security requirements and controls for EDN OS. Applies platform-wide.
 
 | Marker | Scope |

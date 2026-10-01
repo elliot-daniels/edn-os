@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0.0",
+  "roots": [
+    {
+      "root_id": "approved-documents",
+      "path": "/synthetic/tenant/approved-documents",
+      "security_domain": {
+        "schema_version": "1.0.0",
+        "domain_id": "SYNTHETIC",
+        "label": "Synthetic example",
+        "tenant_id": "tenant-example",
+        "owner_id": null
+      },
+      "classification": {
+        "schema_version": "1.0.0",
+        "scheme_id": "example-classification",
+        "level_id": "internal",
+        "display_name": "Internal",
+        "rank": 1
+      }
+    }
+  ],
+  "catalogue_path": "/synthetic/protected/local-files/catalogue.db",
+  "content_store_path": "/synthetic/protected/local-files/content",
+  "job_store_path": "/synthetic/protected/local-files/jobs.db",
+  "excluded_roots": [],
+  "allowed_extensions": [],
+  "excluded_extensions": [".tmp"],
+  "max_file_size_bytes": 10485760,
+  "max_depth": 8,
+  "discover_hidden": false,
+  "symlink_policy": "never",
+  "stay_on_filesystem": true,
+  "metadata_only_discovery": true,
+  "discovery_batch_size": 250,
+  "ingestion_batch_size": 50
+}

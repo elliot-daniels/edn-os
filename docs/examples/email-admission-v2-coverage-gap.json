@@ -1,0 +1,239 @@
+{
+  "brief": {
+    "generated_at": "2026-08-11 12:00:00+00:00",
+    "sections": [
+      {
+        "items": [
+          {
+            "evidence_ids": [
+              "outlook:provider-v1:d592fdd1d40716a3f079111820c936272b8eb6f4d7f7148e6c8492150e0553a1:category"
+            ],
+            "freshness": "unknown_freshness",
+            "item_id": "summary:evidence",
+            "kind": "inference",
+            "proposal_only": false,
+            "rank_reasons": [
+              "deterministic_evidence_count_summary"
+            ],
+            "rank_score": 65,
+            "section": "executive_summary",
+            "text": "1 bounded evidence item(s): 1 current, 0 ageing, 0 stale, and 0 with unknown freshness.",
+            "title": "Authorised evidence overview"
+          }
+        ],
+        "kind": "executive_summary",
+        "title": "Executive summary"
+      },
+      {
+        "items": [],
+        "kind": "immediate_attention",
+        "title": "Immediate attention"
+      },
+      {
+        "items": [],
+        "kind": "today_upcoming_commitments",
+        "title": "Today / upcoming commitments"
+      },
+      {
+        "items": [
+          {
+            "evidence_ids": [
+              "outlook:provider-v1:d592fdd1d40716a3f079111820c936272b8eb6f4d7f7148e6c8492150e0553a1:category"
+            ],
+            "freshness": "current",
+            "item_id": "evidence:1:outlook:provider-v1:d592fdd1d40716a3f079111820c936272b8eb6f4d7f7148e6c8492150e0553a1:category",
+            "kind": "fact",
+            "proposal_only": false,
+            "rank_reasons": [
+              "freshness=current:5",
+              "source_origin=authorised_source",
+              "decision_usefulness=5",
+              "corroborating_source_families=1",
+              "recurrence=5",
+              "provenance_confidence=5"
+            ],
+            "rank_score": 65,
+            "section": "recent_communications_commitments",
+            "text": "From stranger@personal.example; received 2026-08-11T10:00:00+00:00; importance high; read False",
+            "title": "Explicit EDN correspondence"
+          }
+        ],
+        "kind": "recent_communications_commitments",
+        "title": "Recent communications / commitments"
+      },
+      {
+        "items": [],
+        "kind": "project_operational_context",
+        "title": "Project / operational context"
+      },
+      {
+        "items": [
+          {
+            "evidence_ids": [],
+            "freshness": "unknown_freshness",
+            "item_id": "coverage:outlook.search:provider-v1:d592fdd1d40716a3f079111820c936272b8eb6f4d7f7148e6c8492150e0553a1",
+            "kind": "unknown",
+            "proposal_only": false,
+            "rank_reasons": [
+              "relationship_clients_unavailable",
+              "relationship_projects_stale",
+              "source_records_filtered"
+            ],
+            "rank_score": 0,
+            "section": "risks_gaps_stale_evidence",
+            "text": "partial: 1 returned, 1 admitted, 1 included in this bounded brief (relationship_clients_unavailable, relationship_projects_stale, source_records_filtered); completeness is unknown. No matching evidence does not establish that nothing requires attention.",
+            "title": "Source coverage: outlook.search provider-v1:d592fdd1d40716a3f079111820c936272b8eb6f4d7f7148e6c8492150e0553a1"
+          }
+        ],
+        "kind": "risks_gaps_stale_evidence",
+        "title": "Risks, gaps and stale evidence"
+      },
+      {
+        "items": [],
+        "kind": "suggested_internal_actions_decisions",
+        "title": "Suggested internal actions or decisions"
+      }
+    ]
+  },
+  "coverage": [
+    {
+      "admission_decisions": [
+        {
+          "outcome": "admitted",
+          "policy_id": "email-admission-v2:08a6d7a33f127bfd26687bf365b1e7a0de95976a48e1ee0a7ee7e82c4612fed8",
+          "reasons": [
+            "explicit_edn_category"
+          ],
+          "record_key": "category",
+          "relationship_evidence": []
+        },
+        {
+          "outcome": "unavailable",
+          "policy_id": "email-admission-v2:08a6d7a33f127bfd26687bf365b1e7a0de95976a48e1ee0a7ee7e82c4612fed8",
+          "reasons": [
+            "relationship_evidence_unavailable",
+            "relationship_clients_unavailable",
+            "relationship_projects_stale"
+          ],
+          "record_key": "client",
+          "relationship_evidence": []
+        },
+        {
+          "outcome": "unavailable",
+          "policy_id": "email-admission-v2:08a6d7a33f127bfd26687bf365b1e7a0de95976a48e1ee0a7ee7e82c4612fed8",
+          "reasons": [
+            "relationship_evidence_unavailable",
+            "relationship_clients_unavailable",
+            "relationship_projects_stale"
+          ],
+          "record_key": "project",
+          "relationship_evidence": []
+        },
+        {
+          "outcome": "unavailable",
+          "policy_id": "email-admission-v2:08a6d7a33f127bfd26687bf365b1e7a0de95976a48e1ee0a7ee7e82c4612fed8",
+          "reasons": [
+            "relationship_evidence_unavailable",
+            "relationship_clients_unavailable",
+            "relationship_projects_stale"
+          ],
+          "record_key": "personal",
+          "relationship_evidence": []
+        },
+        {
+          "outcome": "unavailable",
+          "policy_id": "email-admission-v2:08a6d7a33f127bfd26687bf365b1e7a0de95976a48e1ee0a7ee7e82c4612fed8",
+          "reasons": [
+            "relationship_evidence_unavailable",
+            "relationship_clients_unavailable",
+            "relationship_projects_stale"
+          ],
+          "record_key": "newsletter",
+          "relationship_evidence": []
+        }
+      ],
+      "admitted_count": 1,
+      "capability_id": "outlook.search",
+      "checked_at": "2026-08-11 12:00:00+00:00",
+      "freshness": "checked",
+      "pre_filter_count": 5,
+      "reasons": [
+        "relationship_clients_unavailable",
+        "relationship_projects_stale",
+        "source_records_filtered"
+      ],
+      "relationship_sources": [
+        {
+          "checked_at": "2026-08-11 12:00:00+00:00",
+          "relationship_count": 1,
+          "source_id": "clients",
+          "state": "relationship_clients_unavailable"
+        },
+        {
+          "checked_at": "2026-08-11 12:00:00+00:00",
+          "relationship_count": 1,
+          "source_id": "projects",
+          "state": "relationship_projects_stale"
+        }
+      ],
+      "returned_count": 1,
+      "selected_count": 1,
+      "source_instance_id": "provider-v1:d592fdd1d40716a3f079111820c936272b8eb6f4d7f7148e6c8492150e0553a1",
+      "status": "partial"
+    }
+  ],
+  "evidence": [
+    {
+      "business_facts": null,
+      "capability_id": "outlook.search",
+      "context_id": "outlook:provider-v1:d592fdd1d40716a3f079111820c936272b8eb6f4d7f7148e6c8492150e0553a1:category",
+      "excerpt": "From stranger@personal.example; received 2026-08-11T10:00:00+00:00; importance high; read False",
+      "freshness_state": "unknown_freshness",
+      "provenance": [
+        {
+          "content_hash": null,
+          "evidence_id": "outlook-10797407a4e62ea027d7cf746af50948938eb62c032aed557844baa2c05a3096",
+          "locator": "folder:provider-v1:d742d03c67a70c6631b78d6cd7b762ceb8533698291964d3139b827caf944474;received:2026-08-11T10:00:00+00:00",
+          "record": {
+            "classification": {
+              "display_name": "EDN Confidential",
+              "level_id": "confidential",
+              "rank": null,
+              "scheme_id": "edn"
+            },
+            "record_type": "communication.email.metadata",
+            "security_domain": {
+              "domain_id": "EDN",
+              "label": "EDN",
+              "owner_id": null,
+              "tenant_id": "tenant"
+            },
+            "source": {
+              "connector_id": "microsoft-outlook",
+              "display_name": "Microsoft 365 Outlook Mail",
+              "provider_resource_id": "inbox",
+              "source_id": "provider-v1:d742d03c67a70c6631b78d6cd7b762ceb8533698291964d3139b827caf944474",
+              "source_instance_id": "provider-v1:d742d03c67a70c6631b78d6cd7b762ceb8533698291964d3139b827caf944474"
+            },
+            "source_record_key": "category",
+            "source_uri": "https://outlook.office.com/mail/item",
+            "source_version": "2026-08-11T10:05:00+00:00"
+          },
+          "transformation_id": "outlook-mail-metadata",
+          "transformation_version": "0.1.0"
+        }
+      ],
+      "score": 25.0,
+      "source_instance_id": "provider-v1:d592fdd1d40716a3f079111820c936272b8eb6f4d7f7148e6c8492150e0553a1",
+      "source_label": "Current Outlook metadata",
+      "source_timestamp": "2026-08-11 10:00:00+00:00",
+      "temporal_end": null,
+      "temporal_start": null,
+      "timestamp_kind": "mail_received_at",
+      "title": "Explicit EDN correspondence"
+    }
+  ],
+  "generated_at": "2026-08-11T12:00:00+00:00",
+  "markdown": "# Good morning\n\nBrief generated at 2026-08-11T12:00:00+00:00.\n\n## Executive summary\n\n- **Authorised evidence overview** (inference): 1 bounded evidence item(s): 1 current, 0 ageing, 0 stale, and 0 with unknown freshness. [outlook:provider-v1:d592fdd1d40716a3f079111820c936272b8eb6f4d7f7148e6c8492150e0553a1:category]\n\n## Recent communications / commitments\n\n- **Explicit EDN correspondence** (fact): From stranger@personal.example; received 2026-08-11T10:00:00+00:00; importance high; read False [outlook:provider-v1:d592fdd1d40716a3f079111820c936272b8eb6f4d7f7148e6c8492150e0553a1:category]\n\n## Risks, gaps and stale evidence\n\n- **Source coverage: outlook.search provider-v1:d592fdd1d40716a3f079111820c936272b8eb6f4d7f7148e6c8492150e0553a1** (unknown): partial: 1 returned, 1 admitted, 1 included in this bounded brief (relationship_clients_unavailable, relationship_projects_stale, source_records_filtered); completeness is unknown. No matching evidence does not establish that nothing requires attention.\n\n## Coverage\n\n- outlook.search / provider-v1:d592fdd1d40716a3f079111820c936272b8eb6f4d7f7148e6c8492150e0553a1: partial; 1/1 included; pre-filter=5; freshness=checked; checked=2026-08-11 12:00:00+00:00; reasons=relationship_clients_unavailable, relationship_projects_stale, source_records_filtered.\n\n## Admission audit\n\n- category: admitted; reasons=explicit_edn_category; policy=email-admission-v2:08a6d7a33f127bfd26687bf365b1e7a0de95976a48e1ee0a7ee7e82c4612fed8.\n- client: unavailable; reasons=relationship_evidence_unavailable, relationship_clients_unavailable, relationship_projects_stale; policy=email-admission-v2:08a6d7a33f127bfd26687bf365b1e7a0de95976a48e1ee0a7ee7e82c4612fed8.\n- project: unavailable; reasons=relationship_evidence_unavailable, relationship_clients_unavailable, relationship_projects_stale; policy=email-admission-v2:08a6d7a33f127bfd26687bf365b1e7a0de95976a48e1ee0a7ee7e82c4612fed8.\n- personal: unavailable; reasons=relationship_evidence_unavailable, relationship_clients_unavailable, relationship_projects_stale; policy=email-admission-v2:08a6d7a33f127bfd26687bf365b1e7a0de95976a48e1ee0a7ee7e82c4612fed8.\n- newsletter: unavailable; reasons=relationship_evidence_unavailable, relationship_clients_unavailable, relationship_projects_stale; policy=email-admission-v2:08a6d7a33f127bfd26687bf365b1e7a0de95976a48e1ee0a7ee7e82c4612fed8.\n\n## Evidence\n\n- [outlook:provider-v1:d592fdd1d40716a3f079111820c936272b8eb6f4d7f7148e6c8492150e0553a1:category]: provider-v1:d742d03c67a70c6631b78d6cd7b762ceb8533698291964d3139b827caf944474 / category; folder:provider-v1:d742d03c67a70c6631b78d6cd7b762ceb8533698291964d3139b827caf944474;received:2026-08-11T10:00:00+00:00\n",
+  "schema_version": 1
+}
