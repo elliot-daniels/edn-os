@@ -139,4 +139,3 @@ manifest to prevent drift.
 - Implement Local Files first as a native SDK connector.
 - Implement Microsoft 365 live email/calendar only after Local Files validates
   contract ergonomics.
-

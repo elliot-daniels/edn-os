@@ -1,7 +1,7 @@
 # EDN IMS-006A Controlled Metadata Change Plan
 
-Status: Proposed; explicit subsequent GO required before live Apply  
-Date: 2026-08-09  
+Status: Proposed; explicit subsequent GO required before live Apply\
+Date: 2026-08-09\
 Site boundary: `https://edn123.sharepoint.com/sites/EDNSystems`
 
 ## Safety boundary

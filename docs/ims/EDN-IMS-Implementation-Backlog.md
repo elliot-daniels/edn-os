@@ -1,7 +1,7 @@
 # EDN IMS Staged Implementation Backlog
 
-Status: Proposed; no tenant changes authorised  
-Date: 2026-08-05  
+Status: Proposed; no tenant changes authorised\
+Date: 2026-08-05\
 Delivery principle: smallest useful integrated system, evidence before dashboards
 
 ## 1. Backlog rules

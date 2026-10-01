@@ -1,7 +1,7 @@
 # EDN IMS Gap Assessment
 
-Status: Baseline assessment from repository evidence only  
-Date: 2026-08-05  
+Status: Baseline assessment from repository evidence only\
+Date: 2026-08-05\
 Assessment boundary: No live SharePoint inspection and no certification opinion
 
 ## 1. Assessment method

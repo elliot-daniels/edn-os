@@ -1,7 +1,7 @@
 # Intelligence Core Post-Alpha Architecture Review
 
-Date: 2026-08-11  
-Baseline: `f2ea8f9abe82120684cad82e558a5686a0a1c72c`  
+Date: 2026-08-11\
+Baseline: `f2ea8f9abe82120684cad82e558a5686a0a1c72c`\
 Scope: repository-only; no authentication, external access, ingestion, SharePoint
 change, or external action occurred.
 

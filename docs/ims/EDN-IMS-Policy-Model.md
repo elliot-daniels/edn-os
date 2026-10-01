@@ -1,6 +1,6 @@
 # EDN IMS Policy and Configuration Model
 
-Status: Design example only; not connected to production behaviour  
+Status: Design example only; not connected to production behaviour\
 Date: 2026-08-09
 
 ## Boundary
@@ -175,4 +175,3 @@ authority references, risk thresholds, output path class, prohibited secrets,
 lookup targets and approval gates. It should emit a proposed change plan and
 never execute tenant mutation unless a separate deployment command and approval
 record explicitly authorise it.
-

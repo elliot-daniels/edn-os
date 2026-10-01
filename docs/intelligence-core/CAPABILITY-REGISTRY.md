@@ -84,4 +84,3 @@ Do not couple registry lifecycle to the email database. Tests cover deterministi
 registration, version conflicts, stale verification, dependency cycles, scope
 intersection, disabled capability, missing authentication and explanation of
 capability gaps.
-

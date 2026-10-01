@@ -1,7 +1,7 @@
 # Intelligence Core v0.1 Architecture
 
-Status: Proposed architecture for approval  
-Date: 2026-08-10  
+Status: Proposed architecture for approval\
+Date: 2026-08-10\
 Implementation authority: Documentation only
 
 ## Executive summary
@@ -262,4 +262,3 @@ No full Personal OS, multi-tenant SaaS, Xero, Garmin, SMS, photos, Home Assistan
 autonomous communications/financial transactions, huge vector store, mobile app,
 local-LLM stack or agent swarm. No IMS-006B or SharePoint mutation belongs to
 this architecture phase.
-

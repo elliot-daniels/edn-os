@@ -1,6 +1,6 @@
 # EDN IMS Controlled SharePoint Implementation Plan
 
-Status: Design and validation only; no deployment authorised  
+Status: Design and validation only; no deployment authorised\
 Date: 2026-08-09
 
 ## 1. Target architecture and exclusions
@@ -270,4 +270,3 @@ Before relevant increments, confirm:
 5. initial requirement/control catalogue contents and authorised standards;
 6. Essential Eight objective after a separate evidence-based assessment; and
 7. whether any display-name rename is worth its usability and dependency risk.
-

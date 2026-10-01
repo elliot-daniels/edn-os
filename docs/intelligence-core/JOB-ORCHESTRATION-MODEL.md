@@ -82,4 +82,3 @@ filenames when classified, credentials, raw exceptions and action payloads.
 - result reconciliation and partial warnings;
 - cross-domain worker refusal; and
 - restart without an open UI/chat process.
-

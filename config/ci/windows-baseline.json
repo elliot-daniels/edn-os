@@ -76,7 +76,9 @@
     {
       "id": "tests.development.test_delegated_authority::test_symlink_path_attack_is_denied",
       "category": "windows_symlink_privilege",
-      "required_signature": "[WinError 1314]"
+      "required_signature": "[WinError 1314]",
+      "alternate_signature": "AttributeError: module 'os' has no attribute 'geteuid'",
+      "alternate_signature_evidence": "Hosted PR #2, run 36863086924, Windows job 110371896907: symlink creation succeeds, then unsupported POSIX ownership API fails."
     },
     {
       "id": "tests.development.test_delegated_authority::test_tampering_fails_integrity_validation",
@@ -464,9 +466,9 @@
       "required_signature": "module 'os' has no attribute 'geteuid'"
     }
   ],
-  "expected_total_tests": 1068,
+  "expected_total_tests": 1089,
   "known_skips": [
     "tests.connectors.local_files.test_local_files::test_path_traversal_symlink_escape_and_exclusion_are_rejected"
   ],
-  "collection_floor_provenance": "October repair tree; 48d902e failure identities/signatures remain unchanged"
+  "collection_floor_provenance": "Successor to 54b7326: 21 added fixture/guard regressions; original Windows failure identities retained"
 }

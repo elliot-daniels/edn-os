@@ -88,4 +88,3 @@ Sync records source versions. Source deletion or lost access creates a tombstone
 invalidates retrieval content and marks dependent facts `evidence_unavailable`;
 it does not silently erase audit history. Reprocessing is idempotent by stable
 source identity and extractor version.
-

@@ -1,7 +1,7 @@
 # EDN IMS Decision Log
 
-Status: Architecture decision record  
-Date established: 2026-08-05  
+Status: Architecture decision record\
+Date established: 2026-08-05\
 Authority: Owner decisions override proposed recommendations
 
 ## 1. Status definitions

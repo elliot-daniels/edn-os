@@ -1,7 +1,7 @@
 # IC-009 Calendar Live Validation Approval Pack
 
-Status: **DRAFT — NO LIVE AUTHENTICATION OR EXECUTION AUTHORIZED**  
-Classification: EDN Confidential  
+Status: **DRAFT — NO LIVE AUTHENTICATION OR EXECUTION AUTHORIZED**\
+Classification: EDN Confidential\
 Prepared: 11 August 2026, Australia/Adelaide
 
 ## Purpose

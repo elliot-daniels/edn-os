@@ -26,7 +26,18 @@ for case in cases:
     if failure is not None:
         observed.add(identity)
         record = known.get(identity)
-        if record is None or record["required_signature"] not in (failure.text or ""):
+        text = failure.text or ""
+        alternate = record.get("alternate_signature") if record else None
+        # The one evidenced runner alternative must be the terminal exception,
+        # not a substring in source/context for an unrelated assertion failure.
+        matches_alternate = (
+            isinstance(alternate, str)
+            and (failure.get("message") or "").startswith(alternate)
+            and alternate in text
+        )
+        if record is None or (
+            record["required_signature"] not in text and not matches_alternate
+        ):
             errors.append("New or changed failure: " + identity)
     if skip is not None and identity not in known_skips:
         errors.append("New skip: " + identity)
@@ -34,5 +45,7 @@ missing = (known.keys() | known_skips) - seen
 errors.extend("Baseline test missing: " + identity for identity in sorted(missing))
 if errors:
     raise SystemExit("\n".join(errors))
-print(f"Baseline guard passed: {len(observed)} known failures; "
-      f"{len(known.keys() - observed)} baseline failures now passing")
+print(
+    f"Baseline guard passed: {len(observed)} known failures; "
+    f"{len(known.keys() - observed)} baseline failures now passing"
+)

@@ -1,7 +1,7 @@
 # EDN IMS Target SharePoint Schema
 
-Status: Implementation-ready design; deployment not authorised  
-Date: 2026-08-09  
+Status: Implementation-ready design; deployment not authorised\
+Date: 2026-08-09\
 Evidence: Corrected IMS-003 rerun only
 
 ## 1. Design rules
@@ -321,4 +321,3 @@ map and reuse it instead of creating another. Reject a collision with a differen
 type or meaning. Validate all lookup targets, choice configuration, indexed-column
 limits, unique-ID support, webhook regression tests and rollback views in a test
 site. No inventory JSON, credentials or tenant-specific IDs belong in Git.
-

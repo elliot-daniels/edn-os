@@ -1,8 +1,8 @@
 # EDN IMS Owner Structure Decision Pack
 
 Status: Five owner policy decisions approved; structural recommendations remain design inputs
-Date: 2026-08-09  
-Decision authority: Elliot Daniels  
+Date: 2026-08-09\
+Decision authority: Elliot Daniels\
 Implementation authority: None
 
 ## 1. Purpose and evidence boundary

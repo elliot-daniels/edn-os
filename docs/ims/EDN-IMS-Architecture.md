@@ -1,8 +1,8 @@
 # EDN Integrated Management System Architecture
 
-Status: Proposed architecture for owner review  
-Date: 2026-08-05  
-Scope: EDN Systems OS repository and future SharePoint implementation  
+Status: Proposed architecture for owner review\
+Date: 2026-08-05\
+Scope: EDN Systems OS repository and future SharePoint implementation\
 Live tenant changes: None in this phase
 
 ## 1. Purpose

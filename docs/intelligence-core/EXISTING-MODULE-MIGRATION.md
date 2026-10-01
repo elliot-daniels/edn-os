@@ -69,4 +69,3 @@ Connectors depend on SDK contracts. Business OS owns Project/Client/Risk etc.
 
 Deprecation requires migration telemetry, compatibility period and rollback; it
 is not part of Alpha architecture documentation.
-

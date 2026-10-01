@@ -2,8 +2,10 @@
 
 import hashlib
 import json
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock
 from uuid import UUID
 
@@ -45,6 +47,9 @@ def evidence(child=False):
 
 @pytest.fixture
 def root(tmp_path, monkeypatch):
+    # Replace only this module's platform view. Changing os.name globally
+    # would corrupt pathlib/pytest behavior on a real Linux runner.
+    monkeypatch.setattr(m, "os", SimpleNamespace(name="nt", environ=os.environ))
     monkeypatch.setattr(m, "OUTPUT", tmp_path)
     monkeypatch.setattr(m, "inspect_acl", lambda p: evidence(p != tmp_path))
     return tmp_path
@@ -197,3 +202,35 @@ def test_retention_manifest_and_previous_deadline_unchanged(root):
         )
         artifacts.append((path, path.read_bytes()))
     assert artifacts[0][0].read_bytes() == artifacts[0][1]
+
+
+@pytest.mark.parametrize("platform", ["posix", "unsupported"])
+@pytest.mark.parametrize("operation", ["check_storage", "prepare_run", "launch"])
+def test_unsupported_platform_rejected_before_storage_or_auth(
+    tmp_path, monkeypatch, platform, operation
+):
+    monkeypatch.setattr(m, "os", SimpleNamespace(name=platform, environ={}))
+    monkeypatch.setattr(m, "OUTPUT", tmp_path)
+    blocked = {}
+    for name in (
+        "check_path",
+        "inspect_acl",
+        "storage_probe",
+        "authenticate",
+        "SchemaHttpTransport",
+        "SchemaExecutor",
+    ):
+        blocked[name] = Mock()
+        monkeypatch.setattr(m, name, blocked[name])
+    with pytest.raises(SchemaInspectionError, match=r"^storage_platform_or_missing$"):
+        getattr(m, operation)()
+    for dependency in blocked.values():
+        dependency.assert_not_called()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_windows_fixture_does_not_replace_global_platform(root):
+    assert m.os is not os
+    assert m.os.name == "nt"
+    assert m.os.environ is os.environ
+    assert isinstance(root, type(Path()))

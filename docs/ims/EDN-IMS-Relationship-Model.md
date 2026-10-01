@@ -1,6 +1,6 @@
 # EDN IMS Relationship Model
 
-Status: Implementation design; no deployment authorised  
+Status: Implementation design; no deployment authorised\
 Date: 2026-08-09
 
 ## Principles
@@ -116,4 +116,3 @@ not be written into separate dashboard lists.
    not grant access.
 6. Permission, content-type, Power Platform and Purview behaviour remains unknown
    until separately inspected and approved.
-
