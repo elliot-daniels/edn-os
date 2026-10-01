@@ -1,5 +1,7 @@
 # EDN Operations v1
 
+Current October technical baseline is accepted on main at `c85938c44ef230b5e4574b084d709f263b92adc0`. See [baseline record](sprint/OCTOBER-BASELINE.md). The dated audit/scope statements below remain historical evidence and do not grant live authority.
+
 > October pre-promotion correction: UWC no-flow/submission statements below describe the recorded August stage. Later excluded branch 839e75c records a blocked Developer flow/binding attempt. No working capture path or current production state is verified. See [authority reconciliation](sprint/AUTHORITY-RECONCILIATION.md).
 
 ## Current objective
