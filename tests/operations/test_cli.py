@@ -73,3 +73,56 @@ def test_delegated_import_checks_account_and_replays(tmp_path, monkeypatch, caps
     with pytest.raises(SystemExit):
         main(arguments)
     assert len(store.list_events()) == 1
+
+
+def test_application_import_multiple_mailboxes(tmp_path, monkeypatch, capsys):
+    from edn.operations import cli
+
+    path = tmp_path / "events.db"
+    store = EventStore(path)
+    store.initialise()
+    accounts = ("owner@business.example", "operations@business.example")
+    monkeypatch.setenv("EDN_OPERATIONS_MAILBOXES", ",".join(accounts))
+    monkeypatch.setenv("EDN_MS_TENANT_ID", "synthetic-tenant")
+    monkeypatch.setenv("EDN_MS_CLIENT_ID", "synthetic-client")
+    monkeypatch.setenv("EDN_MS_CLIENT_SECRET", "synthetic-secret")
+
+    class Credential:
+        def __init__(self, tenant, client, secret):
+            assert (tenant, client, secret) == (
+                "synthetic-tenant",
+                "synthetic-client",
+                "synthetic-secret",
+            )
+
+    class Client:
+        def __init__(self, credential, mailboxes):
+            assert mailboxes == accounts
+
+        def page(self, *args, **kwargs):
+            return {
+                "value": [{"id": "same-id", "receivedDateTime": "2026-10-01T12:00:00Z"}]
+            }
+
+    monkeypatch.setattr(cli, "ApplicationCredential", Credential)
+    monkeypatch.setattr(cli, "OperationsOutlookClient", Client)
+    assert (
+        main(
+            [
+                "ingest-outlook",
+                "--auth",
+                "application",
+                "--database",
+                str(path),
+                "--data-root",
+                str(tmp_path),
+                "--start",
+                "2026-10-01T00:00:00Z",
+                "--end",
+                "2026-10-02T00:00:00Z",
+            ]
+        )
+        == 0
+    )
+    assert {event.source_account for event in store.list_events()} == set(accounts)
+    assert "synthetic-secret" not in capsys.readouterr().out
