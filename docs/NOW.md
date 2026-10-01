@@ -16,16 +16,22 @@ Adapt the existing Python, SQLite, Streamlit and Microsoft Graph stack.
   relationship catalogue exists. The jobs package is an internal worker queue.
 - Power Apps Work Capture is a saved scaffold, not an operational intake path.
   Existing source governance, authority boundaries and audit remain unchanged.
-- No Operations Event store or Inbox exists at baseline. Live mailbox identities
-  and mail-read permissions must be configured before real ingestion.
+- Operations v1 now has an isolated Event store, replay-safe bounded Outlook
+  content ingestion and a read-only Streamlit Inbox independent of email memory.
+  See `OPERATIONS-V1.md` for commands and limits. AI outputs remain optional/empty.
+- Multiple business mailboxes are supported. Cross-tenant accounts need separate
+  authenticated runs into the same database. Live local authentication, mail-read
+  permissions and an approved database path remain unconfigured in this session.
+- Synthetic acceptance tests pass. The Windows full-suite baseline has 92 failures
+  in existing modules; keep these platform limitations separate from Operations.
 
 ## Next three tasks
-1. Add a simple Event contract and isolated SQLite store with provenance,
-   account-scoped duplicate protection and synthetic acceptance tests.
-2. Ingest bounded Outlook business-mailbox reads using existing Graph/auth
-   mechanisms; prove replay safety and source isolation with fake Graph tests.
-3. Add a Streamlit Operations Inbox, newest first, needs-action/source/link
-   filters and plain-text content; verify with synthetic UI tests.
+1. Configure approved local storage and Microsoft mail-read authentication;
+   verify a bounded import and replay for each selected business mailbox.
+2. Add read-only SharePoint job-request-to-Event ingestion using the existing
+   website contract, preserving its source ID and intake/write flow.
+3. Add a small human triage action (mark needs action/resolved), preserving
+   immutable source content and provenance with an acceptance test.
 
 ## DO NOT WORK ON
 - Deeper knowledge graph, universal work capture or autonomous-agent expansion.

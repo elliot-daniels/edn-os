@@ -24,6 +24,12 @@ It captures knowledge, automates administration, improves decision making and he
 
 ## Current Status
 
+Current delivery objective: **EDN Operations Inbox**. See
+[NOW](docs/NOW.md) for the active scope and frozen work, and
+[Operations v1](docs/OPERATIONS-V1.md) for local setup, Outlook ingestion and
+Inbox behavior. The existing email-memory UI remains available through the
+page selector.
+
 ### Module 000 — Foundation
 
 Architecture definition in progress.
