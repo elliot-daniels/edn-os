@@ -27,6 +27,7 @@ from edn.retrieval import (
     RetrievalEngine,
     RetrievalError,
 )
+from edn.ui.operations import render_operations_inbox
 from edn.ui.runtime import _intelligence_runtime
 from edn.ui.service import (
     DEFAULT_RESULT_LIMIT,
@@ -91,6 +92,10 @@ def _render_evidence(item: EmailEvidence) -> None:
 
 st.set_page_config(page_title="EDN OS", page_icon="🔎", layout="wide")
 st.title("EDN OS")
+page = st.sidebar.radio("Page", ("Operations Inbox", "Email memory"))
+if page == "Operations Inbox":
+    render_operations_inbox()
+    st.stop()
 st.caption(
     "Search local email memory or ask grounded questions. "
     "Indexed email content stays on this device."
