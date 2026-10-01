@@ -47,9 +47,11 @@ class MicrosoftGraphOutlookClient:
         token_provider: TokenProvider,
         *,
         opener: Callable[..., Any] = urllib.request.urlopen,
+        prefer: str | None = None,
     ) -> None:
         self._token_provider = token_provider
         self._opener = opener
+        self._prefer = prefer
         self._token: str | None = None
         self._inbox_id: str | None = None
 
@@ -121,6 +123,7 @@ class MicrosoftGraphOutlookClient:
             headers={
                 "Authorization": f"Bearer {self._token}",
                 "Accept": "application/json",
+                **({"Prefer": self._prefer} if self._prefer else {}),
             },
             method="GET",
         )
