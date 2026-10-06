@@ -17,6 +17,12 @@ class InsertResult:
     inserted: bool
 
 
+@dataclass(frozen=True)
+class EventListResult:
+    events: tuple[Event, ...]
+    malformed: int
+
+
 class EventStore:
     def __init__(self, path: Path, *, read_only: bool = False) -> None:
         self.path = path
@@ -104,6 +110,48 @@ class EventStore:
         job_id: str | None = None,
         limit: int = 100,
     ) -> tuple[Event, ...]:
+        return self._list_events(
+            needs_action=needs_action,
+            source=source,
+            client_id=client_id,
+            project_id=project_id,
+            job_id=job_id,
+            limit=limit,
+            tolerate_malformed=False,
+        ).events
+
+    def list_events_with_diagnostics(
+        self,
+        *,
+        needs_action: bool = False,
+        source: str | None = None,
+        client_id: str | None = None,
+        project_id: str | None = None,
+        job_id: str | None = None,
+        limit: int = 100,
+    ) -> EventListResult:
+        """Read a bounded page, retaining valid rows and counting invalid ones."""
+        return self._list_events(
+            needs_action=needs_action,
+            source=source,
+            client_id=client_id,
+            project_id=project_id,
+            job_id=job_id,
+            limit=limit,
+            tolerate_malformed=True,
+        )
+
+    def _list_events(
+        self,
+        *,
+        needs_action: bool,
+        source: str | None,
+        client_id: str | None,
+        project_id: str | None,
+        job_id: str | None,
+        limit: int,
+        tolerate_malformed: bool,
+    ) -> EventListResult:
         if not 1 <= limit <= 500:
             raise ValueError("Event list limit must be between 1 and 500")
         clauses: list[str] = []
@@ -128,7 +176,16 @@ class EventStore:
                 + " ORDER BY occurred_at DESC, id DESC LIMIT ?",
                 parameters,
             ).fetchall()
-        return tuple(Event.from_dict(json.loads(row[0])) for row in rows)
+        events = []
+        malformed = 0
+        for row in rows:
+            try:
+                events.append(Event.from_dict(json.loads(row[0])))
+            except (ValueError, TypeError, RecursionError):
+                if not tolerate_malformed:
+                    raise
+                malformed += 1
+        return EventListResult(tuple(events), malformed)
 
     def filter_values(self, field: str) -> tuple[str, ...]:
         if field not in {"source", "client_id", "project_id", "job_id"}:
@@ -138,4 +195,4 @@ class EventStore:
                 f"SELECT DISTINCT {field} FROM operations_events "
                 f"WHERE {field} IS NOT NULL ORDER BY {field}"
             ).fetchall()
-        return tuple(row[0] for row in rows)
+        return tuple(row[0] for row in rows if isinstance(row[0], str))

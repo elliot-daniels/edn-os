@@ -83,15 +83,49 @@ class Event:
     def __post_init__(self) -> None:
         validate_attachments(self.attachments)
         if any(
-            not value.strip()
+            not isinstance(value, str) or not value.strip()
             for value in (self.source, self.source_account, self.external_id, self.id)
         ):
             raise ValueError("Event identity fields must be nonempty")
+        for category in (self.event_type, self.direction):
+            if not isinstance(category, str):
+                raise ValueError("Event type and direction must be strings")
         if self.event_type not in EVENT_TYPES or self.direction not in DIRECTIONS:
             raise ValueError("Unsupported Event type or direction")
-        for value in (self.occurred_at, self.created_at):
-            if value.tzinfo is None or value.utcoffset() is None:
+        for timestamp in (self.occurred_at, self.created_at):
+            if (
+                not isinstance(timestamp, datetime)
+                or timestamp.tzinfo is None
+                or timestamp.utcoffset() is None
+            ):
                 raise ValueError("Event timestamps must be timezone-aware")
+        if not isinstance(self.subject, str) or not isinstance(self.body, str):
+            raise ValueError("Event content must be text")
+        for optional_text in (
+            self.client_id,
+            self.project_id,
+            self.job_id,
+            self.ai_summary,
+        ):
+            if optional_text is not None and not isinstance(optional_text, str):
+                raise ValueError("Optional Event text must be strings")
+        if type(self.needs_action) is not bool:
+            raise ValueError("Event needs_action must be boolean")
+        if not isinstance(self.raw_payload, dict):
+            raise ValueError("Event raw payload must be an object")
+        if not isinstance(self.parties, (tuple, list)) or any(
+            not isinstance(party, dict)
+            or any(
+                name in party and not isinstance(party[name], str)
+                for name in ("role", "address", "name")
+            )
+            for party in self.parties
+        ):
+            raise ValueError("Event parties must contain valid metadata objects")
+        if not isinstance(self.ai_actions, (tuple, list)) or any(
+            not isinstance(action, str) for action in self.ai_actions
+        ):
+            raise ValueError("Event actions must be text collections")
 
     def to_dict(self) -> dict[str, Any]:
         validate_attachments(self.attachments)
@@ -102,10 +136,17 @@ class Event:
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> Event:
-        values = dict(payload)
-        validate_attachments(values.get("attachments"))
-        for name in ("occurred_at", "created_at"):
-            values[name] = datetime.fromisoformat(values[name])
-        for name in ("parties", "attachments", "ai_actions"):
-            values[name] = tuple(values[name])
-        return cls(**values)
+        if not isinstance(payload, dict):
+            raise ValueError("Event payload must be an object")
+        try:
+            values = dict(payload)
+            validate_attachments(values.get("attachments"))
+            for name in ("occurred_at", "created_at"):
+                values[name] = datetime.fromisoformat(values[name])
+            for name in ("parties", "attachments", "ai_actions"):
+                if not isinstance(values[name], (tuple, list)):
+                    raise ValueError("Event metadata must be collections")
+                values[name] = tuple(values[name])
+            return cls(**values)
+        except (KeyError, TypeError, AttributeError) as error:
+            raise ValueError("Malformed Event payload") from error

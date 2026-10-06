@@ -79,14 +79,20 @@ def render_operations_inbox() -> None:
                 continue
             choice = st.selectbox(label, ("All", *options))
             filters[field] = None if choice == "All" else choice
-        events = store.list_events(
+        result = store.list_events_with_diagnostics(
             needs_action=needs_action,
             source=filters.get("source"),
             client_id=filters.get("client_id"),
             project_id=filters.get("project_id"),
             job_id=filters.get("job_id"),
         )
+        events = result.events
         st.caption("Newest activity first · up to 100 events · local read-only view")
+        if result.malformed:
+            st.warning(
+                f"{result.malformed} malformed event(s) omitted from this page. "
+                "The source records have not been changed."
+            )
         if not events:
             st.info("No events match these filters.")
         for event in events:
