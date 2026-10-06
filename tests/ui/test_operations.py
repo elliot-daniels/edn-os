@@ -95,7 +95,6 @@ def test_corrupt_attachment_metadata_fails_safely_without_writing(
     monkeypatch.setenv("EDN_OPERATIONS_DB", str(path))
     app = AppTest.from_file(str(APP)).run()
     assert not app.exception
-    assert (
-        app.error[0].value == "Operations database is unavailable or not initialized."
-    )
+    assert not app.error
+    assert "1 malformed event(s)" in app.warning[0].value
     assert path.read_bytes() == before
