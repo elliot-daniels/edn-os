@@ -12,7 +12,20 @@ from edn.operations.storage import EventStore
 START = datetime(2026, 10, 1, tzinfo=UTC)
 END = datetime(2026, 10, 2, tzinfo=UTC)
 MAILBOX = "edn@example.com"
-NEXT = "https://graph.microsoft.com/v1.0/users/edn%40example.com/mailFolders/inbox/messages?$skip=50"
+QUERY = {
+    "$select": "id,internetMessageId,parentFolderId,subject,body,from,"
+    "toRecipients,ccRecipients,receivedDateTime,webLink,flag,hasAttachments",
+    "$expand": "attachments($select=id,name,contentType,size,isInline)",
+    "$filter": "receivedDateTime ge 2026-10-01T00:00:00+00:00 "
+    "and receivedDateTime le 2026-10-02T00:00:00+00:00",
+    "$orderby": "receivedDateTime desc",
+    "$top": "50",
+}
+ORIGINAL = (
+    "https://graph.microsoft.com/v1.0/users/edn%40example.com/mailFolders/inbox/messages?"
+    + urllib.parse.urlencode(QUERY)
+)
+NEXT = ORIGINAL + "&%24skip=50"
 
 
 class Token:
@@ -54,7 +67,9 @@ def test_paginated_import_replay_and_provenance(tmp_path):
 
     def opener(request, **kwargs):
         requests.append(request)
-        if "$skip" in request.full_url:
+        if "$skip" in urllib.parse.parse_qs(
+            urllib.parse.urlsplit(request.full_url).query
+        ):
             return Response({"value": [message("m2")]})
         return Response({"value": [message(), {"id": "bad"}], "@odata.nextLink": NEXT})
 
