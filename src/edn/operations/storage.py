@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -70,7 +71,12 @@ class EventStore:
             connection.execute("PRAGMA foreign_keys=ON")
             initialise_schema(connection)
 
-    def insert(self, event: Event) -> InsertResult:
+    def insert(
+        self,
+        event: Event,
+        *,
+        checkpoint: Callable[[InsertResult, sqlite3.Connection], None] | None = None,
+    ) -> InsertResult:
         if self.read_only:
             raise ValueError("Read-only Event store cannot insert")
         payload = json.dumps(event.to_dict(), sort_keys=True, ensure_ascii=False)
@@ -110,7 +116,10 @@ class EventStore:
             ).fetchone()
             if identity != (stored.id,):
                 raise ValueError("Stored Event identity mapping is inconsistent")
-            return InsertResult(stored, cursor.rowcount == 1)
+            result = InsertResult(stored, cursor.rowcount == 1)
+            if checkpoint is not None:
+                checkpoint(result, connection)
+            return result
 
     def list_events(
         self,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 import urllib.parse
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -14,7 +15,7 @@ from edn.connectors.microsoft_outlook.client import (
 )
 from edn.operations.import_outcomes import ImportOutcomeStore
 from edn.operations.models import Event, validate_attachments
-from edn.operations.storage import EventStore
+from edn.operations.storage import EventStore, InsertResult
 
 MAX_PAGE_RECORDS = 50
 
@@ -153,6 +154,10 @@ def ingest_mailbox(
         raise ValueError("Page limit must be between 1 and 100")
     if outcomes is None:
         return _ingest_mailbox(client, store, mailbox, start, end, max_pages=max_pages)
+    if store.read_only or outcomes.read_only:
+        raise ValueError("Tracked imports require writable Event and outcome stores")
+    if store.path.resolve() != outcomes.path.resolve():
+        raise ValueError("Tracked imports require one selected database")
     run_id = outcomes.begin(mailbox, start, end)
     counts = [0, 0, 0, 0]
 
@@ -162,20 +167,35 @@ def ingest_mailbox(
             run_id, inserted=inserted, duplicates=duplicates, failed=failed, pages=pages
         )
 
-    try:
-        report = _ingest_mailbox(
-            client, store, mailbox, start, end, max_pages=max_pages, progress=progress
-        )
-    except Exception:
+    def checkpoint(
+        connection: sqlite3.Connection,
+        inserted: int,
+        duplicates: int,
+        failed: int,
+        pages: int,
+    ) -> None:
         outcomes.update(
             run_id,
-            inserted=counts[0],
-            duplicates=counts[1],
-            failed=counts[2],
-            pages=counts[3],
-            state="partial" if any(counts) else "failed",
-            reason="import_error",
+            inserted=inserted,
+            duplicates=duplicates,
+            failed=failed,
+            pages=pages,
+            connection=connection,
         )
+
+    try:
+        report = _ingest_mailbox(
+            client,
+            store,
+            mailbox,
+            start,
+            end,
+            max_pages=max_pages,
+            progress=progress,
+            checkpoint=checkpoint,
+        )
+    except Exception:
+        outcomes.fail(run_id)
         raise
     outcomes.update(
         run_id,
@@ -202,6 +222,7 @@ def _ingest_mailbox(
     *,
     max_pages: int,
     progress: Callable[[int, int, int, int], None] | None = None,
+    checkpoint: Callable[[sqlite3.Connection, int, int, int, int], None] | None = None,
 ) -> IngestionReport:
     if not 1 <= max_pages <= 100:
         raise ValueError("Page limit must be between 1 and 100")
@@ -227,7 +248,25 @@ def _ingest_mailbox(
                 if progress is not None:
                     progress(inserted, duplicates, failed, page_number)
                 continue
-            result = store.insert(record)
+
+            def commit_record(
+                result: InsertResult,
+                connection: sqlite3.Connection,
+                inserted: int = inserted,
+                duplicates: int = duplicates,
+                failed: int = failed,
+                page_number: int = page_number,
+            ) -> None:
+                if checkpoint is not None:
+                    checkpoint(
+                        connection,
+                        inserted + int(result.inserted),
+                        duplicates + int(not result.inserted),
+                        failed,
+                        page_number,
+                    )
+
+            result = store.insert(record, checkpoint=commit_record)
             inserted += int(result.inserted)
             duplicates += int(not result.inserted)
             if progress is not None:
