@@ -8,7 +8,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Protocol, cast
 
 import msal  # type: ignore[import-untyped]
@@ -16,6 +16,18 @@ import msal  # type: ignore[import-untyped]
 from edn.connectors.errors import SourceUnavailableError
 
 ALLOWED_DELEGATED_SCOPES = frozenset({"User.Read", "Calendars.Read", "Mail.Read"})
+MAX_RESPONSE_BYTES = 1_048_576
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(
+        self, req: Any, fp: Any, code: int, msg: str, headers: Any, newurl: str
+    ) -> None:
+        raise urllib.error.URLError("Graph redirects are not permitted")
+
+
+def _open_without_redirects(request: urllib.request.Request, **kwargs: Any) -> Any:
+    return urllib.request.build_opener(_NoRedirectHandler()).open(request, **kwargs)
 
 
 class GraphCalendarClient(Protocol):
@@ -191,20 +203,26 @@ class MicrosoftGraphCalendarClient:
     """Small read-only Graph client; every requested field is explicit."""
 
     _BASE = "https://graph.microsoft.com/v1.0"
+    _CALENDAR_SELECT = "id,name,canEdit,owner,isDefaultCalendar"
+    _EVENT_SELECT = (
+        "id,subject,start,end,organizer,attendees,location,isAllDay,"
+        "recurrence,webLink,lastModifiedDateTime,categories"
+    )
 
     def __init__(
         self,
         token_provider: TokenProvider,
         *,
-        opener: Callable[..., Any] = urllib.request.urlopen,
+        opener: Callable[..., Any] | None = None,
     ) -> None:
         self._token_provider = token_provider
-        self._opener = opener
+        self._opener = opener or _open_without_redirects
         self._token: str | None = None
 
     def calendars(self) -> tuple[dict[str, Any], ...]:
         return self._get_all(
-            f"{self._BASE}/me/calendars?%24select=id,name,canEdit,owner,isDefaultCalendar"
+            f"{self._BASE}/me/calendars?"
+            + urllib.parse.urlencode({"$select": self._CALENDAR_SELECT, "$top": "25"})
         )
 
     def calendar_view(
@@ -216,16 +234,25 @@ class MicrosoftGraphCalendarClient:
         timezone_name: str,
         limit: int,
     ) -> tuple[dict[str, Any], ...]:
-        if not 1 <= limit <= 25:
+        if type(limit) is not int or not 1 <= limit <= 25:
             raise ValueError("calendar live-read limit must be between 1 and 25")
+        if (
+            start.utcoffset() is None
+            or end.utcoffset() is None
+            or not timedelta(0) < end - start <= timedelta(days=7)
+        ):
+            raise ValueError(
+                "calendar window must be timezone-aware and at most 7 days"
+            )
+        if not calendar_id.strip() or calendar_id in {".", ".."}:
+            raise ValueError("calendar identity must be nonblank and unambiguous")
+        if not timezone_name or any(c in timezone_name for c in '\r\n"'):
+            raise ValueError("calendar timezone must be a safe header value")
         query = urllib.parse.urlencode(
             {
                 "startDateTime": start.isoformat(),
                 "endDateTime": end.isoformat(),
-                "$select": (
-                    "id,subject,start,end,organizer,attendees,location,isAllDay,"
-                    "recurrence,webLink,lastModifiedDateTime,categories"
-                ),
+                "$select": self._EVENT_SELECT,
                 "$orderby": "start/dateTime",
                 "$top": str(limit),
             }
@@ -260,26 +287,64 @@ class MicrosoftGraphCalendarClient:
             raw_values = payload.get("value")
             if not isinstance(raw_values, list):
                 raise RuntimeError("Microsoft Graph returned an unexpected response.")
+            if len(raw_values) > (25 if max_items is None else max_items):
+                raise SourceUnavailableError("Graph calendar page exceeds record limit")
+            if not all(isinstance(item, dict) for item in raw_values):
+                raise RuntimeError("Microsoft Graph returned an unexpected record")
             values.extend(cast(dict[str, Any], item) for item in raw_values)
-            if max_items is not None and len(values) >= max_items:
-                return tuple(values[:max_items])
+            # Event reads are one bounded page before category admission. A server
+            # continuation never authorizes a second calendarView request.
+            if max_items is not None:
+                return tuple(values)
             candidate = payload.get("@odata.nextLink")
-            next_url = None if candidate is None else str(candidate)
+            if candidate is not None:
+                self._validate_continuation(url, candidate)
+            next_url = candidate
         return tuple(values)
 
+    def _validate_continuation(self, original: str, candidate: Any) -> None:
+        if not isinstance(candidate, str):
+            raise ValueError("calendar continuation must be a URL string")
+        self._require_origin(candidate)
+        initial = urllib.parse.urlsplit(original)
+        continuation = urllib.parse.urlsplit(candidate)
+        if continuation.path != initial.path:
+            raise ValueError("calendar continuation changed the resource")
+        query = urllib.parse.parse_qs(continuation.query, keep_blank_values=True)
+        expected = urllib.parse.parse_qs(initial.query, keep_blank_values=True)
+        token = query.pop("$skiptoken", None)
+        if query != expected or token is None or len(token) != 1 or not token[0]:
+            raise ValueError("calendar continuation changed the bounded query")
+
+    @staticmethod
+    def _require_origin(url: str) -> None:
+        parsed = urllib.parse.urlsplit(url)
+        if (
+            (parsed.scheme, parsed.netloc) != ("https", "graph.microsoft.com")
+            or parsed.fragment
+            or any(ord(c) <= 32 for c in url)
+        ):
+            raise ValueError("calendar reads require the exact Graph HTTPS origin")
+
     def _get(self, url: str, *, timezone_name: str | None = None) -> dict[str, Any]:
+        self._require_origin(url)
         if self._token is None:
             self._token = self._token_provider.acquire_token()
         headers = {
-            "Authorization": f"Bearer {self._token}",
             "Accept": "application/json",
         }
         if timezone_name is not None:
             headers["Prefer"] = f'outlook.timezone="{timezone_name}"'
         request = urllib.request.Request(url, headers=headers, method="GET")
+        request.add_unredirected_header("Authorization", f"Bearer {self._token}")
         try:
             with self._opener(request, timeout=30) as response:
-                return _json_object(response.read())
+                content = response.read(MAX_RESPONSE_BYTES + 1)
+                if len(content) > MAX_RESPONSE_BYTES:
+                    raise SourceUnavailableError(
+                        "Graph calendar response exceeds byte limit"
+                    )
+                return _json_object(content)
         except (urllib.error.URLError, TimeoutError) as error:
             raise SourceUnavailableError(
                 "Microsoft Graph read failed safely."
