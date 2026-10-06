@@ -80,12 +80,28 @@ def test_bounded_resilient_read_preserves_rows_and_reports_omissions(tmp_path):
     assert store.path.read_bytes() == before
 
 
-def test_schema_and_database_errors_are_not_swallowed(tmp_path):
+def test_schema_and_database_errors_are_not_swallowed(tmp_path, monkeypatch):
+    from streamlit.testing.v1 import AppTest
+
+    missing = tmp_path / "missing.db"
+    with pytest.raises(sqlite3.OperationalError):
+        EventStore(missing, read_only=True).list_events_with_diagnostics()
+    assert not missing.exists()
     path = tmp_path / "wrong.db"
     with sqlite3.connect(path) as connection:
         connection.execute("CREATE TABLE unrelated (id INTEGER)")
-    with pytest.raises(sqlite3.OperationalError):
-        EventStore(path, read_only=True).list_events_with_diagnostics()
+    before = path.read_bytes()
+    monkeypatch.setenv("EDN_OPERATIONS_DB", str(path))
+    app = AppTest.from_string(
+        "from edn.ui.operations import render_operations_inbox\n"
+        "render_operations_inbox()"
+    ).run()
+    assert not app.exception
+    assert (
+        app.error[0].value == "Operations database is unavailable or not initialized."
+    )
+    assert not app.warning
+    assert path.read_bytes() == before
 
 
 def test_deep_json_does_not_hide_valid_neighbors(tmp_path):
