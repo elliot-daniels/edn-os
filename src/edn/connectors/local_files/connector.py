@@ -29,6 +29,7 @@ from edn.connectors.local_files.config import (
     ApprovedRoot,
     LocalFilesConfig,
     SymlinkPolicy,
+    is_link_or_reparse_point,
 )
 from edn.connectors.local_files.documents import (
     DocumentExtractionError,
@@ -194,7 +195,9 @@ class LocalFilesConnector:
                 if is_directory:
                     root_path = root.path.resolve(strict=True)
                     depth = len(path.relative_to(root_path).parts)
-                    if not self._allow_directory(path, root_path, root_device, depth):
+                    if not self._allow_directory(
+                        path, root, root_path, root_device, depth
+                    ):
                         traversal.skip_current_directory()
                         excluded += 1
                     continue
@@ -479,7 +482,7 @@ class LocalFilesConnector:
                     name
                     for name in directory_names
                     if self._allow_directory(
-                        current / name, root_path, root_device, depth + 1
+                        current / name, root, root_path, root_device, depth + 1
                     )
                 )
                 for filename in sorted(filenames):
@@ -491,23 +494,28 @@ class LocalFilesConnector:
                         yield candidate
 
     def _allow_directory(
-        self, path: Path, root: Path, root_device: int, depth: int
+        self,
+        path: Path,
+        approved_root: ApprovedRoot,
+        root: Path,
+        root_device: int,
+        depth: int,
     ) -> bool:
         if self.config.max_depth is not None and depth > self.config.max_depth:
             return False
         if not self.config.discover_hidden and _is_hidden(path):
             return False
-        if any(_is_within(path, excluded) for excluded in self.config.excluded_roots):
-            return False
-        if path.is_symlink():
-            return False
         try:
-            resolved = path.resolve(strict=True)
+            if is_link_or_reparse_point(path):
+                return False
+            if approved_root.path.resolve(strict=True) != root:
+                return False
+            resolved = self.config.validate_candidate_path(path, approved_root.root_id)
             return _is_within(resolved, root) and (
                 not self.config.stay_on_filesystem
                 or resolved.stat().st_dev == root_device
             )
-        except OSError:
+        except (OSError, ValueError):
             return False
 
     def _candidate(
@@ -532,7 +540,7 @@ class LocalFilesConnector:
         if symlink and self.config.symlink_policy is SymlinkPolicy.NEVER:
             return None
         try:
-            resolved = path.resolve(strict=True)
+            resolved = self.config.validate_candidate_path(path, root.root_id)
             if not _is_within(resolved, root_path):
                 return None
             stat = resolved.stat()
@@ -540,7 +548,7 @@ class LocalFilesConnector:
                 return None
             if not resolved.is_file():
                 return None
-        except OSError:
+        except (OSError, ValueError):
             return None
         category = classify_extension(extension)
         supported = (
