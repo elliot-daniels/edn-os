@@ -901,3 +901,227 @@ def test_cli_discovery_cannot_bypass_denied_policy(tmp_path: Path) -> None:
         assert (
             connection.execute("SELECT COUNT(*) FROM discovery_runs").fetchone()[0] == 0
         )
+
+
+@pytest.mark.parametrize("excluded_file", [False, True])
+def test_discovery_excludes_direct_paths_and_aliases(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, excluded_file: bool
+) -> None:
+    root = tmp_path / "root"
+    hidden = root / "excluded"
+    hidden.mkdir(parents=True)
+    secret = hidden / "secret.txt"
+    secret.write_text("excluded content", encoding="utf-8")
+    visible = root / "visible.txt"
+    visible.write_text("visible", encoding="utf-8")
+    alias = root / "alias.txt"
+    make_file_alias(alias, secret, monkeypatch)
+    config = make_config(
+        tmp_path, root, excluded=(secret if excluded_file else hidden,),
+        symlink_policy=SymlinkPolicy.WITHIN_ROOT,
+    )
+    connector = LocalFilesConnector(config)
+    assert [item.path for item in discover_direct(connector)] == [visible.resolve()]
+    for path in (secret, alias):
+        with pytest.raises(ValueError, match="excluded"):
+            config.validate_candidate_path(path, "root-one")
+
+
+def test_lexical_exclusion_survives_resolved_alias(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    target = root / "target.txt"
+    target.write_text("synthetic", encoding="utf-8")
+    excluded_alias = root / "excluded.txt"
+    config = make_config(
+        tmp_path, root, excluded=(excluded_alias,),
+        symlink_policy=SymlinkPolicy.WITHIN_ROOT,
+    )
+    original = Path.resolve
+
+    def resolve(path: Path, strict: bool = False) -> Path:
+        if path == excluded_alias:
+            return target
+        return original(path, strict=strict)
+
+    monkeypatch.setattr(Path, "resolve", resolve)
+    with pytest.raises(ValueError, match="excluded"):
+        config.validate_candidate_path(excluded_alias, "root-one")
+    with pytest.raises(ValueError, match="excluded"):
+        config.validate_candidate_path(target, "root-one")
+    connector = LocalFilesConnector(config)
+    assert connector._candidate(
+        excluded_alias, config.roots[0], "run", root.resolve(), root.stat().st_dev
+    ) is None
+
+
+def test_discovery_applies_file_exclusion_without_symlink_support(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    secret = root / "secret.txt"
+    secret.write_text("excluded", encoding="utf-8")
+    visible = root / "visible.txt"
+    visible.write_text("visible", encoding="utf-8")
+    connector = LocalFilesConnector(make_config(tmp_path, root, excluded=(secret,)))
+    assert [item.path for item in discover_direct(connector)] == [visible.resolve()]
+
+
+def test_within_root_symlink_escape_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside.txt"
+    outside.write_text("outside", encoding="utf-8")
+    alias = root / "escape.txt"
+    make_file_alias(alias, outside, monkeypatch)
+    connector = LocalFilesConnector(
+        make_config(tmp_path, root, symlink_policy=SymlinkPolicy.WITHIN_ROOT)
+    )
+    assert discover_direct(connector) == ()
+    with pytest.raises(ValueError, match="escapes"):
+        connector.config.validate_candidate_path(alias, "root-one")
+
+
+def test_revalidation_rejects_new_symlink_when_policy_is_never(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    source = root / "source.txt"
+    source.write_text("synthetic", encoding="utf-8")
+    config = make_config(tmp_path, root)
+    original = Path.is_symlink
+
+    def is_symlink(path: Path) -> bool:
+        return path == source or original(path)
+
+    monkeypatch.setattr(Path, "is_symlink", is_symlink)
+    with pytest.raises(ValueError, match="symlinks"):
+        config.validate_candidate_path(source, "root-one")
+
+
+def make_file_alias(
+    alias: Path, target: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Use real links when supported; model target resolution on restricted Windows."""
+    try:
+        alias.symlink_to(target)
+        return
+    except OSError:
+        alias.write_text("synthetic alias", encoding="utf-8")
+    original_resolve = Path.resolve
+    original_is_symlink = Path.is_symlink
+
+    def resolve(path: Path, strict: bool = False) -> Path:
+        if path == alias:
+            return target.resolve(strict=strict)
+        return original_resolve(path, strict=strict)
+
+    def is_symlink(path: Path) -> bool:
+        return path == alias or original_is_symlink(path)
+
+    monkeypatch.setattr(Path, "resolve", resolve)
+    monkeypatch.setattr(Path, "is_symlink", is_symlink)
+
+
+def test_within_root_file_alias_remains_eligible(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    target = root / "target.txt"
+    target.write_text("synthetic", encoding="utf-8")
+    alias = root / "alias.txt"
+    make_file_alias(alias, target, monkeypatch)
+    config = make_config(tmp_path, root, symlink_policy=SymlinkPolicy.WITHIN_ROOT)
+    assert config.validate_candidate_path(alias, "root-one") == target.resolve()
+    connector = LocalFilesConnector(config)
+    candidate = connector._candidate(
+        alias, config.roots[0], "run", root.resolve(), root.stat().st_dev
+    )
+    assert candidate is not None and candidate.path == target.resolve()
+    assert candidate.symlink
+
+
+def test_reparse_directory_is_pruned_and_ancestor_revalidation_denied(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import stat
+    from types import SimpleNamespace
+
+    root = tmp_path / "root"
+    junction = root / "junction"
+    junction.mkdir(parents=True)
+    source = junction / "source.txt"
+    source.write_text("synthetic", encoding="utf-8")
+    config = make_config(tmp_path, root)
+    original_lstat = Path.lstat
+
+    def lstat(path: Path):
+        original = original_lstat(path)
+        if path == junction:
+            return SimpleNamespace(
+                st_mode=original.st_mode,
+                st_file_attributes=stat.FILE_ATTRIBUTE_REPARSE_POINT,
+            )
+        return original
+
+    monkeypatch.setattr(Path, "lstat", lstat)
+    assert not junction.is_symlink()
+    with pytest.raises(ValueError, match="symlinks"):
+        config.validate_candidate_path(source, "root-one")
+    connector = LocalFilesConnector(config)
+    assert not connector._allow_directory(
+        junction, config.roots[0], root.resolve(), root.stat().st_dev, 1
+    )
+    assert discover_direct(connector) == ()
+
+
+def test_directory_admission_rejects_changed_root_without_lookup_exception(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "root"
+    child = root / "child"
+    child.mkdir(parents=True)
+    config = make_config(tmp_path, root)
+    connector = LocalFilesConnector(config)
+    original = Path.resolve
+
+    def resolve(path: Path, strict: bool = False) -> Path:
+        if path == root:
+            return tmp_path / "replacement-root"
+        return original(path, strict=strict)
+
+    monkeypatch.setattr(Path, "resolve", resolve)
+    assert not connector._allow_directory(
+        child, config.roots[0], root, root.stat().st_dev, 1
+    )
+
+
+def test_real_directory_link_is_never_traversed_or_revalidated(tmp_path: Path) -> None:
+    import subprocess
+
+    root = tmp_path / "root"
+    target = root / "target"
+    target.mkdir(parents=True)
+    source = target / "source.txt"
+    source.write_text("synthetic", encoding="utf-8")
+    alias = root / "alias"
+    if os.name == "nt":
+        subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(alias), str(target)],
+            check=True, capture_output=True,
+        )
+    else:
+        alias.symlink_to(target, target_is_directory=True)
+    connector = LocalFilesConnector(make_config(tmp_path, root))
+    assert [candidate.path for candidate in discover_direct(connector)] == [
+        source.resolve()
+    ]
+    with pytest.raises(ValueError, match="symlinks"):
+        connector.config.validate_candidate_path(alias / "source.txt", "root-one")
