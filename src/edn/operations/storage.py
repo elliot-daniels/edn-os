@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from edn.operations.models import Event
+from edn.operations.schema import initialise_schema, validate_schema
 
 
 @dataclass(frozen=True)
@@ -23,32 +24,24 @@ class EventStore:
 
     def _connect(self) -> sqlite3.Connection:
         mode = "ro" if self.read_only else "rw"
-        return sqlite3.connect(f"{self.path.resolve().as_uri()}?mode={mode}", uri=True)
+        connection = sqlite3.connect(
+            f"{self.path.resolve().as_uri()}?mode={mode}", uri=True
+        )
+        try:
+            connection.execute("PRAGMA foreign_keys=ON")
+            validate_schema(connection, read_only=self.read_only)
+        except BaseException:
+            connection.close()
+            raise
+        return connection
 
     def initialise(self) -> None:
         if self.read_only:
             raise ValueError("Read-only Event store cannot initialise")
         # Parent must already exist; caller selects an approved runtime path.
         with sqlite3.connect(self.path) as connection:
-            connection.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS operations_events (
-                    id TEXT PRIMARY KEY,
-                    source TEXT NOT NULL,
-                    source_account TEXT NOT NULL,
-                    external_id TEXT NOT NULL,
-                    occurred_at TEXT NOT NULL,
-                    needs_action INTEGER NOT NULL,
-                    client_id TEXT,
-                    project_id TEXT,
-                    job_id TEXT,
-                    payload TEXT NOT NULL,
-                    UNIQUE(source, source_account, external_id)
-                );
-                CREATE INDEX IF NOT EXISTS operations_events_newest
-                    ON operations_events(occurred_at DESC, id DESC);
-                """
-            )
+            connection.execute("PRAGMA foreign_keys=ON")
+            initialise_schema(connection)
 
     def insert(self, event: Event) -> InsertResult:
         if self.read_only:
@@ -72,14 +65,34 @@ class EventStore:
                 ),
             )
             row = connection.execute(
-                """SELECT payload FROM operations_events
+                """SELECT id, source, source_account, external_id, payload
+                FROM operations_events
                 WHERE source=? AND source_account=? AND external_id=?""",
                 (event.source, event.source_account, event.external_id),
             ).fetchone()
             assert row is not None
-            return InsertResult(
-                Event.from_dict(json.loads(row[0])), cursor.rowcount == 1
+            stored = Event.from_dict(json.loads(row[4]))
+            if (
+                stored.id,
+                stored.source,
+                stored.source_account,
+                stored.external_id,
+            ) != row[:4]:
+                raise ValueError(
+                    "Stored Event provenance does not match physical identity"
+                )
+            connection.execute(
+                "INSERT INTO operations_event_identities VALUES (?, ?) "
+                "ON CONFLICT(identity_key) DO NOTHING",
+                (stored.identity_key, stored.id),
             )
+            identity = connection.execute(
+                "SELECT event_id FROM operations_event_identities WHERE identity_key=?",
+                (stored.identity_key,),
+            ).fetchone()
+            if identity != (stored.id,):
+                raise ValueError("Stored Event identity mapping is inconsistent")
+            return InsertResult(stored, cursor.rowcount == 1)
 
     def list_events(
         self,
