@@ -12,6 +12,7 @@ from pathlib import Path
 import msal  # type: ignore[import-untyped]
 
 from edn.connectors.microsoft_calendar.client import DeviceCodeCredential
+from edn.operations.import_outcomes import ImportOutcomeStore
 from edn.operations.outlook import (
     OperationsOutlookClient,
     ingest_mailbox,
@@ -54,7 +55,7 @@ def runtime_database(database: str, data_root: str) -> Path:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("init", "ingest-outlook"))
+    parser.add_argument("command", choices=("init", "ingest-outlook", "import-status"))
     parser.add_argument("--database", default=os.environ.get("EDN_OPERATIONS_DB"))
     parser.add_argument(
         "--data-root", default=os.environ.get("EDN_DATA_ROOT", r"E:\EDN OS")
@@ -71,12 +72,27 @@ def main(argv: list[str] | None = None) -> int:
     try:
         path = runtime_database(args.database, args.data_root)
         store = EventStore(path)
+        outcomes = ImportOutcomeStore(path)
         if args.command == "init":
+            if path.is_file():
+                outcomes.validate()
             store.initialise()
+            outcomes.initialise()
             print(json.dumps({"initialized": True}))
             return 0
         if not path.is_file():
             raise ValueError("Initialize the Operations database before ingestion")
+        if args.command == "import-status":
+            history = ImportOutcomeStore(path, read_only=True).latest()
+            print(
+                json.dumps(
+                    {
+                        "coverage": "requested_inbox_windows_only",
+                        "runs": [asdict(run) for run in history],
+                    }
+                )
+            )
+            return 0
         if not args.start or not args.end:
             raise ValueError("Outlook import requires --start and --end")
         start, end = (
@@ -84,6 +100,7 @@ def main(argv: list[str] | None = None) -> int:
             datetime.fromisoformat(args.end),
         )
         validate_window(start, end)
+        outcomes.initialise()
         if not 1 <= args.max_pages <= 100:
             raise ValueError("Page limit must be between 1 and 100")
         mailboxes = tuple(
@@ -116,9 +133,33 @@ def main(argv: list[str] | None = None) -> int:
                 )
         complete = True
         for mailbox in mailboxes:
-            report = ingest_mailbox(
-                client, store, mailbox, start, end, max_pages=args.max_pages
-            )
+            try:
+                report = ingest_mailbox(
+                    client,
+                    store,
+                    mailbox,
+                    start,
+                    end,
+                    max_pages=args.max_pages,
+                    outcomes=outcomes,
+                )
+            except Exception:
+                # Never print source/network exception strings or raw payloads.
+                print(
+                    json.dumps(
+                        {
+                            "mailbox": mailbox,
+                            "complete": False,
+                            "reason": "import_error",
+                            "recent_outcomes": [
+                                asdict(run)
+                                for run in outcomes.latest(account=mailbox, limit=20)
+                            ],
+                        }
+                    )
+                )
+                complete = False
+                continue
             print(json.dumps({"mailbox": mailbox, **asdict(report)}))
             complete = complete and report.complete
         return 0 if complete else 1

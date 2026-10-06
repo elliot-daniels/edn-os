@@ -8,7 +8,53 @@ from pathlib import Path
 
 import streamlit as st
 
+from edn.operations.import_outcomes import ImportOutcomeStore
 from edn.operations.storage import EventStore
+
+
+def render_import_status(path: Path) -> None:
+    """Bounded read-only history; persisted Events never imply intake completeness."""
+    try:
+        history = ImportOutcomeStore(path, read_only=True).latest(limit=20)
+    except (sqlite3.Error, ValueError):
+        st.warning("Import history is unavailable; completeness is unknown.")
+        return
+    if not history:
+        st.caption("Import status: never run · no recorded import outcome.")
+        return
+    st.caption(
+        "Latest recorded import per account within the 20 most recent attempts. "
+        "Coverage applies only to the requested Inbox window."
+    )
+    seen: set[str] = set()
+    for run in history:
+        if run.source_account in seen:
+            continue
+        seen.add(run.source_account)
+        state = (
+            "In progress or interrupted · incomplete"
+            if run.state == "in_progress"
+            else run.state.capitalize()
+        )
+        st.text(f"Import status: {state} · {run.source_account}")
+        st.caption(
+            f"{run.window_start} to {run.window_end} · "
+            f"recorded checkpoint: {run.inserted} inserted · "
+            f"{run.duplicates} duplicates · "
+            f"{run.failed} rejected records · {run.pages} completed pages"
+        )
+        if run.state == "in_progress":
+            st.caption(
+                "An interrupted run may have stored Events "
+                "beyond these checkpoint counts."
+            )
+        if run.reason:
+            reasons = {
+                "malformed_records": "Malformed records were rejected.",
+                "page_limit": "The page limit was reached before completion.",
+                "import_error": "Import stopped with an error; coverage is incomplete.",
+            }
+            st.caption(reasons.get(run.reason, "Import completion is unconfirmed."))
 
 
 def render_operations_inbox() -> None:
@@ -18,6 +64,7 @@ def render_operations_inbox() -> None:
         st.info("Configure EDN_OPERATIONS_DB with an existing Operations database.")
         return
     store = EventStore(Path(setting), read_only=True)
+    render_import_status(Path(setting))
     try:
         needs_action = st.checkbox("Needs action only")
         filters: dict[str, str | None] = {}
