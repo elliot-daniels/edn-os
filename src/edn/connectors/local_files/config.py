@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import stat
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -93,7 +95,11 @@ class LocalFilesConfig:
         for excluded in self.excluded_roots:
             if not excluded.is_absolute():
                 raise ValueError("excluded roots must be absolute")
-            if not any(_is_within(excluded, root.path) for root in self.roots):
+            if not any(
+                _is_lexically_within(excluded, root.path)
+                or _is_within(excluded, root.path)
+                for root in self.roots
+            ):
                 raise ValueError("excluded root must be within an approved root")
         if (
             self.symlink_policy is SymlinkPolicy.WITHIN_ROOT
@@ -153,6 +159,8 @@ class LocalFilesConfig:
     def validate_candidate_path(self, path: Path, root_id: str) -> Path:
         root = self.root(root_id)
         root_resolved = root.path.resolve(strict=True)
+        if any(_is_lexically_within(path, item) for item in self.excluded_roots):
+            raise ValueError("path is within an excluded root")
         candidate = path.resolve(strict=True)
         if not _is_within(candidate, root_resolved):
             raise ValueError("path escapes its approved root")
@@ -161,6 +169,17 @@ class LocalFilesConfig:
             for item in self.excluded_roots
         ):
             raise ValueError("path is within an excluded root")
+        if self.symlink_policy is SymlinkPolicy.NEVER and any(
+            is_link_or_reparse_point(item)
+            for item in (path, *path.parents)
+            if item != root.path and _is_lexically_within(item, root.path)
+        ):
+            raise ValueError("symlinks are prohibited")
+        if (
+            self.stay_on_filesystem
+            and candidate.stat().st_dev != root_resolved.stat().st_dev
+        ):
+            raise ValueError("path crosses its approved filesystem")
         return candidate
 
 
@@ -351,3 +370,20 @@ def _is_within(path: Path, root: Path) -> bool:
     except ValueError:
         return False
     return True
+
+
+def _is_lexically_within(path: Path, root: Path) -> bool:
+    """Compare normalized names without discarding configured symlink exclusions."""
+    try:
+        Path(os.path.abspath(path)).relative_to(Path(os.path.abspath(root)))
+    except ValueError:
+        return False
+    return True
+
+
+def is_link_or_reparse_point(path: Path) -> bool:
+    """Reject Windows junctions/reparse points even on Python without is_junction."""
+    return path.is_symlink() or bool(
+        getattr(path.lstat(), "st_file_attributes", 0)
+        & stat.FILE_ATTRIBUTE_REPARSE_POINT
+    )

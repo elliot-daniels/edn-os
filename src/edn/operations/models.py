@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -20,6 +22,19 @@ EVENT_TYPES = frozenset(
     }
 )
 DIRECTIONS = frozenset({"inbound", "outbound", "internal"})
+
+
+def event_identity_key(source: str, source_account: str, external_id: str) -> str:
+    """Versioned, exact source identity; never normalize or hash Event content."""
+    if any(
+        not isinstance(value, str) or not value.strip()
+        for value in (source, source_account, external_id)
+    ):
+        raise ValueError("Event source identity must contain nonempty strings")
+    encoded = json.dumps(
+        [source, source_account, external_id], ensure_ascii=False, separators=(",", ":")
+    ).encode("utf-8")
+    return "event-source-v1:" + hashlib.sha256(encoded).hexdigest()
 
 
 def validate_attachments(attachments: object) -> None:
@@ -60,6 +75,10 @@ class Event:
     raw_payload: dict[str, Any] = field(default_factory=dict)
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     id: str = field(default_factory=lambda: str(uuid4()))
+
+    @property
+    def identity_key(self) -> str:
+        return event_identity_key(self.source, self.source_account, self.external_id)
 
     def __post_init__(self) -> None:
         validate_attachments(self.attachments)

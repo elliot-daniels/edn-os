@@ -103,3 +103,30 @@ The result is operationally ready for a later activation decision, not automatic
 delivery. Production scheduler installation, unattended execution, external
 delivery, new live-source access, model/provider disclosure, and any external
 action remain owner-authority boundaries.
+
+## October restore containment repair
+
+Manifest component names are portable identifiers; filenames are portable `.bin`
+basenames, never paths. Verification rejects duplicate names/filenames (including
+case aliases), prohibited component categories, invalid hashes/sizes, traversal,
+absolute/drive/UNC paths, alternate streams and the reserved manifest filename.
+Create, verify and restore reject symbolic links and Windows junctions in supplied
+paths and existing ancestors. Files must be regular; POSIX reads additionally use
+`O_NOFOLLOW`. Restore uses exclusive file creation, checks copied bytes against
+the verified manifest again, and writes its completion manifest last. An
+interrupted or changed-source restore remains an incomplete new directory, with
+no completion manifest; it never replaces an existing target or valid backup.
+
+These are synthetic file recovery checks, not SQLite snapshot consistency or
+production recovery acceptance. Callers still need owner-approved protected
+local directories: ancestor checks do not establish OS access control or protect
+against a hostile process concurrently replacing parent directories. Production
+ACL/encryption changes and Operations SQLite recovery remain separately gated.
+
+Review follow-up: all Windows reparse points are rejected using file attributes,
+including Python 3.11 junction ancestors without `Path.is_junction`. Manifest
+schema/size fields require JSON integers, refusing booleans, strings and floats.
+The completion manifest is flushed to a temporary file and atomically published
+with an exclusive hard link; write/flush/publication failures leave no completion
+marker. Filesystems without hard-link support fail closed rather than weakening
+publication. Temporary manifest files are removed on handled failures.
