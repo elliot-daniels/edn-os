@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
 import urllib.parse
 from collections.abc import Callable
@@ -79,8 +80,16 @@ class OperationsOutlookClient(MicrosoftGraphOutlookClient):
                 "$top": str(MAX_PAGE_RECORDS),
             }
         )
-        url = continuation or f"{prefix}?{query}"
+        original = f"{prefix}?{query}"
+        url = original if continuation is None else continuation
         # Never forward a token to another host, mailbox or Graph resource.
+        if (
+            not isinstance(url, str)
+            or any(ord(character) <= 32 or ord(character) == 127 for character in url)
+            or "#" in url
+            or re.search(r"%(?![0-9a-fA-F]{2})", url)
+        ):
+            raise ValueError("Unsafe Graph continuation")
         parsed = urllib.parse.urlsplit(url)
         expected = urllib.parse.urlsplit(prefix)
         if (parsed.scheme, parsed.netloc, parsed.path) != (
@@ -89,6 +98,27 @@ class OperationsOutlookClient(MicrosoftGraphOutlookClient):
             expected.path,
         ) or parsed.fragment:
             raise ValueError("Unsafe Graph continuation")
+        if continuation is not None:
+            pairs = urllib.parse.parse_qsl(
+                parsed.query,
+                keep_blank_values=True,
+                strict_parsing=True,
+                errors="strict",
+            )
+            fields = dict(pairs)
+            if len(fields) != len(pairs):
+                raise ValueError("Graph continuation repeats query fields")
+            cursors = [name for name in ("$skip", "$skiptoken") if name in fields]
+            if len(cursors) != 1:
+                raise ValueError("Graph continuation requires one pagination cursor")
+            cursor = cursors[0]
+            value = fields.pop(cursor)
+            if not value.strip() or (
+                cursor == "$skip" and re.fullmatch(r"0|[1-9][0-9]*", value) is None
+            ):
+                raise ValueError("Invalid Graph pagination cursor")
+            if fields != dict(urllib.parse.parse_qsl(query)):
+                raise ValueError("Graph continuation changed the bounded query")
         return self._get(url)
 
 
@@ -194,7 +224,7 @@ def ingest_mailbox(
             progress=progress,
             checkpoint=checkpoint,
         )
-    except Exception:
+    except (Exception, KeyboardInterrupt, SystemExit):
         outcomes.fail(run_id)
         raise
     outcomes.update(
