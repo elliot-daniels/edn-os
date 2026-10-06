@@ -6,11 +6,14 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
+import os
+import re
+import stat
+import tempfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 _SCHEMA_VERSION = 1
 _PROHIBITED_PARTS = frozenset(
@@ -37,6 +40,17 @@ class BackupManifest:
             raise ValueError("backup timestamp must be timezone-aware")
         if self.schema_version != _SCHEMA_VERSION:
             raise ValueError("unsupported backup manifest schema")
+        names: set[str] = set()
+        filenames: set[str] = set()
+        for name, digest, size, filename in self.components:
+            _validate_name(name)
+            _validate_filename(filename)
+            if name.casefold() in names or filename.casefold() in filenames:
+                raise ValueError("backup components must have unique names and filenames")
+            names.add(name.casefold())
+            filenames.add(filename.casefold())
+            if size < 0 or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+                raise ValueError("invalid backup integrity metadata")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -57,11 +71,19 @@ class BackupManifest:
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> BackupManifest:
-        if int(value.get("schema_version", -1)) != _SCHEMA_VERSION:
+        if type(value.get("schema_version")) is not int or value["schema_version"] != _SCHEMA_VERSION:
             raise ValueError("unsupported backup manifest schema")
         components = value.get("components")
         if not isinstance(components, list):
             raise ValueError("backup components must be a list")
+        if not isinstance(value.get("backup_id"), str) or not isinstance(value.get("created_at"), str):
+            raise ValueError("backup identity and timestamp must be strings")
+        excluded = value.get("excluded_components", [])
+        if not isinstance(excluded, list) or any(not isinstance(item, str) for item in excluded):
+            raise ValueError("backup exclusions must be strings")
+        for item in components:
+            if not isinstance(item, dict) or any(not isinstance(item.get(key), str) for key in ("name", "sha256", "filename")) or type(item.get("size_bytes")) is not int:
+                raise ValueError("invalid backup component metadata types")
         return cls(
             str(value["backup_id"]),
             datetime.fromisoformat(str(value["created_at"])),
@@ -98,12 +120,15 @@ class OperationalBackup:
         timestamp = now or datetime.now(UTC)
         if timestamp.tzinfo is None:
             raise ValueError("backup timestamp must be timezone-aware")
+        _reject_links(destination)
         if destination.exists():
             raise FileExistsError("backup destination must not already exist")
-        names = {item.name for item in components}
+        names = {item.name.casefold() for item in components}
         if len(names) != len(components):
             raise ValueError("backup component names must be unique")
         for component in components:
+            _validate_name(component.name)
+            _reject_links(component.path)
             if any(
                 prohibited in component.name.casefold()
                 for prohibited in _PROHIBITED_PARTS
@@ -126,7 +151,7 @@ class OperationalBackup:
         for component in sorted(components, key=lambda item: item.name):
             filename = f"{len(records):03d}-{component.name}.bin"
             target = destination / filename
-            shutil.copyfile(component.path, target)
+            _copy_exclusive(component.path, target)
             digest = _sha256(target)
             records.append((component.name, digest, target.stat().st_size, filename))
         backup_id = (
@@ -138,22 +163,23 @@ class OperationalBackup:
         manifest = BackupManifest(
             backup_id, timestamp, _SCHEMA_VERSION, tuple(records), excluded_components
         )
-        (destination / "manifest.json").write_text(
-            json.dumps(manifest.to_dict(), indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
+        _publish_manifest(destination, manifest)
         return manifest
 
     def verify(self, backup: Path) -> BackupManifest:
+        _reject_links(backup)
         manifest_path = backup / "manifest.json"
+        _reject_links(manifest_path)
         if not manifest_path.is_file():
             raise ValueError("backup manifest is missing")
-        value = json.loads(manifest_path.read_text(encoding="utf-8"))
+        with _open_regular(manifest_path) as stream:
+            value = json.load(stream)
         if not isinstance(value, dict):
             raise ValueError("backup manifest is invalid")
         manifest = BackupManifest.from_dict(value)
         for name, digest, size, filename in manifest.components:
             path = backup / filename
+            _reject_links(path)
             if (
                 not path.is_file()
                 or path.stat().st_size != size
@@ -164,23 +190,82 @@ class OperationalBackup:
 
     def restore(self, backup: Path, destination: Path) -> BackupManifest:
         manifest = self.verify(backup)
+        _reject_links(destination)
         if destination.exists():
             raise FileExistsError(
                 "restore target exists; live operational state cannot be overwritten"
             )
         destination.mkdir(parents=True)
-        for _, _, _, filename in manifest.components:
-            shutil.copyfile(backup / filename, destination / filename)
-        (destination / "manifest.json").write_text(
-            json.dumps(manifest.to_dict(), indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
+        for name, digest, size, filename in manifest.components:
+            target = destination / filename
+            _copy_exclusive(backup / filename, target)
+            if target.stat().st_size != size or _sha256(target) != digest:
+                raise ValueError(f"backup integrity failed during restore for {name}")
+        _publish_manifest(destination, manifest)
         return manifest
 
 
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
-    with path.open("rb") as stream:
+    with _open_regular(path) as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _validate_name(name: str) -> None:
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", name) is None:
+        raise ValueError("backup component name must be a portable identifier")
+    if any(part in name.casefold() for part in _PROHIBITED_PARTS):
+        raise PermissionError("prohibited component names cannot enter operational backup")
+
+
+def _validate_filename(filename: str) -> None:
+    # A portable basename excludes both POSIX and Windows traversal, drives,
+    # UNC paths, alternate data streams and the reserved manifest destination.
+    if re.fullmatch(r"[0-9]{3,}-[A-Za-z0-9][A-Za-z0-9_-]*\.bin", filename) is None:
+        raise ValueError("backup component filename must be a portable basename")
+
+
+def _reject_links(path: Path) -> None:
+    for candidate in (path.absolute(), *path.absolute().parents):
+        try:
+            attributes = candidate.lstat()
+        except FileNotFoundError:
+            attributes = None
+        if (attributes is not None and getattr(attributes, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT) or candidate.is_symlink() or (
+            hasattr(candidate, "is_junction") and candidate.is_junction()
+        ):
+            raise ValueError("backup paths must not contain symlinks or junctions")
+
+
+def _copy_exclusive(source: Path, target: Path) -> None:
+    _reject_links(source)
+    _reject_links(target)
+    with _open_regular(source) as incoming, target.open("xb") as outgoing:
+        for block in iter(lambda: incoming.read(1024 * 1024), b""):
+            outgoing.write(block)
+
+
+def _open_regular(path: Path) -> BinaryIO:
+    _reject_links(path)
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags)
+    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
+        raise ValueError("backup components must be regular files")
+    return os.fdopen(descriptor, "rb")
+
+
+def _publish_manifest(destination: Path, manifest: BackupManifest) -> None:
+    # Hard-link publication is atomic and refuses an existing completion marker.
+    # No partially written JSON can ever appear at the manifest filename.
+    descriptor, temporary = tempfile.mkstemp(prefix=".manifest-", dir=destination)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(json.dumps(manifest.to_dict(), indent=2, sort_keys=True) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.link(temporary, destination / "manifest.json")
+    finally:
+        Path(temporary).unlink()
