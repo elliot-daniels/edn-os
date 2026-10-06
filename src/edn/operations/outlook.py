@@ -12,6 +12,7 @@ from edn.connectors.microsoft_outlook.client import (
     MicrosoftGraphOutlookClient,
     TokenProvider,
 )
+from edn.operations.import_outcomes import ImportOutcomeStore
 from edn.operations.models import Event, validate_attachments
 from edn.operations.storage import EventStore
 
@@ -145,13 +146,69 @@ def ingest_mailbox(
     end: datetime,
     *,
     max_pages: int = 100,
+    outcomes: ImportOutcomeStore | None = None,
+) -> IngestionReport:
+    validate_window(start, end)
+    if not 1 <= max_pages <= 100:
+        raise ValueError("Page limit must be between 1 and 100")
+    if outcomes is None:
+        return _ingest_mailbox(client, store, mailbox, start, end, max_pages=max_pages)
+    run_id = outcomes.begin(mailbox, start, end)
+    counts = [0, 0, 0, 0]
+
+    def progress(inserted: int, duplicates: int, failed: int, pages: int) -> None:
+        counts[:] = [inserted, duplicates, failed, pages]
+        outcomes.update(
+            run_id, inserted=inserted, duplicates=duplicates, failed=failed, pages=pages
+        )
+
+    try:
+        report = _ingest_mailbox(
+            client, store, mailbox, start, end, max_pages=max_pages, progress=progress
+        )
+    except Exception:
+        outcomes.update(
+            run_id,
+            inserted=counts[0],
+            duplicates=counts[1],
+            failed=counts[2],
+            pages=counts[3],
+            state="partial" if any(counts) else "failed",
+            reason="import_error",
+        )
+        raise
+    outcomes.update(
+        run_id,
+        inserted=report.inserted,
+        duplicates=report.duplicates,
+        failed=report.failed,
+        pages=counts[3],
+        state="complete" if report.complete else "partial",
+        reason=None
+        if report.complete
+        else "malformed_records"
+        if report.failed
+        else "page_limit",
+    )
+    return report
+
+
+def _ingest_mailbox(
+    client: OperationsOutlookClient,
+    store: EventStore,
+    mailbox: str,
+    start: datetime,
+    end: datetime,
+    *,
+    max_pages: int,
+    progress: Callable[[int, int, int, int], None] | None = None,
 ) -> IngestionReport:
     if not 1 <= max_pages <= 100:
         raise ValueError("Page limit must be between 1 and 100")
     inserted = duplicates = failed = 0
     continuation = None
     visited: set[str] = set()
-    for _ in range(max_pages):
+    for page_number in range(max_pages):
         page = client.page(mailbox, start, end, continuation=continuation)
         values = page.get("value")
         if not isinstance(values, list):
@@ -167,10 +224,16 @@ def ingest_mailbox(
                     raise ValueError("Mail is outside the requested window")
             except (ValueError, TypeError, AttributeError):
                 failed += 1
+                if progress is not None:
+                    progress(inserted, duplicates, failed, page_number)
                 continue
             result = store.insert(record)
             inserted += int(result.inserted)
             duplicates += int(not result.inserted)
+            if progress is not None:
+                progress(inserted, duplicates, failed, page_number)
+        if progress is not None:
+            progress(inserted, duplicates, failed, page_number + 1)
         continuation = page.get("@odata.nextLink")
         if continuation is None:
             return IngestionReport(inserted, duplicates, failed, failed == 0)
