@@ -6,11 +6,14 @@ import hashlib
 import json
 import os
 import re
+import sqlite3
+from contextlib import ExitStack
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
+from edn.operations.intake import IntakeStore
 from edn.operations.intake_security import AnchoredDirectory, require_supported_platform
 
 
@@ -86,9 +89,10 @@ def delivery_identity(payload: dict[str, Any]) -> dict[str, Any]:
 class SyntheticSyncStore:
     """Private local ledger models failures and ambiguous acknowledgements."""
 
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, *, intake_store: IntakeStore | None = None):
         require_supported_platform()
         self.root = Path(root)
+        self.intake_store = intake_store
         with AnchoredDirectory(self.root):
             pass
 
@@ -337,6 +341,25 @@ class SyntheticSyncStore:
     ) -> dict[str, Any]:
         if outcome not in {"success", "failed", "unknown"}:
             raise SyntheticSyncError("Unsupported synthetic outcome")
+        delivery_identity(payload)
+        if payload.get("operation", "create_proposal") != "create_proposal":
+            raise SyntheticSyncError("Existing source work is reference-only")
+        if self.intake_store is None:
+            raise SyntheticSyncError(
+                "Intake approval authority is required for delivery"
+            )
+        with ExitStack() as authority:
+            try:
+                authority.enter_context(self.intake_store.authorise_delivery(payload))
+            except (ValueError, sqlite3.Error, OSError):
+                raise SyntheticSyncError(
+                    "Delivery does not match the current intake approval"
+                ) from None
+            return self._deliver_authorised(payload, outcome)
+
+    def _deliver_authorised(
+        self, payload: dict[str, Any], outcome: Literal["success", "failed", "unknown"]
+    ) -> dict[str, Any]:
         identity = delivery_identity(payload)
         with AnchoredDirectory(self.root) as anchor, anchor.lock("sync.lock"):
             name = self._name(identity, ".receipt.json")
