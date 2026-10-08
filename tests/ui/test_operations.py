@@ -54,7 +54,7 @@ def test_operations_inbox_without_memory_and_filters(tmp_path, monkeypatch):
     app.checkbox[0].uncheck()
     app.selectbox[0].select("website").run()
     assert "Newest mail" not in [item.value for item in app.text]
-    app.selectbox[0].select("All")
+    app.selectbox[0].select(None)
     app.selectbox[1].select("c1").run()
     assert "Newest mail" in [item.value for item in app.text]
     assert "Older request" not in [item.value for item in app.text]

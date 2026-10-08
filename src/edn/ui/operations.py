@@ -73,8 +73,12 @@ def render_operations_inbox() -> None:
             options = store.filter_values(field)
             if field != "source" and not options:
                 continue
-            choice = st.selectbox(label, ("All", *options))
-            filters[field] = None if choice == "All" else choice
+            choice = st.selectbox(
+                label,
+                (None, *options),
+                format_func=lambda value: "All" if value is None else f"Value: {value}",
+            )
+            filters[field] = choice
         result = store.list_events_with_diagnostics(
             needs_action=needs_action,
             source=filters.get("source"),
