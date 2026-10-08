@@ -64,9 +64,15 @@ only in descriptions. Every edit records a local operator audit decision, includ
 explicit approval invalidation when applicable.
 
 Linux directory operations are descriptor-relative after an owned no-follow
-component walk. SQLite connection lifetimes are serialized with a private anchored
-flock; actual newly opened SQLite DB descriptor identity must be provable before
-any PRAGMA or schema SQL. Unprovable identity fails closed. Its parent FD remains
-open through deterministic connection close; no immutable/nolock/cache bypass is
-used. Linux negative parent/final-name swap tests and positive concurrent/restart
-checks are required hosted evidence before accepting this protection boundary.
+component walk. Under a private anchored flock, bounded ordinary SQLite snapshot
+bytes are loaded with stdlib deserialize into an in-memory SQLite connection.
+Successful writes serialize to a completely fsynced private pending snapshot and
+publish with descriptor-relative atomic replacement; readonly query_only sessions
+never persist. Initial publication is no-clobber. SQLite never opens a disk pathname
+or infers ownership from descriptor numbers. DB metadata is bounded to100MB;
+evidence bytes stay separate. Missing stdlib snapshot primitives fail closed.
+Failed transactions/publication preserve the original snapshot; process termination
+before publication leaves only a private unconfirmed pending file. Existing active
+WAL/journal stores require owner-led recovery rather than automatic adoption.
+Linux roundtrip, concurrent/restart, failure and parent/final-name replacement tests
+remain mandatory hosted evidence before acceptance. No real-store migration occurs.

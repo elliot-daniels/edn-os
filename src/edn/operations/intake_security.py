@@ -335,20 +335,20 @@ def verify_evidence(
                     fd = attachment.open_file("original.bin")
                     with os.fdopen(fd, "rb") as stream:
                         payload = stream.read(20_000_001)
-                    media = metadata["media_type"]
-                    valid_format = (
-                        (media == "application/pdf" and payload.startswith(b"%PDF-"))
-                        or (
-                            media == "image/png"
-                            and payload.startswith(b"\x89PNG\r\n\x1a\n")
-                        )
-                        or (
-                            media == "image/jpeg"
-                            and payload.startswith(b"\xff\xd8\xff")
-                            and payload.endswith(b"\xff\xd9")
-                        )
+                    from edn.operations.intake_formats import (
+                        validate_attachment_payload,
                     )
-                    if not valid_format:
+
+                    original_name = metadata["original_name"]
+                    if not isinstance(original_name, str):
+                        raise ValueError
+                    normalized_name, media = validate_attachment_payload(
+                        original_name, payload
+                    )
+                    if (
+                        normalized_name != original_name
+                        or media != metadata["media_type"]
+                    ):
                         raise ValueError
                     if (
                         len(payload) != metadata["size_bytes"]

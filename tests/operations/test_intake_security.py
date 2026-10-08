@@ -232,7 +232,7 @@ def test_backend_actual_evidence_corruption_blocks_approval_and_export(
     attachment_id = str(uuid4())
     attachment = request_root / attachment_id
     attachment.mkdir(mode=0o700)
-    payload = b"%PDF-1.7 synthetic proof"
+    payload = b"%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\n%%EOF\n"
     metadata = {
         "attachment_id": attachment_id,
         "request_id": request.request_id,
@@ -309,6 +309,35 @@ def test_final_database_symlink_swap_rejected_before_sql_and_outside_unchanged(
         return actual_connect(*args, **kwargs)
 
     monkeypatch.setattr(intake.sqlite3, "connect", swap_before_connect)
-    with pytest.raises(ValueError, match="descriptor"):
+    with pytest.raises((ValueError, OSError)):
         requests.create(fields())
     assert outside.read_bytes() == before
+
+
+def test_snapshot_roundtrip_readonly_and_failed_publication_preserve_original(
+    tmp_path, monkeypatch
+):
+    import sqlite3
+
+    from edn.operations.intake_security import AnchoredDirectory
+
+    requests = store(tmp_path)
+    if requests is None:
+        return
+    request = requests.create(fields())
+    original = requests.path.read_bytes()
+    assert original.startswith(b"SQLite format 3\x00")
+    assert IntakeStore(requests.path, read_only=True).get(request.request_id) == request
+    assert requests.path.read_bytes() == original
+    with sqlite3.connect(requests.path) as connection:
+        assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+
+    def failed_replace(*args, **kwargs):
+        raise OSError("synthetic disk publication failure")
+
+    monkeypatch.setattr(AnchoredDirectory, "replace", failed_replace)
+    with pytest.raises(OSError):
+        requests.update(request.request_id, 1, fields(reference="uncommitted"))
+    assert requests.path.read_bytes() == original
+    assert IntakeStore(requests.path).get(request.request_id) == request
+    assert not any(".pending-" in path.name for path in tmp_path.iterdir())

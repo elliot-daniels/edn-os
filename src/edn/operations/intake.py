@@ -7,7 +7,6 @@ import json
 import os
 import re
 import sqlite3
-import stat
 import unicodedata
 from collections.abc import Mapping, Sequence
 from contextlib import AbstractContextManager
@@ -281,16 +280,53 @@ class IntakeListResult:
     malformed: int
 
 
+MAX_DATABASE_BYTES = 100_000_000
+
+
 class _ProtectedConnection(sqlite3.Connection):
     anchor: AnchoredDirectory
     storage_lock: AbstractContextManager[None]
+    database_name: str
+    original_inode: tuple[int, int] | None
+    read_only_snapshot: bool
+    initialise_snapshot: bool
+    released: bool = False
+
+    def _persist(self) -> None:
+        payload = self.serialize()
+        if len(payload) > MAX_DATABASE_BYTES:
+            raise IntakeError("Request metadata database exceeds its size bound")
+        pending = self.database_name + ".pending-" + str(uuid4())
+        try:
+            descriptor = self.anchor.open_file(pending, create=True, write=True)
+            with os.fdopen(descriptor, "wb") as stream:
+                stream.write(payload)
+                stream.flush()
+                os.fsync(stream.fileno())
+            if self.original_inode is None:
+                self.anchor.publish(pending, self.database_name)
+            else:
+                descriptor = self.anchor.open_file(self.database_name)
+                try:
+                    observed = os.fstat(descriptor)
+                    if (observed.st_dev, observed.st_ino) != self.original_inode:
+                        raise IntakeError("Request store changed during transaction")
+                finally:
+                    os.close(descriptor)
+                self.anchor.replace(pending, self.database_name)
+            os.fsync(self.anchor.fd)
+        finally:
+            if self.anchor.exists(pending):
+                self.anchor.unlink(pending)
 
     def close(self) -> None:
         try:
             super().close()
         finally:
-            self.storage_lock.__exit__(None, None, None)
-            self.anchor.close()
+            if not self.released:
+                self.released = True
+                self.storage_lock.__exit__(None, None, None)
+                self.anchor.close()
 
     def __exit__(
         self,
@@ -299,7 +335,14 @@ class _ProtectedConnection(sqlite3.Connection):
         traceback: TracebackType | None,
     ) -> Literal[False]:
         try:
-            return super().__exit__(exc_type, exc_value, traceback)
+            result = super().__exit__(exc_type, exc_value, traceback)
+            if (
+                exc_type is None
+                and not self.read_only_snapshot
+                and (self.total_changes > 0 or self.initialise_snapshot)
+            ):
+                self._persist()
+            return result
         finally:
             self.close()
 
@@ -333,90 +376,76 @@ class IntakeStore:
         if connection.execute("PRAGMA foreign_key_check").fetchone() is not None:
             raise IntakeError("Request store integrity is invalid")
 
-    def _connect(
-        self, *, initialise: bool = False, anchor: AnchoredDirectory | None = None
-    ) -> sqlite3.Connection:
+    def _connect(self, *, initialise: bool = False) -> sqlite3.Connection:
         require_supported_platform()
-        directory = (
-            anchor if anchor is not None else AnchoredDirectory(self.path.parent)
-        )
+        if not hasattr(sqlite3.Connection, "serialize") or not hasattr(
+            sqlite3.Connection, "deserialize"
+        ):
+            raise IntakeError("Protected SQLite snapshots are unavailable")
+        directory = AnchoredDirectory(self.path.parent)
+        if not initialise and not directory.exists(self.path.name):
+            directory.close()
+            raise sqlite3.OperationalError("Request store is unavailable")
         storage_lock = directory.lock(self.path.name + ".lock")
         storage_lock.__enter__()
         try:
+            payload = None
+            original_inode = None
             try:
                 descriptor = directory.open_file(self.path.name)
             except FileNotFoundError:
-                raise sqlite3.OperationalError("Request store is unavailable") from None
-            expected_inode = os.fstat(descriptor)
-            os.close(descriptor)
-            before_fds = set()
-            for number in os.listdir("/proc/self/fd"):
-                try:
-                    os.fstat(int(number))
-                    before_fds.add(number)
-                except OSError:
-                    pass
-            for suffix in ("-journal", "-wal", "-shm"):
-                name = self.path.name + suffix
-                if directory.exists(name):
-                    os.close(directory.open_file(name))
-            # Linux /proc descriptor path anchors SQLite sidecars to the same parent.
-            connection = sqlite3.connect(
-                f"file:/proc/self/fd/{directory.fd}/{self.path.name}"
-                f"?mode={'ro' if self.read_only else 'rw'}",
-                uri=True,
-                factory=_ProtectedConnection,
-            )
+                if not initialise:
+                    raise sqlite3.OperationalError(
+                        "Request store is unavailable"
+                    ) from None
+            else:
+                with os.fdopen(descriptor, "rb") as stream:
+                    observed = os.fstat(stream.fileno())
+                    original_inode = (observed.st_dev, observed.st_ino)
+                    payload = stream.read(MAX_DATABASE_BYTES + 1)
+                if len(payload) > MAX_DATABASE_BYTES:
+                    raise IntakeError(
+                        "Request metadata database exceeds its size bound"
+                    )
+            if any(
+                directory.exists(self.path.name + suffix)
+                for suffix in ("-journal", "-wal", "-shm")
+            ):
+                raise IntakeError("Active SQLite sidecars require owner-led recovery")
+            connection = sqlite3.connect(":memory:", factory=_ProtectedConnection)
             connection.anchor = directory
             connection.storage_lock = storage_lock
-            verified = False
-            for entry in set(os.listdir("/proc/self/fd")) - before_fds:
-                try:
-                    observed = os.fstat(int(entry))
-                except OSError:
-                    continue
-                if stat.S_ISREG(observed.st_mode):
-                    if (observed.st_dev, observed.st_ino) != (
-                        expected_inode.st_dev,
-                        expected_inode.st_ino,
-                    ):
-                        connection.close()
-                        raise IntakeError("Database descriptor identity is unsafe")
-                    verified = True
-            if not verified:
-                connection.close()
-                raise IntakeError("Database descriptor identity is unconfirmed")
-        except BaseException:
-            storage_lock.__exit__(None, None, None)
-            directory.close()
-            raise
-        try:
+            connection.database_name = self.path.name
+            connection.original_inode = original_inode
+            connection.read_only_snapshot = self.read_only
+            connection.initialise_snapshot = initialise and payload is None
+            if payload is not None:
+                connection.deserialize(payload)
             connection.execute("PRAGMA foreign_keys=ON")
-            if not initialise:
+            if not connection.initialise_snapshot:
                 self._validate(connection)
+            if self.read_only:
+                connection.execute("PRAGMA query_only=ON")
         except BaseException:
-            connection.close()
+            if "connection" in locals():
+                connection.close()
+            else:
+                storage_lock.__exit__(None, None, None)
+                directory.close()
             raise
         return connection
 
     def initialise(self) -> None:
         require_supported_platform()
         self._write()
-        with AnchoredDirectory(self.path.parent) as directory:
-            if directory.exists(self.path.name):
-                with self._connect():
-                    return
-            try:
-                os.close(directory.open_file(self.path.name, create=True))
-            except FileExistsError:
-                raise IntakeError("Request store already exists") from None
-            with self._connect(initialise=True, anchor=directory) as connection:
-                connection.execute("PRAGMA foreign_keys=ON")
-                connection.execute("BEGIN IMMEDIATE")
-                connection.execute(DDL)
-                connection.execute(REVISIONS_DDL)
-                connection.execute(APPROVALS_DDL)
-                connection.execute("PRAGMA user_version=1")
+        with self._connect(initialise=True) as connection:
+            if connection.execute("PRAGMA user_version").fetchone() == (1,):
+                return
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(DDL)
+            connection.execute(REVISIONS_DDL)
+            connection.execute(APPROVALS_DDL)
+            connection.execute("PRAGMA user_version=1")
 
     @staticmethod
     def _get(connection: sqlite3.Connection, request_id: str) -> IntakeRequest:
