@@ -1,5 +1,18 @@
 # October 2026 development roadmap
 
+## Owner priority update — 8 October 2026
+
+Work Intake MVP is the highest-priority eligible development objective for this
+overnight sprint. Deliver a runnable Linux/WSL local demo: manual request entry,
+PDF/PNG/JPEG/DOCX/EML/TXT supporting files, unified queue, corrections and recorded
+single-operator self-approval, synthetic automated intake and EDN Job Requests
+SharePoint-ready dry-run mapping with honest status. Retain exact version/hash
+approval, private runtime-owned storage, 20 MB individual/100 MB aggregate caps,
+independent QA and hosted gates. No main promotion, deployment, live source data,
+Microsoft mutation, credentials, permission changes or unrelated website work.
+This is the bounded exception in `docs/NOW.md`; the historical plan below remains
+context. Dot's separate autonomy/control-plane track is not a prerequisite.
+
 Objective: make EDN OS independently understandable and safely advance the Operations Inbox using Dot as technical lead/reviewer and Grok as implementer. Preserve `docs/NOW.md` scope. This is a proposed sequence; Elliot chooses priority and approves gated changes. See [scoped tickets](docs/sprint/OCTOBER-2026-TICKETS.md).
 
 | Window (Sydney) | Delivery focus | Exit evidence |
