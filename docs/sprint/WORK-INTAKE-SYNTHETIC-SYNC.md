@@ -35,3 +35,25 @@ No destructive cleanup or real-store migration is performed.
 Required validation includes failure/retry, lost acknowledgement/restart, explicit
 reconciliation, content mismatch refusal, native unsupported-platform refusal and
 full hosted Linux/Windows gates plus independent exact-head review.
+
+## Send-time approval authority (F45-01 / WI-SP-08)
+
+The sender must be constructed with its `IntakeStore`. A caller-provided approval
+alone grants no delivery authority. `authorise_delivery` holds the protected intake
+lock until synthetic publication finishes. It reconstructs the exact current
+export, checks revision/state/content hash/submission key, fields, approval actor
+and timestamp, target/provenance and attachment association, and verifies stored
+evidence again. Edited, cancelled, unknown or evidence-mutated requests get a typed
+refusal before any transport receipt or ledger write. The check itself writes no
+database changes. All receipt/fault/restart tests now use actual approved records;
+the fabricated envelope remains only for pure negative/identity tests.
+
+The sender freezes a bounded independent JSON snapshot before validation and uses
+only that snapshot for both authority checking and publication. Caller mutation
+after the guard yields cannot alter the delivered fields, approval or manifest.
+
+## Existing website items (F45-02 / WI-SP-14)
+
+`reference_existing` is reference-only. The synthetic sender refuses it with no
+receipt, ledger or new work identity. The composed UI disables item delivery for
+these records. No live read/write or new Microsoft permission is introduced.

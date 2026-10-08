@@ -227,7 +227,9 @@ def render() -> None:
         format_func=lambda value: (
             f"{by_id[value].fields['contactName']} · "
             f"{by_id[value].fields['siteLocation']}"
-            f" · {by_id[value].state} · {value[:8]}"
+            f" · {by_id[value].state}"
+            f"{' (self-approved)' if by_id[value].state == 'approved' else ''}"
+            f" · {value[:8]}"
         ),
     )
     request = by_id[request_id]
@@ -507,7 +509,7 @@ def render() -> None:
             "nothing is sent to Microsoft."
         )
         try:
-            sync = SyntheticSyncStore(root / "synthetic-sync")
+            sync = SyntheticSyncStore(root / "synthetic-sync", intake_store=store)
         except (ValueError, OSError):
             sync = None
             st.error("Synthetic synchronisation status is unconfirmed.")
@@ -571,7 +573,13 @@ def render() -> None:
                     }
                 )
             )
-            if st.button("Run synthetic sync", disabled=unconfirmed):
+            reference_only = payload.get("operation") == "reference_existing"
+            if reference_only:
+                st.info(
+                    "Existing website items are reference-only; "
+                    "item delivery is disabled."
+                )
+            if st.button("Run synthetic sync", disabled=unconfirmed or reference_only):
                 try:
                     sync.deliver(payload, outcome)
                     st.rerun()

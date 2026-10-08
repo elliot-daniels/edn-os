@@ -50,3 +50,20 @@ prove supported-runtime persistence or the complete journey. Hosted Linux tests,
 exact-head independent QA, refreshed source handling and composed UI tests are
 required before this candidate can be called complete. No live SharePoint write,
 deployment, real database migration, credential change or main merge is authorised.
+
+## Direct QA remediation checkpoint
+
+F45-01: the sender freezes its own bounded JSON snapshot and rechecks current
+approval/evidence under the intake lock through publication. F45-02: existing
+website records remain reference-only; item delivery is disabled in the UI and
+refused by the service, including forged create operations. F45-03: documented
+normalised current/original identifying-fact candidates require explicit reasoned
+duplicate decisions. F45-04: approved queue labels show `(self-approved)`.
+
+F45-05 remains an owner scope decision: no authoritative customer/project
+association catalogue exists in this MVP. Company/reference are free text and
+must not be described as an association authority. Existing NOW scope excludes a
+new CRM relationship catalogue. Neither catalogue creation nor exclusion from
+the frozen association criteria is inferred from QA; an explicit owner decision
+is pending. Product acceptance remains HOLD until that decision and exact-head
+independent acceptance are recorded. The frozen specifications are unchanged.

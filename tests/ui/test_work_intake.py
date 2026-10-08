@@ -84,6 +84,8 @@ def test_manual_review_approval_export_restart_and_correction(tmp_path, monkeypa
     button(app, "Approve reviewed request (self-approval)").click().run()
     assert not app.exception
     assert store.get(request.request_id).state == "approved"
+    queue = next(item for item in app.selectbox if item.label == "Select a request")
+    assert any("approved (self-approved)" in option for option in queue.options)
     decision = next(
         item
         for item in store.audit_history(request.request_id)
@@ -378,6 +380,7 @@ def test_synthetic_import_and_manual_share_queue_without_duplicate_create_propos
     assert not app.exception
     prepared = app.session_state["prepared-record"]
     assert prepared["operation"] == "reference_existing"
+    assert button(app, "Run synthetic sync").disabled
     assert prepared["target"]["native_item_id"] == "SYNTHETIC-AUTO-001"
     assert prepared["source_provenance"]["synthetic_only"] is True
     assert all(
