@@ -52,3 +52,49 @@ approval but retains previous decisions. Attachments are at most20,000,000bytes
 per file and100,000,000bytes aggregate per request, without arbitrary ten-file cap.
 This revised pre-merge MVP schema rejects earlier synthetic lookalikes rather than
 silently adopting an unaudited store; no real-store migration has been performed.
+
+
+Backend evidence verification is mandatory before approval/export whenever the
+request carries attachments. Configure the protected evidence root explicitly.
+Completed quota receipts, exact metadata association, file bytes/hash and supported
+format signatures must all validate; absent or stale evidence fails closed.
+Queue diagnostics isolate malformed rows without permitting corrupt direct exports.
+Hidden Unicode formatting and control characters are rejected, with CR/LF allowed
+only in descriptions. Every edit records a local operator audit decision, including
+explicit approval invalidation when applicable.
+
+Linux directory operations are descriptor-relative after an owned no-follow
+component walk. Under a private anchored flock, bounded ordinary SQLite snapshot
+bytes are loaded with stdlib deserialize into an in-memory SQLite connection.
+Successful writes serialize to a completely fsynced private pending snapshot and
+publish with descriptor-relative atomic replacement; readonly query_only sessions
+never persist. Initial publication is no-clobber. SQLite never opens a disk pathname
+or infers ownership from descriptor numbers. DB metadata is bounded to100MB;
+evidence bytes stay separate. Missing stdlib snapshot primitives fail closed.
+Failed transactions and pre-publication failures preserve the original snapshot; process termination
+before publication leaves only a private unconfirmed pending file. Existing active
+WAL/journal stores require owner-led recovery rather than automatic adoption.
+Linux roundtrip, concurrent/restart, failure and parent/final-name replacement tests
+remain mandatory hosted evidence before acceptance. No real-store migration occurs.
+
+
+Snapshot publication is the commit point. A directory fsync failure after atomic
+replacement is an uncertain commit, not a rollback guarantee; reload determines
+the actual durable revision before retrying. No destructive reverse rename is
+attempted. Pending files before publication remain unconfirmed private recovery
+artifacts. The backend accounts every physical request folder and all receipt
+entries, rejecting orphans, incomplete reservations and inconsistent quota sizes.
+Native Linux mount identity is verified; DrvFs/9p and unsupported filesystems are
+refused even when metadata presents private modes.
+
+| From | Permitted target/action | Reason/audit |
+|---|---|---|
+| draft | approved; rejected; cancelled; edited draft | approve explicit; rejection/cancel need bounded reason |
+| approved | edited draft; rejected; cancelled | edit invalidates approval; terminal decisions need reason |
+| rejected | reopened draft | bounded reopening reason |
+| cancelled | none | terminal, source/revisions retained |
+
+Creation records entered_by local UID, UTC instant, first revision and content
+hash. All transitions append revisions/audits; source facts and previous approval
+history remain intact. Exports itemize unconfigured/unverified live prerequisites
+and carry a truthful contract target descriptor, never fabricated tenant/list IDs.

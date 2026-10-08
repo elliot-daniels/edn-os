@@ -1,62 +1,72 @@
-"""Synthetic website fixture intake never implies source access or sync."""
+"""Ported original synthetic intake regressions for explicit native source review."""
 
 import json
-import os
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
+from uuid import uuid4
 
 import pytest
 
 from edn.operations.intake import (
-    APPROVALS_DDL,
-    DDL,
-    REVISIONS_DDL,
+    BASE_APPROVALS_DDL,
     IntakeError,
     IntakeStore,
+    _source_contract,
 )
 from tests.operations.test_intake import fields, store
+from tests.operations.test_intake_source import contract, identity
 
 
-def contract(**changes):
-    return {
-        **fields(),
-        "source": "EDN Systems Website",
-        "contractVersion": "1.0",
-        "submittedAt": "2026-10-08T00:00:00.000Z",
-        **changes,
-    }
+def _legacy_snapshot(requests, version):
+    with requests._connect() as connection:
+        for table in (
+            "intake_source_history",
+            "intake_sources",
+            "intake_duplicate_decisions",
+            "intake_work_links",
+        ):
+            connection.execute(f"DROP TABLE {table}")
+        if version == 1:
+            connection.execute("DROP TABLE intake_intent")
+            connection.execute("DROP TABLE intake_submissions")
+        connection.execute("ALTER TABLE intake_approvals RENAME TO previous_audit")
+        connection.execute(BASE_APPROVALS_DDL)
+        connection.execute(
+            "INSERT INTO intake_approvals SELECT * FROM previous_audit ORDER BY rowid"
+        )
+        connection.execute("DROP TABLE previous_audit")
+        connection.execute(f"PRAGMA user_version={version}")
 
 
-def test_synthetic_import_provenance_approval_and_replay_preserve_local_edits(tmp_path):
+def test_synthetic_import_provenance_and_same_facts_replay_preserve_local_edits(
+    tmp_path,
+):
     requests = store(tmp_path)
     if requests is None:
         return
-    original = contract()
-    imported = requests.import_contract(original, "fixture-one")
-    assert imported.state == "draft" and imported.approved_revision is None
-    with pytest.raises(IntakeError, match="Approve"):
-        requests.export(imported.request_id, 1)
+    imported = requests.import_contract(
+        contract(), "fixture-one", source_identity=identity("fixture-one")
+    )
     edited = requests.update(imported.request_id, 1, fields(reference="reviewed"))
-    requests.approve(edited.request_id, 2)
-    exported = requests.export(edited.request_id, 2)
-    assert exported["provenance"] == "synthetic_import"
-    assert exported["dry_run"] is True and exported["sync_status"] == "dry_run"
-    assert exported["fields"]["Source"] == "EDN Systems Website"
-    assert exported["fields"]["SubmittedAt"] == "2026-10-08T00:00:00+00:00"
-    assert exported["fields"]["CustomerReference"] == "reviewed"
+    requests.approve(edited.request_id, edited.revision)
     replay = IntakeStore(requests.path).import_contract(
-        contract(reference="changed"), "fixture-one"
+        contract(), "fixture-one", source_identity=identity("fixture-one")
     )
     assert replay.request_id == imported.request_id and replay.revision == 2
     assert replay.fields["reference"] == "reviewed" and replay.state == "approved"
-    with sqlite3.connect(requests.path) as connection:
+    exported = requests.export(replay.request_id, replay.revision)
+    assert (
+        exported["operation"] == "reference_existing"
+        and exported["source_provenance"]["synthetic_only"]
+    )
+    with requests._connect() as connection:
         assert (
             json.loads(
                 connection.execute(
-                    "SELECT original_payload FROM intake_imports"
+                    "SELECT payload FROM intake_source_history"
                 ).fetchone()[0]
             )
-            == original
+            == contract()
         )
         assert connection.execute(
             "SELECT count(*) FROM intake_requests"
@@ -77,34 +87,40 @@ def test_synthetic_import_provenance_approval_and_replay_preserve_local_edits(tm
     ],
 )
 def test_invalid_fixture_never_creates_or_approves_request(tmp_path, changes):
+    with pytest.raises(IntakeError, match="Invalid synthetic website contract"):
+        _source_contract(contract(**changes))
     requests = store(tmp_path)
     if requests is None:
         return
-    with pytest.raises(IntakeError, match="Invalid synthetic website contract"):
-        requests.import_contract(contract(**changes), "fixture-one")
+    with pytest.raises(IntakeError):
+        requests.import_contract(
+            contract(**changes), "fixture", source_identity=identity("fixture")
+        )
     assert requests.list_requests() == ()
 
 
-def test_missing_contract_field_identity_and_read_only_fail_without_write(tmp_path):
-    requests = store(tmp_path)
-    if requests is None:
-        return
+def test_missing_contract_identity_and_readonly_failure_never_write(tmp_path):
     missing = contract()
     del missing["phone"]
     with pytest.raises(IntakeError):
-        requests.import_contract(missing, "fixture")
-    for identity in ("", " invalid", "a\n", 1):
+        _source_contract(missing)
+    requests = store(tmp_path)
+    if requests is None:
+        return
+    for native in ("", " invalid", "a\n", 1):
         with pytest.raises(IntakeError):
-            requests.import_contract(contract(), identity)
+            requests.import_contract(
+                contract(), native, source_identity=identity(native)
+            )
     before = requests.path.read_bytes()
     with pytest.raises(IntakeError, match="Read-only"):
         IntakeStore(requests.path, read_only=True).import_contract(
-            contract(), "fixture"
+            contract(), "fixture", source_identity=identity("fixture")
         )
     assert requests.path.read_bytes() == before
 
 
-def test_concurrent_replay_creates_one_draft_and_one_registry_record(tmp_path):
+def test_concurrent_eight_replays_create_one_draft_registry_and_history(tmp_path):
     requests = store(tmp_path)
     if requests is None:
         return
@@ -112,69 +128,78 @@ def test_concurrent_replay_creates_one_draft_and_one_registry_record(tmp_path):
         imported = list(
             workers.map(
                 lambda _: IntakeStore(requests.path).import_contract(
-                    contract(), "same"
+                    contract(), "same", source_identity=identity("same")
                 ),
                 range(8),
             )
         )
-    assert len({request.request_id for request in imported}) == 1
-    assert all(request.state == "draft" for request in imported)
-    assert len(requests.list_requests()) == 1
+    assert len({item.request_id for item in imported}) == 1
+    assert all(item.state == "draft" for item in imported)
+    with requests._connect() as connection:
+        assert connection.execute("SELECT count(*) FROM intake_sources").fetchone() == (
+            1,
+        )
+        assert connection.execute(
+            "SELECT count(*) FROM intake_source_history"
+        ).fetchone() == (1,)
 
 
-def test_explicit_upgrade_preserves_existing_manual_rows_and_readonly_version1(
-    tmp_path,
-):
-    if os.name != "posix":
-        assert store(tmp_path) is None
+@pytest.mark.parametrize("version", [1, 2])
+def test_explicit_upgrade_preserves_manual_rows_and_readonly_legacy(tmp_path, version):
+    requests = store(tmp_path)
+    if requests is None:
         return
-    tmp_path.chmod(0o700)
-    path = tmp_path / "legacy.db"
-    with sqlite3.connect(path) as connection:
-        connection.execute(DDL)
-        connection.execute(REVISIONS_DDL)
-        connection.execute(APPROVALS_DDL)
-        connection.execute("PRAGMA user_version=1")
-    path.chmod(0o600)
-    requests = IntakeStore(path)
-    manual = requests.create(fields())
-    before = path.read_bytes()
+    manual = requests.create(fields(), submission_id=str(uuid4()))
+    history = requests.audit_history(manual.request_id)
+    _legacy_snapshot(requests, version)
+    before = requests.path.read_bytes()
     with pytest.raises(IntakeError, match="explicitly"):
-        requests.import_contract(contract(), "fixture")
-    assert path.read_bytes() == before
-    assert IntakeStore(path, read_only=True).get(manual.request_id) == manual
+        requests.import_contract(
+            contract(), "fixture", source_identity=identity("fixture")
+        )
+    assert requests.path.read_bytes() == before
+    assert IntakeStore(requests.path, read_only=True).get(manual.request_id) == manual
     requests.initialise()
     assert requests.get(manual.request_id) == manual
-    requests.import_contract(contract(), "fixture")
+    assert requests.audit_history(manual.request_id) == history
+    requests.import_contract(
+        contract(reference="independent"),
+        "fixture",
+        source_identity=identity("fixture"),
+    )
     assert len(requests.list_requests()) == 2
 
 
-def test_legacy_upgrade_rolls_back_on_injected_failure(tmp_path, monkeypatch):
+def test_legacy_upgrade_failure_preserves_original_snapshot(tmp_path, monkeypatch):
     from edn.operations import intake
 
-    if os.name != "posix":
-        assert store(tmp_path) is None
+    requests = store(tmp_path)
+    if requests is None:
         return
-    tmp_path.chmod(0o700)
-    path = tmp_path / "legacy.db"
-    with sqlite3.connect(path) as connection:
-        connection.execute(DDL)
-        connection.execute(REVISIONS_DDL)
-        connection.execute(APPROVALS_DDL)
-        connection.execute("PRAGMA user_version=1")
-    path.chmod(0o600)
-    before = path.read_bytes()
-    monkeypatch.setattr(intake, "IMPORTS_DDL", "CREATE TABLE malformed (")
+    requests.create(fields(), submission_id=str(uuid4()))
+    _legacy_snapshot(requests, 2)
+    before = requests.path.read_bytes()
+    monkeypatch.setattr(intake, "SOURCE_DDL", "CREATE TABLE malformed (")
     with pytest.raises(sqlite3.OperationalError):
-        IntakeStore(path).initialise()
-    assert path.read_bytes() == before
+        requests.initialise()
+    assert requests.path.read_bytes() == before
 
 
-def test_surrogate_fixture_has_fixed_error_without_write(tmp_path):
+def test_surrogate_and_body_bounds_have_fixed_diagnostics_without_write(tmp_path):
+    for payload in (
+        contract(jobDescription="\ud800"),
+        contract(submittedAt="x" * 32769),
+    ):
+        with pytest.raises(IntakeError, match="Invalid synthetic website contract"):
+            _source_contract(payload)
     requests = store(tmp_path)
     if requests is None:
         return
     before = requests.path.read_bytes()
-    with pytest.raises(IntakeError, match="Invalid synthetic website contract"):
-        requests.import_contract(contract(jobDescription="\ud800"), "fixture")
+    with pytest.raises(IntakeError):
+        requests.import_contract(
+            contract(jobDescription="\ud800"),
+            "fixture",
+            source_identity=identity("fixture"),
+        )
     assert requests.path.read_bytes() == before
