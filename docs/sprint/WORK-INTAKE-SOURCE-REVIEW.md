@@ -15,8 +15,17 @@ attachment associations remain intact. keep_local/apply_source requires a bounde
 operator reason and exact local revision. Rejected/cancelled work does not become
 an approved job by reimport; approval/export is blocked while source review is pending.
 
-Identical initial fields across independent keys are only potential duplicate
-candidates; requests and provenance remain distinct. Approval/export requires an
+Possible duplicate work uses a versioned identifying-facts fingerprint over company,
+contactName, siteLocation, reference and preferredDate, in that fixed order. Each
+value undergoes Unicode NFKC compatibility normalization, case folding and Unicode
+whitespace collapsing. The domain-tagged canonical JSON tuple is hashed with SHA256
+(`possible-work-v1`). Description, urgency, email and phone do not control this
+conservative possible-work signal. Both the current reviewed facts and the immutable
+original submission facts are compared, including current-to-original matches;
+a correction that introduces a match therefore blocks approval until resolution.
+This fingerprint is only a candidate signal: request UUIDs, source identity tuples
+and submission keys remain authoritative and independent. No automatic merge or
+identity deduplication occurs. Approval/export requires an
 explicit distinct-work or same-work resolution. Decisions retain actor, UTC time,
 reviewed revisions and hashes. Same-work links an alias to a canonical local work
 key, invalidates canonical approval and prevents independent alias approval/export.
@@ -39,3 +48,9 @@ alias remains available while its canonical request is legally active. A termina
 canonical request is never reopened by source intake or duplicate resolution;
 rejected work requires an explicit audited reopening, and cancelled work remains
 terminal. New linkage must name the actual canonical target, not another alias.
+
+
+Distinct-work decisions remain bound to each request's exact current revision and
+full normalized fields plus evidence content hash. Even an edit to description or
+urgency invalidates that decision's bypass; fingerprint similarity alone cannot
+reuse an old resolution. Reasoned review preserves independent same-content jobs.

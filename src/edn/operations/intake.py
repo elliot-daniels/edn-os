@@ -188,6 +188,22 @@ def _digest(fields: object, attachments: object) -> str:
     return hashlib.sha256(_json([fields, attachments]).encode()).hexdigest()
 
 
+def _duplicate_fingerprint(fields: Mapping[str, str]) -> str:
+    """Possible-work signal only; never a source or submission identity."""
+    identifying = (
+        "company",
+        "contactName",
+        "siteLocation",
+        "reference",
+        "preferredDate",
+    )
+    normalized = [
+        " ".join(unicodedata.normalize("NFKC", fields[name]).casefold().split())
+        for name in identifying
+    ]
+    return hashlib.sha256(_json(["possible-work-v1", normalized]).encode()).hexdigest()
+
+
 def _audit_row(
     connection: sqlite3.Connection, request_id: str, row: tuple[object, ...]
 ) -> dict[str, object]:
@@ -1497,19 +1513,19 @@ class IntakeStore:
     def _candidates(
         self, connection: sqlite3.Connection, request: IntakeRequest
     ) -> tuple[IntakeRequest, ...]:
-        initial = self._initial_fields(connection, request.request_id)
+        fingerprints = self._fingerprints(connection, request)
         result = []
         for (other_id,) in connection.execute(
             "SELECT request_id FROM intake_requests WHERE request_id<>?",
             (request.request_id,),
         ).fetchall():
-            if self._initial_fields(connection, other_id) != initial:
-                continue
             if self._canonical(connection, other_id) == self._canonical(
                 connection, request.request_id
             ):
                 continue
             other = self._get(connection, other_id)
+            if fingerprints.isdisjoint(self._fingerprints(connection, other)):
+                continue
             decision = connection.execute(
                 "SELECT "
                 "request_id,request_hash,other_hash,decision,request_revision,"
@@ -1556,6 +1572,16 @@ class IntakeStore:
             result.append(other)
         return tuple(result)
 
+    def _fingerprints(
+        self, connection: sqlite3.Connection, request: IntakeRequest
+    ) -> set[str]:
+        return {
+            _duplicate_fingerprint(request.fields),
+            _duplicate_fingerprint(
+                self._initial_fields(connection, request.request_id)
+            ),
+        }
+
     def resolve_duplicate(
         self,
         request_id: str,
@@ -1582,9 +1608,9 @@ class IntakeStore:
             request = self._get(connection, request_id)
             other = self._get(connection, other_id)
             self._expected(request, expected_revision)
-            if request_id == other_id or self._initial_fields(
-                connection, request_id
-            ) != self._initial_fields(connection, other_id):
+            if request_id == other_id or self._fingerprints(
+                connection, request
+            ).isdisjoint(self._fingerprints(connection, other)):
                 raise IntakeError("Requests are not a duplicate candidate pair")
             if decision == "same_work":
                 if request.state not in {"draft", "approved"} or other.state not in {
