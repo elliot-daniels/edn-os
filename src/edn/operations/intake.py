@@ -188,6 +188,22 @@ def _digest(fields: object, attachments: object) -> str:
     return hashlib.sha256(_json([fields, attachments]).encode()).hexdigest()
 
 
+def _duplicate_fingerprint(fields: Mapping[str, str]) -> str:
+    """Possible-work signal only; never a source or submission identity."""
+    identifying = (
+        "company",
+        "contactName",
+        "siteLocation",
+        "reference",
+        "preferredDate",
+    )
+    normalized = [
+        " ".join(unicodedata.normalize("NFKC", fields[name]).casefold().split())
+        for name in identifying
+    ]
+    return hashlib.sha256(_json(["possible-work-v1", normalized]).encode()).hexdigest()
+
+
 def _audit_row(
     connection: sqlite3.Connection, request_id: str, row: tuple[object, ...]
 ) -> dict[str, object]:
@@ -214,10 +230,20 @@ def _audit_row(
                 "rejected",
                 "cancelled",
                 "reopened",
+                "source_changed",
+                "source_resolved",
+                "duplicate_linked",
             }
         ):
             raise ValueError
-        if decision in {"rejected", "cancelled", "reopened"}:
+        if decision in {
+            "rejected",
+            "cancelled",
+            "reopened",
+            "source_changed",
+            "source_resolved",
+            "duplicate_linked",
+        }:
             if (
                 not isinstance(reason, str)
                 or not reason.strip()
@@ -268,6 +294,8 @@ class IntakeRequest:
     approval_actor: str | None = None
     approval_timestamp: str | None = None
     entered_by: str | None = None
+    source_type: str = "manual"
+    source_pending: bool = False
 
 
 DDL = """CREATE TABLE intake_requests (
@@ -297,9 +325,16 @@ actor TEXT NOT NULL,
 decided_at TEXT NOT NULL,
 decision TEXT NOT NULL
 CHECK(decision IN ('created','approved','edited',
-'edited_approval_invalidated','rejected','cancelled','reopened')),
+'edited_approval_invalidated','rejected','cancelled','reopened',
+'source_changed','source_resolved','duplicate_linked')),
 reason TEXT
 )"""
+
+
+BASE_APPROVALS_DDL = APPROVALS_DDL.replace(
+    "'reopened',\n'source_changed','source_resolved','duplicate_linked'))",
+    "'reopened'))",
+)
 
 
 @dataclass(frozen=True)
@@ -326,6 +361,94 @@ INTENT_DDL = """CREATE TABLE intake_intent (
 singleton INTEGER PRIMARY KEY CHECK(singleton=1),
 submission_id TEXT NOT NULL REFERENCES intake_submissions(submission_id)
 )"""
+
+
+SOURCE_DDL = """CREATE TABLE intake_sources (
+source_key TEXT PRIMARY KEY NOT NULL,
+request_id TEXT NOT NULL UNIQUE REFERENCES intake_requests(request_id),
+identity TEXT NOT NULL,
+source_revision INTEGER NOT NULL,
+source_hash TEXT NOT NULL,
+pending INTEGER NOT NULL CHECK(pending IN (0,1))
+)"""
+SOURCE_HISTORY_DDL = """CREATE TABLE intake_source_history (
+source_key TEXT NOT NULL REFERENCES intake_sources(source_key),
+source_revision INTEGER NOT NULL,
+payload TEXT NOT NULL,
+canonical_hash TEXT NOT NULL,
+PRIMARY KEY(source_key,source_revision)
+)"""
+DUPLICATE_DDL = """CREATE TABLE intake_duplicate_decisions (
+decision_id TEXT PRIMARY KEY NOT NULL,
+request_id TEXT NOT NULL REFERENCES intake_requests(request_id),
+other_id TEXT NOT NULL REFERENCES intake_requests(request_id),
+request_hash TEXT NOT NULL,
+other_hash TEXT NOT NULL,
+request_revision INTEGER NOT NULL,
+other_revision INTEGER NOT NULL,
+decision TEXT NOT NULL CHECK(decision IN ('distinct','same_work')),
+actor TEXT NOT NULL,
+decided_at TEXT NOT NULL,
+reason TEXT NOT NULL
+)"""
+LINKS_DDL = """CREATE TABLE intake_work_links (
+alias_id TEXT PRIMARY KEY NOT NULL REFERENCES intake_requests(request_id),
+canonical_id TEXT NOT NULL REFERENCES intake_requests(request_id)
+)"""
+
+
+def _source_identity(value: Mapping[str, str], external_id: str) -> dict[str, str]:
+    expected = {
+        "source_system",
+        "source_account",
+        "site_id",
+        "list_id",
+        "native_item_id",
+    }
+    if not isinstance(value, Mapping) or set(value) != expected:
+        raise IntakeError("Explicit synthetic source identity is required")
+    identity = dict(value)
+    if any(
+        not isinstance(item, str)
+        or not item.strip()
+        or item != item.strip()
+        or len(item) > 200
+        or any(unicodedata.category(c) in {"Cc", "Cf", "Zl", "Zp"} for c in item)
+        for item in identity.values()
+    ):
+        raise IntakeError("Invalid synthetic source identity")
+    if (
+        identity["source_system"] != "sharepoint"
+        or identity["native_item_id"] != external_id
+    ):
+        raise IntakeError("Synthetic native source identity does not match")
+    return identity
+
+
+def _source_contract(payload: Mapping[str, object]) -> tuple[dict[str, str], str]:
+    try:
+        if (
+            not isinstance(payload, Mapping)
+            or set(payload)
+            != INPUT_FIELDS | {"source", "submittedAt", "contractVersion"}
+            or payload["source"] != "EDN Systems Website"
+            or payload["contractVersion"] != "1.0"
+            or len(_json(dict(payload)).encode()) > 32768
+        ):
+            raise ValueError
+        submitted = payload["submittedAt"]
+        if not isinstance(submitted, str):
+            raise ValueError
+        timestamp = datetime.fromisoformat(submitted.replace("Z", "+00:00"))
+        if timestamp.utcoffset() != UTC.utcoffset(timestamp):
+            raise ValueError
+        fields = validate_fields({name: payload[name] for name in INPUT_FIELDS})
+        digest = hashlib.sha256(
+            _json([fields, payload["source"], timestamp.isoformat()]).encode()
+        ).hexdigest()
+        return fields, digest
+    except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
+        raise IntakeError("Invalid synthetic website contract") from None
 
 
 MAX_DATABASE_BYTES = 100_000_000
@@ -421,9 +544,17 @@ class IntakeStore:
         expected = sorted(
             [("intake_requests", DDL), ("intake_revisions", REVISIONS_DDL)]
         )
-        expected = sorted([*expected, ("intake_approvals", APPROVALS_DDL)])
         version = connection.execute("PRAGMA user_version").fetchone()[0]
-        if version == 2:
+        expected = sorted(
+            [
+                *expected,
+                (
+                    "intake_approvals",
+                    APPROVALS_DDL if version == 3 else BASE_APPROVALS_DDL,
+                ),
+            ]
+        )
+        if version in {2, 3}:
             expected = sorted(
                 [
                     *expected,
@@ -431,7 +562,17 @@ class IntakeStore:
                     ("intake_intent", INTENT_DDL),
                 ]
             )
-        if rows != expected or version not in {1, 2}:
+        if version == 3:
+            expected = sorted(
+                [
+                    *expected,
+                    ("intake_sources", SOURCE_DDL),
+                    ("intake_source_history", SOURCE_HISTORY_DDL),
+                    ("intake_duplicate_decisions", DUPLICATE_DDL),
+                    ("intake_work_links", LINKS_DDL),
+                ]
+            )
+        if rows != expected or version not in {1, 2, 3}:
             raise IntakeError("Unsupported request store schema")
         if connection.execute("PRAGMA foreign_key_check").fetchone() is not None:
             raise IntakeError("Request store integrity is invalid")
@@ -500,15 +641,16 @@ class IntakeStore:
         self._write()
         with self._connect(initialise=True) as connection:
             version = connection.execute("PRAGMA user_version").fetchone()[0]
-            if version == 2:
+            if version == 3:
                 return
             connection.execute("BEGIN IMMEDIATE")
             if version == 0:
                 connection.execute(DDL)
                 connection.execute(REVISIONS_DDL)
                 connection.execute(APPROVALS_DDL)
-            connection.execute(SUBMISSIONS_DDL)
-            connection.execute(INTENT_DDL)
+            if version < 2:
+                connection.execute(SUBMISSIONS_DDL)
+                connection.execute(INTENT_DDL)
             if version == 1:
                 for (request_id,) in connection.execute(
                     "SELECT request_id FROM intake_requests"
@@ -536,13 +678,27 @@ class IntakeStore:
                             request_id,
                         ),
                     )
-            connection.execute("PRAGMA user_version=2")
+            if version in {1, 2}:
+                connection.execute(
+                    "ALTER TABLE intake_approvals RENAME TO intake_approvals_previous"
+                )
+                connection.execute(APPROVALS_DDL)
+                connection.execute(
+                    "INSERT INTO intake_approvals SELECT * "
+                    "FROM intake_approvals_previous ORDER BY rowid"
+                )
+                connection.execute("DROP TABLE intake_approvals_previous")
+            connection.execute(SOURCE_DDL)
+            connection.execute(SOURCE_HISTORY_DDL)
+            connection.execute(DUPLICATE_DDL)
+            connection.execute(LINKS_DDL)
+            connection.execute("PRAGMA user_version=3")
             assert isinstance(connection, _ProtectedConnection)
             connection.initialise_snapshot = True
 
     @staticmethod
     def _submission_schema(connection: sqlite3.Connection) -> None:
-        if connection.execute("PRAGMA user_version").fetchone() != (2,):
+        if connection.execute("PRAGMA user_version").fetchone()[0] not in {2, 3}:
             raise IntakeError("Initialize submission receipts explicitly")
 
     def begin_submission(self) -> SubmissionIntent:
@@ -659,7 +815,14 @@ class IntakeStore:
         expected_decisions = {
             "draft": {"created"}
             if row[1] == 1
-            else {"edited", "edited_approval_invalidated", "reopened"},
+            else {
+                "edited",
+                "edited_approval_invalidated",
+                "reopened",
+                "source_changed",
+                "source_resolved",
+                "duplicate_linked",
+            },
             "approved": {"approved"},
             "rejected": {"rejected"},
             "cancelled": {"cancelled"},
@@ -670,6 +833,9 @@ class IntakeStore:
             or latest[5] not in expected_decisions[row[2]]
         ):
             raise IntakeError("Current request state has no matching audited decision")
+        provenance = IntakeStore._provenance(connection, request_id)
+        if row[2] == "approved" and provenance.get("source_pending"):
+            raise IntakeError("Approved request has unresolved source facts")
         return IntakeRequest(
             request_id,
             row[1],
@@ -683,6 +849,8 @@ class IntakeStore:
             approval[3] if approval else None,
             approval[4] if approval else None,
             creation[3],
+            str(provenance["source_type"]),
+            bool(provenance.get("source_pending", False)),
         )
 
     def get(self, request_id: str) -> IntakeRequest:
@@ -775,7 +943,8 @@ class IntakeStore:
             connection.execute(
                 "INSERT INTO intake_submissions VALUES (?,?,?,?,?) ON "
                 "CONFLICT(submission_id) DO UPDATE SET "
-                "fields=excluded.fields,attachments=excluded.attachments,initial_hash=excluded.initial_hash,request_id=excluded.request_id",
+                "fields=excluded.fields,attachments=excluded.attachments,"
+                "initial_hash=excluded.initial_hash,request_id=excluded.request_id",
                 (
                     submission_id,
                     _json(cleaned),
@@ -812,6 +981,10 @@ class IntakeStore:
             connection.execute("BEGIN IMMEDIATE")
             original = self._get(connection, request_id)
             self._expected(original, expected_revision)
+            if self._canonical(connection, request_id) != request_id:
+                raise IntakeError(
+                    "Linked request is read-only; edit the canonical work"
+                )
             if original.state not in {"draft", "approved"}:
                 raise IntakeError("Reopen a rejected request before editing")
             attached = (
@@ -860,6 +1033,7 @@ class IntakeStore:
             connection.execute("BEGIN IMMEDIATE")
             request = self._get(connection, request_id)
             self._expected(request, expected_revision)
+            self._review_gate(connection, request)
             self._verify_evidence(request)
             if request.state != "draft":
                 raise IntakeError("Only a draft request can be approved")
@@ -912,6 +1086,8 @@ class IntakeStore:
             connection.execute("BEGIN IMMEDIATE")
             original = self._get(connection, request_id)
             self._expected(original, expected_revision)
+            if self._canonical(connection, request_id) != request_id:
+                raise IntakeError("Linked request lifecycle belongs to canonical work")
             if (original.state, target_state) not in allowed:
                 raise IntakeError("Invalid request state transition")
             revision = original.revision + 1
@@ -967,9 +1143,11 @@ class IntakeStore:
             connection.execute("BEGIN IMMEDIATE")
             request = self._get(connection, request_id)
             self._expected(request, expected_revision)
+            self._review_gate(connection, request)
             self._verify_evidence(request)
             if request.state != "approved":
                 raise IntakeError("Approve the current revision before export")
+            provenance = self._group_provenance(connection, request_id)
             fields = {
                 target: request.fields[source]
                 for source, target in FIELD_MAPPING.items()
@@ -978,8 +1156,12 @@ class IntakeStore:
             fields.update(
                 {
                     "Title": "Pending",
-                    "Source": "EDN OS Manual",
-                    "SubmittedAt": request.created_at,
+                    "Source": "EDN Systems Website"
+                    if provenance["source_type"] == "synthetic_import"
+                    else "EDN OS Manual",
+                    "SubmittedAt": str(provenance["submitted_at"])
+                    if provenance["source_type"] == "synthetic_import"
+                    else request.created_at,
                     "ContractVersion": "1.0",
                     "Status": "New",
                 }
@@ -995,12 +1177,29 @@ class IntakeStore:
                 "sync_status": "dry_run",
                 "request_id": request_id,
                 "revision": request.revision,
+                "operation": (
+                    "reference_existing"
+                    if provenance["source_type"] == "synthetic_import"
+                    else "create_proposal"
+                ),
                 "content_hash": _digest(request.fields, request.attachments),
                 "attachment_manifest": request.attachments,
                 "target": {
                     "integration": "sharepoint",
                     "list_contract": "Job Requests",
                     "live_status": "unverified",
+                    **{
+                        name: value
+                        for name, value in provenance.items()
+                        if name
+                        in {
+                            "source_system",
+                            "source_account",
+                            "site_id",
+                            "list_id",
+                            "native_item_id",
+                        }
+                    },
                 },
                 "not_ready": [
                     "Live target identifiers are not configured",
@@ -1016,10 +1215,7 @@ class IntakeStore:
                 },
                 "submission_id": self._submission_id(connection, request_id),
                 "idempotency_key": self._submission_id(connection, request_id),
-                "source_provenance": {
-                    "source_type": "manual",
-                    "source": "EDN OS Manual",
-                },
+                "source_provenance": provenance,
             }
 
     @staticmethod
@@ -1038,3 +1234,578 @@ class IntakeStore:
         if self.evidence_root is None:
             raise IntakeError("Configure protected evidence storage before approval")
         verify_evidence(self.evidence_root, request.request_id, request.attachments)
+
+    @staticmethod
+    def _source_schema(connection: sqlite3.Connection) -> None:
+        if connection.execute("PRAGMA user_version").fetchone() != (3,):
+            raise IntakeError("Initialize synthetic source review explicitly")
+
+    def import_contract(
+        self,
+        payload: Mapping[str, object],
+        external_id: str,
+        *,
+        source_identity: Mapping[str, str],
+    ) -> IntakeRequest:
+        self._write()
+        identity = _source_identity(source_identity, external_id)
+        fields, source_hash = _source_contract(payload)
+        source_key = hashlib.sha256(_json(identity).encode()).hexdigest()
+        with self._connect() as connection:
+            self._source_schema(connection)
+            connection.execute("BEGIN IMMEDIATE")
+            existing = connection.execute(
+                "SELECT request_id,source_revision,source_hash FROM intake_sources "
+                "WHERE source_key=?",
+                (source_key,),
+            ).fetchone()
+            if existing:
+                request = self._get(connection, existing[0])
+                if existing[2] == source_hash:
+                    return request
+                revision = existing[1] + 1
+                connection.execute(
+                    "INSERT INTO intake_source_history VALUES (?,?,?,?)",
+                    (source_key, revision, _json(dict(payload)), source_hash),
+                )
+                connection.execute(
+                    "UPDATE intake_sources SET "
+                    "source_revision=?,source_hash=?,pending=1 WHERE source_key=?",
+                    (revision, source_hash, source_key),
+                )
+                if request.state in {"draft", "approved"}:
+                    self._record_revision(
+                        connection,
+                        request,
+                        request.fields,
+                        "source_changed",
+                        "Synthetic source facts changed; "
+                        "operator resolution is required",
+                    )
+                canonical = self._canonical(connection, request.request_id)
+                if canonical != request.request_id:
+                    parent = self._get(connection, canonical)
+                    if parent.state in {"draft", "approved"}:
+                        self._record_revision(
+                            connection,
+                            parent,
+                            parent.fields,
+                            "source_changed",
+                            "Linked synthetic source facts changed; "
+                            "operator resolution is required",
+                        )
+                return self._get(connection, request.request_id)
+            request_id = str(uuid4())
+            submission_id = str(uuid5(NAMESPACE_URL, "edn-intake-source:" + source_key))
+            now = datetime.now(UTC).isoformat()
+            connection.execute(
+                "INSERT INTO intake_requests VALUES "
+                "(?,1,'draft','not_synced',?,?,NULL,NULL,1)",
+                (request_id, now, now),
+            )
+            connection.execute(
+                "INSERT INTO intake_revisions VALUES (?,1,?,'[]')",
+                (request_id, _json(fields)),
+            )
+            connection.execute(
+                "INSERT INTO intake_approvals VALUES (?,?,?,?,?,?,?,NULL)",
+                (
+                    str(uuid4()),
+                    request_id,
+                    1,
+                    _digest(fields, ()),
+                    f"local operator, uid={os.geteuid()}",
+                    now,
+                    "created",
+                ),
+            )
+            connection.execute(
+                "INSERT INTO intake_submissions VALUES (?,?,?,?,?)",
+                (submission_id, _json(fields), "[]", _digest(fields, ()), request_id),
+            )
+            connection.execute(
+                "INSERT INTO intake_sources VALUES (?,?,?,?,?,0)",
+                (source_key, request_id, _json(identity), 1, source_hash),
+            )
+            connection.execute(
+                "INSERT INTO intake_source_history VALUES (?,1,?,?)",
+                (source_key, _json(dict(payload)), source_hash),
+            )
+            return self._get(connection, request_id)
+
+    @staticmethod
+    def _record_revision(
+        connection: sqlite3.Connection,
+        request: IntakeRequest,
+        fields: Mapping[str, object],
+        decision: str,
+        reason: str,
+    ) -> None:
+        cleaned = validate_fields(fields)
+        revision = request.revision + 1
+        now = datetime.now(UTC).isoformat()
+        connection.execute(
+            "INSERT INTO intake_revisions VALUES (?,?,?,?)",
+            (request.request_id, revision, _json(cleaned), _json(request.attachments)),
+        )
+        connection.execute(
+            "UPDATE intake_requests SET "
+            "revision=?,state='draft',sync_status='not_synced',updated_at=?,"
+            "approved_revision=NULL,approval_hash=NULL WHERE request_id=?",
+            (revision, now, request.request_id),
+        )
+        connection.execute(
+            "INSERT INTO intake_approvals VALUES (?,?,?,?,?,?,?,?)",
+            (
+                str(uuid4()),
+                request.request_id,
+                revision,
+                _digest(cleaned, request.attachments),
+                f"local operator, uid={os.geteuid()}",
+                now,
+                decision,
+                reason,
+            ),
+        )
+
+    def resolve_source_change(
+        self, request_id: str, expected_revision: int, *, decision: str, reason: str
+    ) -> IntakeRequest:
+        self._write()
+        if (
+            decision not in {"keep_local", "apply_source"}
+            or not isinstance(reason, str)
+            or not reason.strip()
+            or len(reason) > 500
+            or any(unicodedata.category(c) in {"Cc", "Cf", "Zl", "Zp"} for c in reason)
+        ):
+            raise IntakeError(
+                "Explicit source resolution and bounded reason are required"
+            )
+        with self._connect() as connection:
+            self._source_schema(connection)
+            connection.execute("BEGIN IMMEDIATE")
+            request = self._get(connection, request_id)
+            self._expected(request, expected_revision)
+            if request.state != "draft":
+                raise IntakeError("Reopen a rejected request before source resolution")
+            row = connection.execute(
+                "SELECT source_key,source_revision,pending FROM intake_sources "
+                "WHERE request_id=?",
+                (request_id,),
+            ).fetchone()
+            if row is None or row[2] != 1:
+                raise IntakeError("No unresolved source update exists")
+            payload = json.loads(
+                connection.execute(
+                    "SELECT payload FROM intake_source_history WHERE source_key=? AND "
+                    "source_revision=?",
+                    (row[0], row[1]),
+                ).fetchone()[0]
+            )
+            source_fields, _ = _source_contract(payload)
+            canonical = self._canonical(connection, request_id)
+            if canonical != request_id:
+                parent = self._get(connection, canonical)
+                if parent.state not in {"draft", "approved"}:
+                    raise IntakeError(
+                        "Reopen canonical work before resolving source facts"
+                    )
+                if decision == "apply_source":
+                    self._record_revision(
+                        connection,
+                        parent,
+                        source_fields,
+                        "source_resolved",
+                        reason.strip(),
+                    )
+            self._record_revision(
+                connection,
+                request,
+                source_fields if decision == "apply_source" else request.fields,
+                "source_resolved",
+                reason.strip(),
+            )
+            connection.execute(
+                "UPDATE intake_sources SET pending=0 WHERE request_id=?", (request_id,)
+            )
+            return self._get(connection, request_id)
+
+    @staticmethod
+    def _canonical(connection: sqlite3.Connection, request_id: str) -> str:
+        if connection.execute("PRAGMA user_version").fetchone() != (3,):
+            return request_id
+        visited = set()
+        while request_id not in visited:
+            visited.add(request_id)
+            row = connection.execute(
+                "SELECT canonical_id FROM intake_work_links WHERE alias_id=?",
+                (request_id,),
+            ).fetchone()
+            if row is None:
+                return request_id
+            audit = connection.execute(
+                "SELECT decision_id,other_id,request_hash,other_hash,request_revision,"
+                "other_revision,actor,decided_at,reason "
+                "FROM intake_duplicate_decisions "
+                "WHERE request_id=? AND decision='same_work' "
+                "ORDER BY rowid DESC LIMIT 1",
+                (request_id,),
+            ).fetchone()
+            try:
+                if audit is None or audit[1] != row[0]:
+                    raise ValueError
+                _identity(audit[0])
+                if (
+                    re.fullmatch(r"local operator, uid=(0|[1-9][0-9]*)", audit[6])
+                    is None
+                    or datetime.fromisoformat(audit[7]).utcoffset()
+                    != UTC.utcoffset(datetime.fromisoformat(audit[7]))
+                    or not isinstance(audit[8], str)
+                    or not audit[8].strip()
+                ):
+                    raise ValueError
+                for identifier, revision, expected_hash in (
+                    (request_id, audit[4], audit[2]),
+                    (row[0], audit[5], audit[3]),
+                ):
+                    if type(revision) is not int or revision < 1:
+                        raise ValueError
+                    original = connection.execute(
+                        "SELECT fields,attachments FROM intake_revisions "
+                        "WHERE request_id=? AND revision=?",
+                        (identifier, revision),
+                    ).fetchone()
+                    if (
+                        original is None
+                        or _digest(
+                            validate_fields(json.loads(original[0])),
+                            _attachments(json.loads(original[1]), identifier),
+                        )
+                        != expected_hash
+                    ):
+                        raise ValueError
+            except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
+                raise IntakeError("Stored work linkage audit is invalid") from None
+            request_id = row[0]
+        raise IntakeError("Work linkage is inconsistent")
+
+    @staticmethod
+    def _initial_fields(
+        connection: sqlite3.Connection, request_id: str
+    ) -> dict[str, str]:
+        row = connection.execute(
+            "SELECT fields FROM intake_submissions WHERE request_id=?", (request_id,)
+        ).fetchone()
+        if row is None:
+            raise IntakeError("Original request receipt is missing")
+        try:
+            return validate_fields(json.loads(row[0]))
+        except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
+            raise IntakeError("Original receipt facts are invalid") from None
+
+    def duplicate_candidates(self, request_id: str) -> tuple[IntakeRequest, ...]:
+        with self._connect() as connection:
+            self._source_schema(connection)
+            request = self._get(connection, request_id)
+            return self._candidates(connection, request)
+
+    def _candidates(
+        self, connection: sqlite3.Connection, request: IntakeRequest
+    ) -> tuple[IntakeRequest, ...]:
+        fingerprints = self._fingerprints(connection, request)
+        result = []
+        for (other_id,) in connection.execute(
+            "SELECT request_id FROM intake_requests WHERE request_id<>?",
+            (request.request_id,),
+        ).fetchall():
+            if self._canonical(connection, other_id) == self._canonical(
+                connection, request.request_id
+            ):
+                continue
+            other = self._get(connection, other_id)
+            if fingerprints.isdisjoint(self._fingerprints(connection, other)):
+                continue
+            decision = connection.execute(
+                "SELECT "
+                "request_id,request_hash,other_hash,decision,request_revision,"
+                "other_revision,decision_id,actor,decided_at,reason FROM "
+                "intake_duplicate_decisions WHERE (request_id=? AND other_id=?) OR "
+                "(request_id=? AND other_id=?) ORDER BY rowid DESC LIMIT 1",
+                (request.request_id, other_id, other_id, request.request_id),
+            ).fetchone()
+            if decision:
+                try:
+                    _identity(decision[6])
+                    if (
+                        decision[3] not in {"distinct", "same_work"}
+                        or re.fullmatch(
+                            r"local operator, uid=(0|[1-9][0-9]*)", decision[7]
+                        )
+                        is None
+                        or datetime.fromisoformat(decision[8]).utcoffset()
+                        != UTC.utcoffset(datetime.fromisoformat(decision[8]))
+                        or not isinstance(decision[9], str)
+                        or not decision[9].strip()
+                    ):
+                        raise ValueError
+                except (ValueError, TypeError, AttributeError):
+                    raise IntakeError("Stored duplicate decision is invalid") from None
+            if decision and decision[3] == "distinct":
+                hashes = (
+                    _digest(request.fields, request.attachments),
+                    _digest(other.fields, other.attachments),
+                )
+                stored = (
+                    (decision[1], decision[2])
+                    if decision[0] == request.request_id
+                    else (decision[2], decision[1])
+                )
+                versions = (request.revision, other.revision)
+                stored_versions = (
+                    (decision[4], decision[5])
+                    if decision[0] == request.request_id
+                    else (decision[5], decision[4])
+                )
+                if hashes == stored and versions == stored_versions:
+                    continue
+            result.append(other)
+        return tuple(result)
+
+    def _fingerprints(
+        self, connection: sqlite3.Connection, request: IntakeRequest
+    ) -> set[str]:
+        return {
+            _duplicate_fingerprint(request.fields),
+            _duplicate_fingerprint(
+                self._initial_fields(connection, request.request_id)
+            ),
+        }
+
+    def resolve_duplicate(
+        self,
+        request_id: str,
+        other_id: str,
+        expected_revision: int,
+        *,
+        decision: str,
+        reason: str,
+    ) -> None:
+        self._write()
+        if (
+            decision not in {"distinct", "same_work"}
+            or not isinstance(reason, str)
+            or not reason.strip()
+            or len(reason) > 500
+            or any(unicodedata.category(c) in {"Cc", "Cf", "Zl", "Zp"} for c in reason)
+        ):
+            raise IntakeError(
+                "Explicit duplicate resolution and bounded reason are required"
+            )
+        with self._connect() as connection:
+            self._source_schema(connection)
+            connection.execute("BEGIN IMMEDIATE")
+            request = self._get(connection, request_id)
+            other = self._get(connection, other_id)
+            self._expected(request, expected_revision)
+            if request_id == other_id or self._fingerprints(
+                connection, request
+            ).isdisjoint(self._fingerprints(connection, other)):
+                raise IntakeError("Requests are not a duplicate candidate pair")
+            if decision == "same_work":
+                if request.state not in {"draft", "approved"} or other.state not in {
+                    "draft",
+                    "approved",
+                }:
+                    raise IntakeError("Reopen requests before linking the same work")
+                canonical = self._canonical(connection, other_id)
+                if canonical != other_id:
+                    raise IntakeError("Select the canonical work request for linkage")
+                parent = self._get(connection, canonical)
+                if parent.state not in {"draft", "approved"}:
+                    raise IntakeError(
+                        "Reopen canonical work before linking the same work"
+                    )
+                if (
+                    canonical == request_id
+                    or self._canonical(connection, request_id) != request_id
+                ):
+                    raise IntakeError("Work linkage would be inconsistent")
+                connection.execute(
+                    "INSERT INTO intake_work_links VALUES (?,?)",
+                    (request_id, canonical),
+                )
+                self._record_revision(
+                    connection,
+                    parent,
+                    parent.fields,
+                    "duplicate_linked",
+                    reason.strip(),
+                )
+                self._record_revision(
+                    connection,
+                    request,
+                    request.fields,
+                    "duplicate_linked",
+                    reason.strip(),
+                )
+            connection.execute(
+                "INSERT INTO intake_duplicate_decisions VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    str(uuid4()),
+                    request_id,
+                    other_id,
+                    _digest(request.fields, request.attachments),
+                    _digest(other.fields, other.attachments),
+                    request.revision,
+                    other.revision,
+                    decision,
+                    f"local operator, uid={os.geteuid()}",
+                    datetime.now(UTC).isoformat(),
+                    reason.strip(),
+                ),
+            )
+
+    def _review_gate(
+        self, connection: sqlite3.Connection, request: IntakeRequest
+    ) -> None:
+        if connection.execute("PRAGMA user_version").fetchone() != (3,):
+            return
+        if self._canonical(connection, request.request_id) != request.request_id:
+            raise IntakeError(
+                "Linked request cannot be approved or exported independently"
+            )
+        for source_id, pending in connection.execute(
+            "SELECT request_id,pending FROM intake_sources"
+        ).fetchall():
+            if pending and self._canonical(connection, source_id) == request.request_id:
+                raise IntakeError(
+                    "Resolve changed source facts before approval or export"
+                )
+        if self._candidates(connection, request):
+            raise IntakeError(
+                "Resolve potential duplicate work before approval or export"
+            )
+
+    @staticmethod
+    def _provenance(
+        connection: sqlite3.Connection, request_id: str
+    ) -> dict[str, object]:
+        if connection.execute("PRAGMA user_version").fetchone() != (3,):
+            return {"source_type": "manual", "source": "EDN OS Manual"}
+        row = connection.execute(
+            "SELECT source_key,identity,source_revision,source_hash,pending "
+            "FROM intake_sources WHERE request_id=?",
+            (request_id,),
+        ).fetchone()
+        if row is None:
+            return {"source_type": "manual", "source": "EDN OS Manual"}
+        try:
+            raw_identity = json.loads(row[1])
+            identity = _source_identity(raw_identity, raw_identity["native_item_id"])
+            if (
+                hashlib.sha256(_json(identity).encode()).hexdigest() != row[0]
+                or type(row[2]) is not int
+                or row[2] < 1
+                or type(row[4]) is not int
+                or row[4] not in {0, 1}
+            ):
+                raise ValueError
+            history = connection.execute(
+                "SELECT payload,canonical_hash FROM intake_source_history "
+                "WHERE source_key=? AND source_revision=?",
+                (row[0], row[2]),
+            ).fetchone()
+            if history is None:
+                raise ValueError
+            _, digest = _source_contract(json.loads(history[0]))
+            if digest != history[1] or digest != row[3]:
+                raise ValueError
+        except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
+            raise IntakeError("Stored source provenance is invalid") from None
+        return {
+            "source_type": "synthetic_import",
+            "source": "EDN Systems Website",
+            "synthetic_only": True,
+            **identity,
+            "source_revision": row[2],
+            "source_pending": bool(row[4]),
+        }
+
+    def source_provenance(self, request_id: str) -> dict[str, object]:
+        with self._connect() as connection:
+            self._get(connection, request_id)
+            provenance = self._provenance(connection, request_id)
+            canonical = self._canonical(connection, request_id)
+            return {
+                **provenance,
+                "canonical_work_id": canonical,
+                "linked_alias": canonical != request_id,
+            }
+
+    def source_snapshot(self, request_id: str) -> dict[str, object]:
+        """Read the bounded validated proposal for explicit operator review."""
+        with self._connect() as connection:
+            self._get(connection, request_id)
+            self._source_schema(connection)
+            row = connection.execute(
+                "SELECT h.payload FROM intake_sources s "
+                "JOIN intake_source_history h ON h.source_key=s.source_key "
+                "AND h.source_revision=s.source_revision WHERE s.request_id=?",
+                (request_id,),
+            ).fetchone()
+            if row is None:
+                raise IntakeError("Manual request has no source snapshot")
+            try:
+                payload = json.loads(row[0])
+                fields, _ = _source_contract(payload)
+                return {
+                    **fields,
+                    "contractVersion": "1.0",
+                    "source": "EDN Systems Website",
+                    "submittedAt": datetime.fromisoformat(
+                        payload["submittedAt"].replace("Z", "+00:00")
+                    ).isoformat(),
+                }
+            except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
+                raise IntakeError("Stored source snapshot is invalid") from None
+
+    @staticmethod
+    def _source_submitted(
+        connection: sqlite3.Connection, request: IntakeRequest
+    ) -> str:
+        row = connection.execute(
+            "SELECT h.payload FROM intake_sources s JOIN intake_source_history "
+            "h ON h.source_key=s.source_key AND "
+            "h.source_revision=s.source_revision WHERE s.request_id=?",
+            (request.request_id,),
+        ).fetchone()
+        payload = json.loads(row[0])
+        _source_contract(payload)
+        return datetime.fromisoformat(
+            payload["submittedAt"].replace("Z", "+00:00")
+        ).isoformat()
+
+    def _group_provenance(
+        self, connection: sqlite3.Connection, request_id: str
+    ) -> dict[str, object]:
+        provenance = self._provenance(connection, request_id)
+        if connection.execute("PRAGMA user_version").fetchone() != (3,):
+            return provenance
+        canonical = self._canonical(connection, request_id)
+        source_ids = [
+            row[0]
+            for row in connection.execute(
+                "SELECT request_id FROM intake_sources ORDER BY source_key"
+            ).fetchall()
+            if self._canonical(connection, row[0]) == canonical
+        ]
+        if source_ids:
+            provenance = self._provenance(connection, source_ids[0])
+            source_request = self._get(connection, source_ids[0])
+            provenance["submitted_at"] = self._source_submitted(
+                connection, source_request
+            )
+            provenance["canonical_work_id"] = canonical
+            provenance["existing_source_count"] = len(source_ids)
+        return provenance

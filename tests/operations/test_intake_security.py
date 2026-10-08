@@ -196,7 +196,9 @@ def test_backend_manifest_gate_and_queue_corruption_isolation(tmp_path):
     if requests is None:
         return
     first = requests.create(fields(), submission_id=str(uuid4()))
-    second = requests.create(fields(), submission_id=str(uuid4()))
+    second = requests.create(
+        fields(reference="independent"), submission_id=str(uuid4())
+    )
     metadata = {
         "attachment_id": str(uuid4()),
         "request_id": first.request_id,

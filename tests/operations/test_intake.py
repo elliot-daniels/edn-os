@@ -56,6 +56,7 @@ def test_review_approve_dry_run_edit_restart_and_exact_mapping(tmp_path):
     assert exported == {
         "submission_id": submission_id,
         "idempotency_key": submission_id,
+        "operation": "create_proposal",
         "source_provenance": {"source_type": "manual", "source": "EDN OS Manual"},
         "content_hash": audit["content_hash"],
         "attachment_manifest": (),
@@ -163,6 +164,13 @@ def test_attachments_are_local_exact_request_and_invalidate_approval(tmp_path):
         "size_bytes": 100,
         "sha256": "a" * 64,
     }
+    requests.resolve_duplicate(
+        first.request_id,
+        other.request_id,
+        1,
+        decision="distinct",
+        reason="Independent synthetic requests for attachment isolation",
+    )
     requests.approve(first.request_id, 1)
     changed = requests.update(
         first.request_id, 1, first.fields, attachments=[attachment]
@@ -171,6 +179,13 @@ def test_attachments_are_local_exact_request_and_invalidate_approval(tmp_path):
     with pytest.raises(IntakeError):
         requests.update(other.request_id, 1, other.fields, attachments=[attachment])
     assert requests.get(other.request_id).revision == 1
+    requests.resolve_duplicate(
+        first.request_id,
+        other.request_id,
+        2,
+        decision="distinct",
+        reason="Reconfirm independent work after local attachment edit",
+    )
     with pytest.raises(IntakeError, match="evidence"):
         requests.approve(first.request_id, 2)
     assert requests.get(first.request_id).state == "draft"
