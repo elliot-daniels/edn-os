@@ -52,3 +52,21 @@ approval but retains previous decisions. Attachments are at most20,000,000bytes
 per file and100,000,000bytes aggregate per request, without arbitrary ten-file cap.
 This revised pre-merge MVP schema rejects earlier synthetic lookalikes rather than
 silently adopting an unaudited store; no real-store migration has been performed.
+
+
+Backend evidence verification is mandatory before approval/export whenever the
+request carries attachments. Configure the protected evidence root explicitly.
+Completed quota receipts, exact metadata association, file bytes/hash and supported
+format signatures must all validate; absent or stale evidence fails closed.
+Queue diagnostics isolate malformed rows without permitting corrupt direct exports.
+Hidden Unicode formatting and control characters are rejected, with CR/LF allowed
+only in descriptions. Every edit records a local operator audit decision, including
+explicit approval invalidation when applicable.
+
+Linux directory operations are descriptor-relative after an owned no-follow
+component walk. SQLite connection lifetimes are serialized with a private anchored
+flock; actual newly opened SQLite DB descriptor identity must be provable before
+any PRAGMA or schema SQL. Unprovable identity fails closed. Its parent FD remains
+open through deterministic connection close; no immutable/nolock/cache bypass is
+used. Linux negative parent/final-name swap tests and positive concurrent/restart
+checks are required hosted evidence before accepting this protection boundary.

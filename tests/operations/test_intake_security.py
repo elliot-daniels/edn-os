@@ -44,7 +44,11 @@ def test_owned_modes_links_and_self_approval_audit(tmp_path):
     audit = requests.audit_history(request.request_id)
     assert audit[0]["revision"] == 1 and audit[0]["decision"] == "approved"
     requests.update(request.request_id, 1, fields(reference="changed"))
-    assert requests.audit_history(request.request_id) == audit
+    assert requests.audit_history(request.request_id)[0] == audit[0]
+    assert (
+        requests.audit_history(request.request_id)[1]["decision"]
+        == "edited_approval_invalidated"
+    )
     assert requests.get(request.request_id).approval_actor is None
     link = tmp_path / "hardlink.db"
     os.link(requests.path, link)
@@ -98,3 +102,213 @@ def test_missing_store_read_has_fixed_database_error_without_private_path(tmp_pa
     assert str(raised.value) == "Request store is unavailable"
     assert str(path) not in "".join(traceback.format_exception(raised.value))
     assert not path.exists()
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("actor", ""),
+        ("actor", "invented authenticated actor"),
+        ("decided_at", "not-a-timestamp"),
+        ("decided_at", "2026-10-08T12:00:00"),
+        ("decided_at", "2026-10-08T12:00:00+10:00"),
+        ("decision_id", "bad-id"),
+        ("content_hash", "b" * 64),
+        ("revision", 99),
+    ],
+)
+def test_corrupt_audit_refuses_get_export_history_without_write(tmp_path, field, value):
+    import sqlite3
+
+    requests = store(tmp_path)
+    if requests is None:
+        return
+    request = requests.create(fields())
+    requests.approve(request.request_id, 1)
+    with sqlite3.connect(requests.path) as connection:
+        connection.execute(f"UPDATE intake_approvals SET {field}=?", (value,))
+    before = requests.path.read_bytes()
+    for action in (
+        lambda: requests.get(request.request_id),
+        lambda: requests.export(request.request_id, 1),
+        lambda: requests.audit_history(request.request_id),
+    ):
+        with pytest.raises(ValueError):
+            action()
+    assert requests.path.read_bytes() == before
+
+
+@pytest.mark.parametrize("hidden", ["\t", "\n", "\r", "\ufeff", "\u200b", "\u202e"])
+def test_hidden_single_line_contract_controls_rejected_every_platform(hidden):
+    from edn.operations.intake import validate_fields
+
+    with pytest.raises(ValueError):
+        validate_fields(fields(contactName="Alex" + hidden + "Smith"))
+
+
+def test_parent_swap_cannot_redirect_anchored_sqlite_writes(tmp_path, monkeypatch):
+    import sqlite3
+
+    from edn.operations import intake
+
+    requests = store(tmp_path)
+    if requests is None:
+        return
+    outside = tmp_path.parent / (tmp_path.name + "-outside")
+    outside.mkdir(mode=0o700)
+    sentinel = outside / "requests.db"
+    sentinel.write_bytes(b"outside-sentinel")
+    sentinel.chmod(0o600)
+    moved = tmp_path.parent / (tmp_path.name + "-moved")
+    actual_connect = sqlite3.connect
+    swapped = False
+
+    def swap_before_connect(*args, **kwargs):
+        nonlocal swapped
+        if not swapped:
+            tmp_path.rename(moved)
+            tmp_path.symlink_to(outside, target_is_directory=True)
+            swapped = True
+        return actual_connect(*args, **kwargs)
+
+    monkeypatch.setattr(intake.sqlite3, "connect", swap_before_connect)
+    from contextlib import suppress
+
+    with suppress(ValueError, sqlite3.Error, OSError):
+        requests.create(fields())
+    assert sentinel.read_bytes() == b"outside-sentinel"
+    assert tuple(outside.iterdir()) == (sentinel,)
+
+
+def test_backend_manifest_gate_and_queue_corruption_isolation(tmp_path):
+    import sqlite3
+    from uuid import uuid4
+
+    requests = store(tmp_path)
+    if requests is None:
+        return
+    first = requests.create(fields())
+    second = requests.create(fields())
+    metadata = {
+        "attachment_id": str(uuid4()),
+        "request_id": first.request_id,
+        "original_name": "proof.pdf",
+        "media_type": "application/pdf",
+        "size_bytes": 10,
+        "sha256": "a" * 64,
+    }
+    changed = requests.update(first.request_id, 1, first.fields, attachments=[metadata])
+    with pytest.raises(ValueError, match="evidence"):
+        requests.approve(first.request_id, changed.revision)
+    with sqlite3.connect(requests.path) as connection:
+        connection.execute(
+            "UPDATE intake_revisions SET fields='bad-json' WHERE request_id=?",
+            (first.request_id,),
+        )
+    result = requests.list_requests_with_diagnostics()
+    assert result.requests == (second,) and result.malformed == 1
+    with pytest.raises(ValueError):
+        requests.get(first.request_id)
+
+
+@pytest.mark.parametrize("mutation", ["missing", "bytes", "metadata", "reserved"])
+def test_backend_actual_evidence_corruption_blocks_approval_and_export(
+    tmp_path, mutation
+):
+    import hashlib
+    import json
+    from uuid import uuid4
+
+    from edn.operations.intake_security import verify_evidence
+
+    requests = store(tmp_path)
+    if requests is None:
+        return
+    evidence = tmp_path / "evidence"
+    evidence.mkdir(mode=0o700)
+    request = requests.create(fields())
+    request_root = evidence / request.request_id
+    request_root.mkdir(mode=0o700)
+    attachment_id = str(uuid4())
+    attachment = request_root / attachment_id
+    attachment.mkdir(mode=0o700)
+    payload = b"%PDF-1.7 synthetic proof"
+    metadata = {
+        "attachment_id": attachment_id,
+        "request_id": request.request_id,
+        "original_name": "proof.pdf",
+        "media_type": "application/pdf",
+        "size_bytes": len(payload),
+        "sha256": hashlib.sha256(payload).hexdigest(),
+    }
+    receipt = {
+        "schema_version": 1,
+        "request_id": request.request_id,
+        "entries": [
+            {
+                "attachment_id": attachment_id,
+                "size_bytes": len(payload),
+                "state": "complete",
+            }
+        ],
+    }
+    for path, content in (
+        (attachment / "original.bin", payload),
+        (attachment / "metadata.json", json.dumps(metadata).encode()),
+        (request_root / "attachments.json", json.dumps(receipt).encode()),
+    ):
+        path.write_bytes(content)
+        path.chmod(0o600)
+    verify_evidence(evidence, request.request_id, (metadata,))
+    requests = IntakeStore(requests.path, evidence_root=evidence)
+    changed = requests.update(
+        request.request_id, 1, request.fields, attachments=[metadata]
+    )
+    requests.approve(request.request_id, changed.revision)
+    if mutation == "missing":
+        (attachment / "original.bin").unlink()
+    elif mutation == "bytes":
+        (attachment / "original.bin").write_bytes(b"tampered")
+    elif mutation == "metadata":
+        (attachment / "metadata.json").write_text("{}")
+    else:
+        receipt["entries"][0]["state"] = "reserved"
+        (request_root / "attachments.json").write_text(json.dumps(receipt))
+    before = requests.path.read_bytes()
+    for action in (requests.approve, requests.export):
+        with pytest.raises(ValueError, match="evidence"):
+            action(request.request_id, changed.revision)
+    assert requests.path.read_bytes() == before
+
+
+def test_final_database_symlink_swap_rejected_before_sql_and_outside_unchanged(
+    tmp_path, monkeypatch
+):
+    import sqlite3
+
+    from edn.operations import intake
+
+    requests = store(tmp_path)
+    if requests is None:
+        return
+    outside = tmp_path / "outside.db"
+    with sqlite3.connect(outside) as connection:
+        connection.execute("CREATE TABLE sentinel (value TEXT)")
+        connection.execute("INSERT INTO sentinel VALUES ('unchanged')")
+    outside.chmod(0o600)
+    before = outside.read_bytes()
+    actual_connect = sqlite3.connect
+    swapped = False
+
+    def swap_before_connect(*args, **kwargs):
+        nonlocal swapped
+        if not swapped:
+            requests.path.rename(tmp_path / "original.db")
+            requests.path.symlink_to(outside)
+            swapped = True
+        return actual_connect(*args, **kwargs)
+
+    monkeypatch.setattr(intake.sqlite3, "connect", swap_before_connect)
+    with pytest.raises(ValueError, match="descriptor"):
+        requests.create(fields())
+    assert outside.read_bytes() == before

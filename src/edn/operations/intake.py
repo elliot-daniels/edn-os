@@ -7,16 +7,21 @@ import json
 import os
 import re
 import sqlite3
+import stat
+import unicodedata
 from collections.abc import Mapping, Sequence
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
+from types import TracebackType
+from typing import Literal
 from uuid import UUID, uuid4
 
 from edn.operations.intake_security import (
-    protect_file,
+    AnchoredDirectory,
     require_supported_platform,
-    validate_root,
+    verify_evidence,
 )
 
 SERVICES = (
@@ -66,7 +71,11 @@ def validate_fields(fields: Mapping[str, object]) -> dict[str, str]:
         if not isinstance(value, str):
             raise IntakeError("Request fields must be text")
         value = value.strip()
-        if any(ord(c) < 32 and c not in "\n\r\t" for c in value):
+        if any(
+            unicodedata.category(c) in {"Cc", "Cf"}
+            and not (name == "jobDescription" and c in "\n\r")
+            for c in value
+        ):
             raise IntakeError("Request contains unsupported controls")
         try:
             length = len(value.encode("utf-16-le")) // 2
@@ -150,9 +159,11 @@ def _attachments(
         size = item["size_bytes"]
         assert isinstance(size, int)
         total_size += size
-    if total_size > 100_000_000 or len(
-        {item["attachment_id"] for item in result}
-    ) != len(result):
+    if (
+        total_size > 100_000_000
+        or len(result) > 100
+        or len({item["attachment_id"] for item in result}) != len(result)
+    ):
         raise IntakeError("Attachment count or identity is invalid")
     return tuple(result)
 
@@ -172,6 +183,51 @@ def _json(value: object) -> str:
 
 def _digest(fields: object, attachments: object) -> str:
     return hashlib.sha256(_json([fields, attachments]).encode()).hexdigest()
+
+
+def _audit_row(
+    connection: sqlite3.Connection, request_id: str, row: tuple[object, ...]
+) -> dict[str, object]:
+    try:
+        decision_id, revision, content_hash, actor, decided_at, decision = row
+        _identity(decision_id)
+        if (
+            type(revision) is not int
+            or revision < 1
+            or not isinstance(content_hash, str)
+            or re.fullmatch(r"[0-9a-f]{64}", content_hash) is None
+            or not isinstance(actor, str)
+            or re.fullmatch(
+                r"local operator \(self-approval\), uid=(0|[1-9][0-9]*)", actor
+            )
+            is None
+            or not isinstance(decided_at, str)
+            or decision not in {"approved", "edited", "edited_approval_invalidated"}
+        ):
+            raise ValueError
+        timestamp = datetime.fromisoformat(decided_at)
+        if timestamp.utcoffset() != UTC.utcoffset(timestamp):
+            raise ValueError
+        revision_row = connection.execute(
+            "SELECT fields,attachments FROM intake_revisions "
+            "WHERE request_id=? AND revision=?",
+            (request_id, revision),
+        ).fetchone()
+        if revision_row is None:
+            raise ValueError
+        fields = validate_fields(json.loads(revision_row[0]))
+        attached = _attachments(json.loads(revision_row[1]), request_id)
+        if _digest(fields, attached) != content_hash:
+            raise ValueError
+    except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
+        raise IntakeError("Stored approval audit is invalid") from None
+    return dict(
+        zip(
+            ("revision", "content_hash", "actor", "decided_at", "decision"),
+            (revision, content_hash, actor, decided_at, decision),
+            strict=True,
+        )
+    )
 
 
 @dataclass(frozen=True)
@@ -214,14 +270,47 @@ revision INTEGER NOT NULL,
 content_hash TEXT NOT NULL,
 actor TEXT NOT NULL,
 decided_at TEXT NOT NULL,
-decision TEXT NOT NULL CHECK(decision='approved')
+decision TEXT NOT NULL
+CHECK(decision IN ('approved','edited','edited_approval_invalidated'))
 )"""
 
 
+@dataclass(frozen=True)
+class IntakeListResult:
+    requests: tuple[IntakeRequest, ...]
+    malformed: int
+
+
+class _ProtectedConnection(sqlite3.Connection):
+    anchor: AnchoredDirectory
+    storage_lock: AbstractContextManager[None]
+
+    def close(self) -> None:
+        try:
+            super().close()
+        finally:
+            self.storage_lock.__exit__(None, None, None)
+            self.anchor.close()
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> Literal[False]:
+        try:
+            return super().__exit__(exc_type, exc_value, traceback)
+        finally:
+            self.close()
+
+
 class IntakeStore:
-    def __init__(self, path: Path, *, read_only: bool = False) -> None:
+    def __init__(
+        self, path: Path, *, read_only: bool = False, evidence_root: Path | None = None
+    ) -> None:
         self.path = path
         self.read_only = read_only
+        self.evidence_root = evidence_root
 
     def _write(self) -> None:
         if self.read_only:
@@ -244,24 +333,67 @@ class IntakeStore:
         if connection.execute("PRAGMA foreign_key_check").fetchone() is not None:
             raise IntakeError("Request store integrity is invalid")
 
-    def _connect(self) -> sqlite3.Connection:
+    def _connect(
+        self, *, initialise: bool = False, anchor: AnchoredDirectory | None = None
+    ) -> sqlite3.Connection:
         require_supported_platform()
-        validate_root(self.path.parent)
-        try:
-            protect_file(self.path)
-        except FileNotFoundError:
-            raise sqlite3.OperationalError("Request store is unavailable") from None
-        for suffix in ("-journal", "-wal", "-shm"):
-            sidecar = Path(str(self.path) + suffix)
-            if sidecar.exists() or sidecar.is_symlink():
-                protect_file(sidecar)
-        connection = sqlite3.connect(
-            f"{self.path.resolve().as_uri()}?mode={'ro' if self.read_only else 'rw'}",
-            uri=True,
+        directory = (
+            anchor if anchor is not None else AnchoredDirectory(self.path.parent)
         )
+        storage_lock = directory.lock(self.path.name + ".lock")
+        storage_lock.__enter__()
+        try:
+            try:
+                descriptor = directory.open_file(self.path.name)
+            except FileNotFoundError:
+                raise sqlite3.OperationalError("Request store is unavailable") from None
+            expected_inode = os.fstat(descriptor)
+            os.close(descriptor)
+            before_fds = set()
+            for number in os.listdir("/proc/self/fd"):
+                try:
+                    os.fstat(int(number))
+                    before_fds.add(number)
+                except OSError:
+                    pass
+            for suffix in ("-journal", "-wal", "-shm"):
+                name = self.path.name + suffix
+                if directory.exists(name):
+                    os.close(directory.open_file(name))
+            # Linux /proc descriptor path anchors SQLite sidecars to the same parent.
+            connection = sqlite3.connect(
+                f"file:/proc/self/fd/{directory.fd}/{self.path.name}"
+                f"?mode={'ro' if self.read_only else 'rw'}",
+                uri=True,
+                factory=_ProtectedConnection,
+            )
+            connection.anchor = directory
+            connection.storage_lock = storage_lock
+            verified = False
+            for entry in set(os.listdir("/proc/self/fd")) - before_fds:
+                try:
+                    observed = os.fstat(int(entry))
+                except OSError:
+                    continue
+                if stat.S_ISREG(observed.st_mode):
+                    if (observed.st_dev, observed.st_ino) != (
+                        expected_inode.st_dev,
+                        expected_inode.st_ino,
+                    ):
+                        connection.close()
+                        raise IntakeError("Database descriptor identity is unsafe")
+                    verified = True
+            if not verified:
+                connection.close()
+                raise IntakeError("Database descriptor identity is unconfirmed")
+        except BaseException:
+            storage_lock.__exit__(None, None, None)
+            directory.close()
+            raise
         try:
             connection.execute("PRAGMA foreign_keys=ON")
-            self._validate(connection)
+            if not initialise:
+                self._validate(connection)
         except BaseException:
             connection.close()
             raise
@@ -270,22 +402,21 @@ class IntakeStore:
     def initialise(self) -> None:
         require_supported_platform()
         self._write()
-        validate_root(self.path.parent)
-        if self.path.exists():
-            with self._connect():
-                return
-        # Exclusive creation never adopts or rewrites another database.
-        try:
-            protect_file(self.path, create=True)
-        except FileExistsError:
-            raise IntakeError("Request store already exists") from None
-        with sqlite3.connect(self.path) as connection:
-            connection.execute("PRAGMA foreign_keys=ON")
-            connection.execute("BEGIN IMMEDIATE")
-            connection.execute(DDL)
-            connection.execute(REVISIONS_DDL)
-            connection.execute(APPROVALS_DDL)
-            connection.execute("PRAGMA user_version=1")
+        with AnchoredDirectory(self.path.parent) as directory:
+            if directory.exists(self.path.name):
+                with self._connect():
+                    return
+            try:
+                os.close(directory.open_file(self.path.name, create=True))
+            except FileExistsError:
+                raise IntakeError("Request store already exists") from None
+            with self._connect(initialise=True, anchor=directory) as connection:
+                connection.execute("PRAGMA foreign_keys=ON")
+                connection.execute("BEGIN IMMEDIATE")
+                connection.execute(DDL)
+                connection.execute(REVISIONS_DDL)
+                connection.execute(APPROVALS_DDL)
+                connection.execute("PRAGMA user_version=1")
 
     @staticmethod
     def _get(connection: sqlite3.Connection, request_id: str) -> IntakeRequest:
@@ -323,13 +454,15 @@ class IntakeStore:
         approval = None
         if row[2] == "approved":
             approval = connection.execute(
-                "SELECT actor,decided_at FROM intake_approvals WHERE request_id=? "
+                "SELECT decision_id,revision,content_hash,actor,decided_at,decision "
+                "FROM intake_approvals WHERE request_id=? "
                 "AND revision=? AND content_hash=? AND decision='approved' "
                 "ORDER BY decided_at DESC,decision_id DESC LIMIT 1",
                 (request_id, row[1], row[7]),
             ).fetchone()
             if approval is None:
                 raise IntakeError("Approved request audit is missing")
+            _audit_row(connection, request_id, approval)
         return IntakeRequest(
             request_id,
             row[1],
@@ -340,8 +473,8 @@ class IntakeStore:
             row[4],
             row[5],
             row[6],
-            approval[0] if approval else None,
-            approval[1] if approval else None,
+            approval[3] if approval else None,
+            approval[4] if approval else None,
         )
 
     def get(self, request_id: str) -> IntakeRequest:
@@ -365,6 +498,31 @@ class IntakeStore:
                 (limit, offset),
             ).fetchall()
             return tuple(self._get(connection, row[0]) for row in rows)
+
+    def list_requests_with_diagnostics(
+        self, *, limit: int = 50, offset: int = 0
+    ) -> IntakeListResult:
+        if (
+            type(limit) is not int
+            or not 1 <= limit <= 100
+            or type(offset) is not int
+            or offset < 0
+        ):
+            raise IntakeError("Invalid queue page bounds")
+        valid = []
+        malformed = 0
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT request_id FROM intake_requests ORDER BY created_at DESC,"
+                "request_id DESC LIMIT ? OFFSET ?",
+                (limit, offset),
+            ).fetchall()
+            for row in rows:
+                try:
+                    valid.append(self._get(connection, row[0]))
+                except (IntakeError, ValueError, TypeError, RecursionError):
+                    malformed += 1
+        return IntakeListResult(tuple(valid), malformed)
 
     def create(
         self,
@@ -421,6 +579,20 @@ class IntakeStore:
                 "WHERE request_id=?",
                 (revision, now, request_id),
             )
+            connection.execute(
+                "INSERT INTO intake_approvals VALUES (?,?,?,?,?,?,?)",
+                (
+                    str(uuid4()),
+                    request_id,
+                    revision,
+                    _digest(cleaned, attached),
+                    f"local operator (self-approval), uid={os.geteuid()}",
+                    now,
+                    "edited_approval_invalidated"
+                    if original.state == "approved"
+                    else "edited",
+                ),
+            )
             return self._get(connection, request_id)
 
     @staticmethod
@@ -435,6 +607,7 @@ class IntakeStore:
             connection.execute("BEGIN IMMEDIATE")
             request = self._get(connection, request_id)
             self._expected(request, expected_revision)
+            self._verify_evidence(request)
             decided = datetime.now(UTC).isoformat()
             actor = f"local operator (self-approval), uid={os.geteuid()}"
             content_hash = _digest(request.fields, request.attachments)
@@ -466,21 +639,12 @@ class IntakeStore:
         with self._connect() as connection:
             self._get(connection, request_id)
             rows = connection.execute(
-                "SELECT revision,content_hash,actor,decided_at,decision "
+                "SELECT decision_id,revision,content_hash,actor,decided_at,decision "
                 "FROM intake_approvals WHERE request_id=? "
                 "ORDER BY decided_at,decision_id",
                 (request_id,),
             ).fetchall()
-            return tuple(
-                dict(
-                    zip(
-                        ("revision", "content_hash", "actor", "decided_at", "decision"),
-                        row,
-                        strict=True,
-                    )
-                )
-                for row in rows
-            )
+            return tuple(_audit_row(connection, request_id, row) for row in rows)
 
     def export(self, request_id: str, expected_revision: int) -> dict[str, object]:
         self._write()
@@ -488,6 +652,7 @@ class IntakeStore:
             connection.execute("BEGIN IMMEDIATE")
             request = self._get(connection, request_id)
             self._expected(request, expected_revision)
+            self._verify_evidence(request)
             if request.state != "approved":
                 raise IntakeError("Approve the current revision before export")
             fields = {
@@ -515,4 +680,19 @@ class IntakeStore:
                 "sync_status": "dry_run",
                 "request_id": request_id,
                 "revision": request.revision,
+                "content_hash": _digest(request.fields, request.attachments),
+                "attachment_manifest": request.attachments,
+                "approval": {
+                    "revision": request.revision,
+                    "content_hash": _digest(request.fields, request.attachments),
+                    "actor": request.approval_actor,
+                    "timestamp": request.approval_timestamp,
+                },
             }
+
+    def _verify_evidence(self, request: IntakeRequest) -> None:
+        if not request.attachments:
+            return
+        if self.evidence_root is None:
+            raise IntakeError("Configure protected evidence storage before approval")
+        verify_evidence(self.evidence_root, request.request_id, request.attachments)

@@ -51,7 +51,11 @@ def test_review_approve_dry_run_edit_restart_and_exact_mapping(tmp_path):
         requests.export(request.request_id, 1)
     requests.approve(request.request_id, 1)
     exported = requests.export(request.request_id, 1)
-    assert exported == {
+    assert {
+        key: value
+        for key, value in exported.items()
+        if key not in {"content_hash", "attachment_manifest", "approval"}
+    } == {
         "request_id": request.request_id,
         "revision": 1,
         "dry_run": True,
@@ -144,8 +148,9 @@ def test_attachments_are_local_exact_request_and_invalidate_approval(tmp_path):
     with pytest.raises(IntakeError):
         requests.update(other.request_id, 1, other.fields, attachments=[attachment])
     assert requests.get(other.request_id).revision == 1
-    requests.approve(first.request_id, 2)
-    assert "attachments" not in requests.export(first.request_id, 2)["fields"]
+    with pytest.raises(IntakeError, match="evidence"):
+        requests.approve(first.request_id, 2)
+    assert requests.get(first.request_id).state == "draft"
 
 
 def test_stale_revision_updates_have_one_winner_and_no_cross_request_change(tmp_path):
