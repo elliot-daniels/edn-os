@@ -78,7 +78,9 @@ class MicrosoftGraphOutlookClient:
             f"{self._BASE}/me/mailFolders/inbox?%24select=id,displayName"
         )
         if len(folders) != 1 or not isinstance(folders[0].get("id"), str):
-            raise RuntimeError("Microsoft Graph did not resolve one Inbox folder")
+            raise SourceUnavailableError(
+                "Microsoft Graph did not resolve one Inbox folder"
+            )
         self._inbox_id = str(folders[0]["id"])
         return folders
 
@@ -123,8 +125,10 @@ class MicrosoftGraphOutlookClient:
         if "value" not in payload:
             return (payload,)
         raw = payload["value"]
-        if not isinstance(raw, list):
-            raise RuntimeError("Microsoft Graph returned an unexpected response")
+        if not isinstance(raw, list) or any(not isinstance(item, dict) for item in raw):
+            raise SourceUnavailableError(
+                "Microsoft Graph returned an invalid collection"
+            )
         # A continuation link can be present when more Inbox messages exist. The
         # PA-005 boundary deliberately ignores it and never performs a second GET.
         return tuple(cast(dict[str, Any], item) for item in raw[:limit])
@@ -152,12 +156,16 @@ class MicrosoftGraphOutlookClient:
                 if len(content) > MAX_RESPONSE_BYTES:
                     raise SourceUnavailableError("Graph response exceeds byte limit")
                 value = json.loads(content)
+        except (json.JSONDecodeError, UnicodeError, RecursionError):
+            raise SourceUnavailableError(
+                "Microsoft Graph Outlook returned invalid JSON"
+            ) from None
         except (urllib.error.URLError, TimeoutError) as error:
             raise SourceUnavailableError(
                 "Microsoft Graph Outlook read failed safely"
             ) from error
         if not isinstance(value, dict):
-            raise RuntimeError("Microsoft Graph returned an unexpected response")
+            raise SourceUnavailableError("Microsoft Graph returned an invalid object")
         return value
 
 
