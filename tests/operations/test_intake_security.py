@@ -82,3 +82,19 @@ def test_contract_validation_runs_on_every_platform():
     assert validate_fields(fields())["email"] == "a@example.com"
     with pytest.raises(ValueError):
         validate_fields(fields(jobDescription="\ud800"))
+
+
+def test_missing_store_read_has_fixed_database_error_without_private_path(tmp_path):
+    import sqlite3
+    import traceback
+
+    if os.name != "posix":
+        assert store(tmp_path) is None
+        return
+    tmp_path.chmod(0o700)
+    path = tmp_path / "synthetic-private-request-store.db"
+    with pytest.raises(sqlite3.OperationalError) as raised:
+        IntakeStore(path, read_only=True).list_requests()
+    assert str(raised.value) == "Request store is unavailable"
+    assert str(path) not in "".join(traceback.format_exception(raised.value))
+    assert not path.exists()

@@ -247,7 +247,10 @@ class IntakeStore:
     def _connect(self) -> sqlite3.Connection:
         require_supported_platform()
         validate_root(self.path.parent)
-        protect_file(self.path)
+        try:
+            protect_file(self.path)
+        except FileNotFoundError:
+            raise sqlite3.OperationalError("Request store is unavailable") from None
         for suffix in ("-journal", "-wal", "-shm"):
             sidecar = Path(str(self.path) + suffix)
             if sidecar.exists() or sidecar.is_symlink():
