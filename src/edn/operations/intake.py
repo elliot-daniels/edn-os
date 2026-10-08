@@ -194,6 +194,38 @@ fields TEXT NOT NULL,
 attachments TEXT NOT NULL,
 PRIMARY KEY(request_id,revision)
 )"""
+IMPORTS_DDL = """CREATE TABLE intake_imports (
+source TEXT NOT NULL,
+external_id TEXT NOT NULL,
+request_id TEXT NOT NULL UNIQUE REFERENCES intake_requests(request_id),
+submitted_at TEXT NOT NULL,
+original_payload TEXT NOT NULL,
+schema_version INTEGER NOT NULL CHECK(schema_version=1),
+PRIMARY KEY(source,external_id)
+)"""
+
+
+def _contract(payload: Mapping[str, object]) -> tuple[dict[str, str], str, str]:
+    try:
+        if (
+            not isinstance(payload, Mapping)
+            or set(payload)
+            != INPUT_FIELDS | {"source", "submittedAt", "contractVersion"}
+            or payload["source"] != "EDN Systems Website"
+            or payload["contractVersion"] != "1.0"
+            or len(_json(dict(payload)).encode("utf-8")) > 32768
+        ):
+            raise ValueError
+        submitted = payload["submittedAt"]
+        if not isinstance(submitted, str):
+            raise ValueError
+        timestamp = datetime.fromisoformat(submitted.replace("Z", "+00:00"))
+        if timestamp.utcoffset() != UTC.utcoffset(timestamp):
+            raise ValueError
+        fields = validate_fields({name: payload[name] for name in INPUT_FIELDS})
+        return fields, timestamp.astimezone(UTC).isoformat(), _json(dict(payload))
+    except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
+        raise IntakeError("Invalid synthetic website contract") from None
 
 
 class IntakeStore:
@@ -214,9 +246,10 @@ class IntakeStore:
         expected = sorted(
             [("intake_requests", DDL), ("intake_revisions", REVISIONS_DDL)]
         )
-        if rows != expected or connection.execute("PRAGMA user_version").fetchone() != (
-            1,
-        ):
+        version = connection.execute("PRAGMA user_version").fetchone()[0]
+        if version == 2:
+            expected = sorted([*expected, ("intake_imports", IMPORTS_DDL)])
+        if rows != expected or version not in {1, 2}:
             raise IntakeError("Unsupported request store schema")
         if connection.execute("PRAGMA foreign_key_check").fetchone() is not None:
             raise IntakeError("Request store integrity is invalid")
@@ -237,7 +270,11 @@ class IntakeStore:
     def initialise(self) -> None:
         self._write()
         if self.path.exists():
-            with self._connect():
+            with self._connect() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                if connection.execute("PRAGMA user_version").fetchone() == (1,):
+                    connection.execute(IMPORTS_DDL)
+                    connection.execute("PRAGMA user_version=2")
                 return
         # Exclusive creation never adopts or rewrites another database.
         try:
@@ -250,7 +287,50 @@ class IntakeStore:
             connection.execute("BEGIN IMMEDIATE")
             connection.execute(DDL)
             connection.execute(REVISIONS_DDL)
-            connection.execute("PRAGMA user_version=1")
+            connection.execute(IMPORTS_DDL)
+            connection.execute("PRAGMA user_version=2")
+
+    def import_contract(
+        self, payload: Mapping[str, object], external_id: str
+    ) -> IntakeRequest:
+        """Import a synthetic local fixture; source reads or approval never occur."""
+        self._write()
+        if (
+            not isinstance(external_id, str)
+            or not external_id.strip()
+            or external_id != external_id.strip()
+            or len(external_id) > 200
+            or any(ord(c) <= 32 or ord(c) == 127 for c in external_id)
+        ):
+            raise IntakeError("Invalid synthetic source identity")
+        fields, submitted, original = _contract(payload)
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if connection.execute("PRAGMA user_version").fetchone() != (2,):
+                raise IntakeError("Initialize synthetic import schema explicitly")
+            row = connection.execute(
+                "SELECT request_id FROM intake_imports "
+                "WHERE source=? AND external_id=?",
+                ("EDN Systems Website", external_id),
+            ).fetchone()
+            if row is not None:
+                return self._get(connection, row[0])
+            request_id = str(uuid4())
+            now = datetime.now(UTC).isoformat()
+            connection.execute(
+                "INSERT INTO intake_requests VALUES "
+                "(?,1,'draft','not_synced',?,?,NULL,NULL,1)",
+                (request_id, now, now),
+            )
+            connection.execute(
+                "INSERT INTO intake_revisions VALUES (?,1,?,'[]')",
+                (request_id, _json(fields)),
+            )
+            connection.execute(
+                "INSERT INTO intake_imports VALUES (?,?,?,?,?,1)",
+                ("EDN Systems Website", external_id, request_id, submitted, original),
+            )
+            return self._get(connection, request_id)
 
     @staticmethod
     def _get(connection: sqlite3.Connection, request_id: str) -> IntakeRequest:
@@ -422,15 +502,41 @@ class IntakeStore:
                     "Status": "New",
                 }
             )
+            provenance = None
+            if connection.execute("PRAGMA user_version").fetchone() == (2,):
+                imported = connection.execute(
+                    "SELECT source,external_id,submitted_at,original_payload,"
+                    "schema_version FROM intake_imports WHERE request_id=?",
+                    (request_id,),
+                ).fetchone()
+                if imported is not None:
+                    try:
+                        _, submitted, _ = _contract(json.loads(imported[3]))
+                        if (
+                            imported[0] != "EDN Systems Website"
+                            or imported[2] != submitted
+                            or imported[4] != 1
+                        ):
+                            raise ValueError
+                    except (ValueError, TypeError, RecursionError):
+                        raise IntakeError(
+                            "Stored import provenance is invalid"
+                        ) from None
+                    fields["Source"] = imported[0]
+                    fields["SubmittedAt"] = submitted
+                    provenance = "synthetic_import"
             connection.execute(
                 "UPDATE intake_requests SET sync_status='dry_run',updated_at=? "
                 "WHERE request_id=?",
                 (datetime.now(UTC).isoformat(), request_id),
             )
-            return {
+            result: dict[str, object] = {
                 "fields": fields,
                 "dry_run": True,
                 "sync_status": "dry_run",
                 "request_id": request_id,
                 "revision": request.revision,
             }
+            if provenance is not None:
+                result["provenance"] = provenance
+            return result
