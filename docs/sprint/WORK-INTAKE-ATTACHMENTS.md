@@ -1,56 +1,98 @@
-# Work Intake local supporting attachment foundation
+# Work Intake protected supporting attachments
 
-Issue: intake attachments, a bounded foundation for the owner-requested local Work
-Intake demo. Base `26eb5466e15dfccc6280d9aa8296b05d57928928`. Only the new
-attachment module, synthetic tests and this evidence document are in scope.
+Bounded issue: local attachment originals for the owner-requested Work Intake MVP.
+Base `26eb5466e15dfccc6280d9aa8296b05d57928928`, with the shared protected core
+helper dependency `d933acec5a2d3a01a47c36838af0f2b83334f8f1` and shared format
+codec `40e87afd9b52926d9beade0eb0cbfb294705788b` normally merged into
+this feature branch. This branch owns only its attachment module, tests and this
+evidence document; the shared security helper belongs to the core PR.
 
-`IntakeAttachmentStore(root)` requires an existing absolute operator-selected
-runtime directory outside Git. `attach(request_id, filename, payload)` accepts
-canonical request UUIDs and original bytes; `get(request_id, attachment_id)` and
-`read(request_id, attachment_id)` support restart retrieval and integrity checks.
-`attach_stream` requests at most 10 MiB plus one overflow byte from ordinary
-file/BytesIO upload streams. Every filesystem read has a fixed byte bound.
+## Current owner-approved boundary
 
-PDF, JPEG and PNG files have a per-file 10 MiB cap and matching suffix/envelope
-checks. This is bounded file-type validation, not complete document parsing or
-malware scanning. Files remain untrusted originals: this module does not execute,
-render, extract, upload, decrypt or send them to any external service. DOCX was
-considered against the existing local parser and is excluded from this first
-foundation. No OCR or automatic PDF extraction is claimed or required.
+Protected storage requires Linux or WSL. Native Windows and other platforms fail
+before filesystem inspection, create, chmod or writes. Pure uploaded-byte format
+validation can run on unsupported platforms without creating storage. Existing
+runtime directories must be owned by the runtime UID and mode 0700; ancestry is
+validated by the shared helper. Every new directory is 0700, every original,
+metadata/receipt and lock file is owned regular mode 0600 with one link. Symlinks,
+hardlinks, unsafe ownership/modes and untrusted ancestry fail closed. No existing
+ACL/permissions are broadened and no platform security tests are skipped.
 
-Filename input becomes a normalized, length-limited display basename only.
-Storage names are canonical request/attachment UUIDs with fixed original and
-metadata names. Original bytes are exclusively created and fsynced; completed
-metadata is published atomically without replacing an existing target (Windows
-rename refuses existing targets, POSIX hard-link publication is exclusive).
-Symlinks/Windows reparse points, including existing ancestors, fail closed. Reads
-validate record identity, exact metadata shape, sizes, content hashes and format
-envelopes. Fixed UI errors exclude underlying paths or exception/source contents.
+Allowed: PDF, PNG, JPEG, DOCX, EML and TXT. Exact decimal bounds are **20,000,000
+bytes per file** and **100,000,000 bytes per request**, up to **100 files**. These
+are MB limits, not MiB. Stream and filesystem reads request a fixed cap plus one
+overflow byte. Filenames become normalized length-limited display basenames only;
+canonical request/attachment UUIDs and fixed names determine storage paths.
 
-Metadata fields are exactly `attachment_id`, `request_id`, `original_name`,
-`media_type`, `size_bytes`, `sha256`. No filesystem path is serialized. The intake
-workflow must bind these metadata records to its matching request/revision and
-invalidate approval when that set changes. The core caps ten associated files.
-Before review approval or dry-run export, the UI must call `read` for associated
-attachments to check stored bytes independently of the approved metadata hash.
+The single shared intake_formats codec is used by writer and backend evidence
+approval/export; neither layer keeps a weaker duplicated format gate.
+PDF/PNG/JPEG validation checks matching suffixes and bounded format envelopes;
+it is not full rendering or a malware-clean guarantee. DOCX ZIP validation bounds
+members (2,000), expanded bytes (20,000,000), compression ratio (100), supported
+compression methods and CRC reads; unsafe paths, duplicate aliases, encryption,
+symlink/nonregular members, known VBA/macro declarations and XML DTD/entities are
+rejected. XML must be strict UTF-8, with depth 128 and 100,000-node bounds. No archive is extracted to
+filesystem and no macro executes. TXT/EML require strict UTF-8 text without binary
+control bytes; EML additionally needs valid message headers with a 65,536-byte
+header cap. No OCR, automatic document extraction, network or AI dispatch occurs.
 
-Attachment files are persisted before the separate workflow transaction. If
-metadata publication or workflow association fails, unbound/incomplete originals
-may remain; they are not an approved request or a successful sync. No background
-cleanup or retention deletion is implemented. Owner-controlled recovery can
-inspect/discard synthetic demo data without changing the immutable records.
+## API and atomic capacity accounting
 
-The website's inspected request contract has no attachment fields/upload flow.
-Local attachment metadata remains separate from SharePoint fields and the dry
-run must never claim it was uploaded or synchronized. No source permissions,
-credentials, website contract, production root/ACL or cloud behavior changes.
-As elsewhere, protected operator-owned parent directories are a prerequisite;
-path/link checks do not defeat a hostile process racing parent-directory changes
-or establish encryption/ACL protection by themselves.
+`IntakeAttachmentStore(root)` requires an existing selected private directory
+outside Git. `attach(request_id, filename, bytes)` and bounded `attach_stream`
+return immutable metadata. `get(request_id, attachment_id)` and
+`read(request_id, attachment_id)` support restart and bounded integrity checks.
+Metadata keys are exactly `attachment_id`, `request_id`, `original_name`,
+`media_type`, `size_bytes`, `sha256`; no filesystem path is serialized.
 
-Synthetic acceptance covers supported files, bounded bytes/streams, normalized
-names, traversal/identity rejection, unknown/mismatched types, restart/hash checks,
-no overwrite, corrupted metadata/bytes, ancestor/file reparse points, missing/Git
-roots and interrupted metadata publication. Full check results are recorded in
-the PR. Revert the feature commit to remove this foundation; no existing Event
-schema or runtime migration is involved. Hosted Linux runtime CI remains required.
+A per-request owner-only flock serializes uploads across processes. An atomic
+0600 receipt reserves the full file size **before** any original bytes are
+written. Original/metadata bytes first enter exclusive private pending files and
+are fully fsynced before renameat2 NO_REPLACE publishes their final names. Open
+parent directory descriptors are fsynced; atomic receipt replacement marks
+completion only after both files are durable. Interrupted original or metadata
+staging cannot expose a partial final file through the API. Existing originals
+and attachment records are never replaced.
+No hard-link publication is used. The receipt has a 65,536-byte bound.
+
+Incomplete/unbound originals still consume their full reservation. Unknown
+physical folders/files, oversized originals, mismatched metadata/receipt sizes
+or quota tampering fail closed rather than being silently adopted. Failed writes
+or hard interruption may leave reserved/incomplete entries or pending receipt
+files requiring owner-led recovery; they are not returned as completed uploads.
+There is no automatic garbage collection, deletion or stale finalization.
+
+Attachment persistence precedes the separate request-revision transaction.
+The core must bind metadata to the matching request, invalidate approval when
+attachments change and preserve local provenance. The UI must verify `read` on
+associated originals before approval/export; approved metadata alone does not
+prove current bytes. Ancestry is opened component-by-component with O_DIRECTORY/O_NOFOLLOW. Root,
+request and attachment operations use owned open directory descriptors and
+dir_fd-relative opens/mkdir/rename/unlink, including receipt replacement and
+no-clobber publication. Replacing a validated parent pathname with an outside
+symlink cannot redirect writes: they remain on the already-authorized inode or
+fail closed. Reads anchor receipt, metadata and bytes in one descriptor walk.
+These controls do not establish volume encryption.
+
+## Export and verification
+
+The inspected website contract has no attachment list fields/upload flow.
+Attachment metadata remains local and separate from SharePoint export fields;
+dry runs must not claim binary upload, synchronization or external writes.
+No website schema, production root, source permission or credential changes.
+
+Synthetic tests cover supported/hostile formats, exact bounds, native Windows
+refusal before any I/O, restart/hash verification, modes/ownership/link rejection,
+failed conservative reservations, unknown physical originals, tampered quotas,
+one-hundred-file bound and concurrent processes competing for the last 20 MB.
+Actual root/request/attachment swaps after descriptor validation reproduce the
+former outside-root race and assert the outside sentinel is unchanged. Disk
+failures and subprocess hard exits during partial original/metadata staging
+assert final partial paths are absent and evidence is unreadable via the API.
+Linux executes every positive protected-storage test. Windows storage cases assert
+the explicit unsupported no-creation contract and return; these are not skips.
+Local native checks verify pure formats/refusal only, not positive Linux runtime
+acceptance. Required full hosted Linux/Windows CI and independent QA are recorded
+against the exact PR head. Revert the feature code to remove this API; retained
+private files require an owner-approved recovery/discard decision, not automatic
+migration or permission changes.

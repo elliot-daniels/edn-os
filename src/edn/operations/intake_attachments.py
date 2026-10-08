@@ -1,4 +1,4 @@
-"""Bounded local originals for manual intake; no upload, extraction or cloud calls."""
+"""Linux-only protected local intake originals; no extraction or cloud dispatch."""
 
 from __future__ import annotations
 
@@ -7,24 +7,34 @@ import json
 import os
 import re
 import stat
-import unicodedata
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, BinaryIO
 from uuid import UUID, uuid4
 
-MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
-MAX_METADATA_BYTES = 4096
-MEDIA_TYPES = {
-    ".pdf": "application/pdf",
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-}
-
-
-class IntakeAttachmentError(ValueError):
-    """Fixed, source-free errors suitable for local demo UI display."""
+from edn.operations.intake_formats import (
+    MAX_ATTACHMENT_BYTES as MAX_ATTACHMENT_BYTES,
+)
+from edn.operations.intake_formats import (
+    MAX_METADATA_BYTES as MAX_METADATA_BYTES,
+)
+from edn.operations.intake_formats import (
+    MAX_REQUEST_BYTES as MAX_REQUEST_BYTES,
+)
+from edn.operations.intake_formats import (
+    MAX_REQUEST_FILES as MAX_REQUEST_FILES,
+)
+from edn.operations.intake_formats import (
+    MEDIA_TYPES,
+    normalize_attachment_name,
+)
+from edn.operations.intake_formats import (
+    IntakeAttachmentError as IntakeAttachmentError,
+)
+from edn.operations.intake_formats import (
+    validate_attachment_payload as validate_attachment_payload,
+)
+from edn.operations.intake_security import AnchoredDirectory, require_supported_platform
 
 
 def _uuid(value: str) -> str:
@@ -34,74 +44,6 @@ def _uuid(value: str) -> str:
     except (ValueError, AttributeError):
         raise IntakeAttachmentError("Attachment identity is invalid.") from None
     return value
-
-
-def _name(value: str) -> str:
-    if not isinstance(value, str) or not value or any(ord(c) < 32 for c in value):
-        raise IntakeAttachmentError("Attachment filename is invalid.")
-    basename = (
-        unicodedata.normalize("NFKC", value).replace("\\", "/").rsplit("/", 1)[-1]
-    )
-    basename = re.sub(r"[^A-Za-z0-9._ -]", "_", basename).strip(" .")
-    if not basename or len(basename) > 160 or basename.startswith("."):
-        raise IntakeAttachmentError("Attachment filename is invalid.")
-    return basename
-
-
-def _media(name: str, payload: bytes) -> str:
-    suffix = Path(name).suffix.casefold()
-    media = MEDIA_TYPES.get(suffix)
-    valid = (
-        (
-            suffix == ".pdf"
-            and payload.startswith(b"%PDF-")
-            and b"%%EOF" in payload[-1024:]
-        )
-        or (
-            suffix == ".png"
-            and payload.startswith(b"\x89PNG\r\n\x1a\n")
-            and len(payload) >= 33
-            and payload[12:16] == b"IHDR"
-            and payload.endswith(b"\x00\x00\x00\x00IEND\xaeB`\x82")
-        )
-        or (
-            suffix in {".jpg", ".jpeg"}
-            and payload.startswith(b"\xff\xd8\xff")
-            and payload.endswith(b"\xff\xd9")
-            and len(payload) >= 8
-        )
-    )
-    if media is None or not valid:
-        raise IntakeAttachmentError(
-            "Use a PDF, JPEG or PNG file with matching content."
-        )
-    return media
-
-
-def _reject_links(path: Path) -> None:
-    for candidate in (path.absolute(), *path.absolute().parents):
-        try:
-            attributes = candidate.lstat()
-        except FileNotFoundError:
-            continue
-        if stat.S_ISLNK(attributes.st_mode) or (
-            getattr(attributes, "st_file_attributes", 0)
-            & stat.FILE_ATTRIBUTE_REPARSE_POINT
-        ):
-            raise IntakeAttachmentError("Attachment storage must not contain links.")
-
-
-def _read_regular(path: Path, limit: int) -> bytes:
-    _reject_links(path)
-    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
-    descriptor = os.open(path, flags)
-    with os.fdopen(descriptor, "rb") as stream:
-        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
-            raise IntakeAttachmentError("Attachment storage is invalid.")
-        payload = stream.read(limit + 1)
-    if len(payload) > limit:
-        raise IntakeAttachmentError("Attachment exceeds the size limit.")
-    return payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,10 +58,9 @@ class IntakeAttachment:
     def __post_init__(self) -> None:
         _uuid(self.attachment_id)
         _uuid(self.request_id)
-        if _name(self.original_name) != self.original_name:
-            raise IntakeAttachmentError("Attachment metadata is invalid.")
         if (
-            MEDIA_TYPES.get(Path(self.original_name).suffix.casefold())
+            normalize_attachment_name(self.original_name) != self.original_name
+            or MEDIA_TYPES.get(Path(self.original_name).suffix.casefold())
             != self.media_type
         ):
             raise IntakeAttachmentError("Attachment metadata is invalid.")
@@ -138,99 +79,135 @@ class IntakeAttachment:
         return asdict(self)
 
 
+def _read_regular(directory: AnchoredDirectory, name: str, limit: int) -> bytes:
+    descriptor = directory.open_file(name)
+    with os.fdopen(descriptor, "rb") as stream:
+        payload = stream.read(limit + 1)
+    if len(payload) > limit:
+        raise IntakeAttachmentError("Attachment exceeds the supported limit.")
+    return payload
+
+
+def _stage_file(directory: AnchoredDirectory, name: str, payload: bytes) -> None:
+    descriptor = directory.open_file(name, create=True, write=True)
+    with os.fdopen(descriptor, "wb") as stream:
+        if stream.write(payload) != len(payload):
+            raise OSError("Incomplete protected write")
+        stream.flush()
+        os.fsync(stream.fileno())
+        info = os.fstat(stream.fileno())
+        if (
+            info.st_size != len(payload)
+            or info.st_nlink != 1
+            or stat.S_IMODE(info.st_mode) != 0o600
+        ):
+            raise IntakeAttachmentError("Attachment staging protection is invalid.")
+
+
+def _publish_file(directory: AnchoredDirectory, name: str, payload: bytes) -> None:
+    pending = ".pending-" + str(uuid4())
+    try:
+        _stage_file(directory, pending, payload)
+        directory.publish(pending, name)
+        os.fsync(directory.fd)
+    finally:
+        if directory.exists(pending):
+            directory.unlink(pending)
+
+
 class IntakeAttachmentStore:
-    """Persist originals before workflow metadata binding; never overwrite or delete."""
+    """Descriptor-anchored originals with locked conservative quota reservations."""
 
     def __init__(self, root: Path) -> None:
-        self.root = root
-        self._validate_root()
-        self.root = root.resolve()
-
-    def _validate_root(self) -> None:
+        require_supported_platform()  # Before any path inspection/create/write.
+        # The lexical Git check is preflight only; no data path syscalls follow it.
+        if any((parent / ".git").exists() for parent in (root, *root.parents)):
+            raise IntakeAttachmentError("Attachment originals must stay outside Git.")
         try:
-            if not self.root.is_absolute():
-                raise IntakeAttachmentError(
-                    "Select an existing attachment storage directory."
-                )
-            _reject_links(self.root)
-            if self.root.resolve() == Path(self.root.anchor) or not self.root.is_dir():
-                raise IntakeAttachmentError(
-                    "Select an existing attachment storage directory."
-                )
-            if any(
-                (parent / ".git").exists() for parent in (self.root, *self.root.parents)
-            ):
-                raise IntakeAttachmentError(
-                    "Attachment originals must stay outside Git."
-                )
-        except (OSError, RuntimeError):
-            raise IntakeAttachmentError("Attachment storage is unavailable.") from None
-
-    def attach(
-        self, request_id: str, filename: str, payload: bytes
-    ) -> IntakeAttachment:
-        self._validate_root()
-        _uuid(request_id)
-        original_name = _name(filename)
-        if not isinstance(payload, bytes):
-            raise IntakeAttachmentError("Attachment content must be bytes.")
-        if not 1 <= len(payload) <= MAX_ATTACHMENT_BYTES:
-            raise IntakeAttachmentError("Attachment exceeds the size limit.")
-        media = _media(original_name, payload)
-        record = IntakeAttachment(
-            str(uuid4()),
-            request_id,
-            original_name,
-            media,
-            len(payload),
-            hashlib.sha256(payload).hexdigest(),
-        )
-        request_path = self.root / request_id
-        folder = request_path / record.attachment_id
-        try:
-            _reject_links(request_path)
-            request_path.mkdir(exist_ok=True)
-            _reject_links(folder)
-            folder.mkdir()
-            with (folder / "original.bin").open("xb") as stream:
-                stream.write(payload)
-                stream.flush()
-                os.fsync(stream.fileno())
-            # Exclusive completed metadata is published only after durable bytes.
-            temporary = folder / "metadata.pending"
-            with temporary.open("x", encoding="utf-8") as stream:
-                stream.write(json.dumps(record.to_dict(), sort_keys=True))
-                stream.flush()
-                os.fsync(stream.fileno())
-            if os.name == "nt":
-                # Windows rename is atomic and refuses an existing destination.
-                os.rename(temporary, folder / "metadata.json")
-            else:
-                os.link(temporary, folder / "metadata.json")
-                temporary.unlink()
+            with AnchoredDirectory(root):
+                pass
         except OSError:
-            raise IntakeAttachmentError("Attachment could not be stored.") from None
-        return record
+            raise IntakeAttachmentError("Attachment storage is unavailable.") from None
+        self.root = root
 
-    def attach_stream(
-        self, request_id: str, filename: str, stream: BinaryIO
-    ) -> IntakeAttachment:
-        """For ordinary file/BytesIO uploads, request no more than cap+one bytes."""
+    def _quota(
+        self, request: AnchoredDirectory, request_id: str
+    ) -> list[dict[str, Any]]:
+        if not request.exists("attachments.json"):
+            if os.listdir(request.fd):
+                raise IntakeAttachmentError("Attachment storage requires recovery.")
+            return []
         try:
-            payload = stream.read(MAX_ATTACHMENT_BYTES + 1)
-        except (OSError, ValueError):
+            value = json.loads(
+                _read_regular(request, "attachments.json", MAX_METADATA_BYTES)
+            )
+            if (
+                not isinstance(value, dict)
+                or set(value) != {"schema_version", "request_id", "entries"}
+                or type(value["schema_version"]) is not int
+                or value["schema_version"] != 1
+                or value["request_id"] != request_id
+            ):
+                raise ValueError
+            entries = value["entries"]
+            if not isinstance(entries, list) or len(entries) > MAX_REQUEST_FILES:
+                raise ValueError
+            seen: set[str] = set()
+            total = 0
+            for entry in entries:
+                if not isinstance(entry, dict) or set(entry) != {
+                    "attachment_id",
+                    "size_bytes",
+                    "state",
+                }:
+                    raise ValueError
+                _uuid(entry["attachment_id"])
+                if (
+                    entry["attachment_id"] in seen
+                    or type(entry["size_bytes"]) is not int
+                    or not 1 <= entry["size_bytes"] <= MAX_ATTACHMENT_BYTES
+                    or entry["state"] not in {"reserved", "complete"}
+                ):
+                    raise ValueError
+                seen.add(entry["attachment_id"])
+                total += entry["size_bytes"]
+            if total > MAX_REQUEST_BYTES:
+                raise ValueError
+            return entries
+        except (OSError, ValueError, TypeError, RecursionError):
             raise IntakeAttachmentError(
-                "Attachment content could not be read."
+                "Attachment quota metadata is invalid."
             ) from None
-        return self.attach(request_id, filename, payload)
 
-    def get(self, request_id: str, attachment_id: str) -> IntakeAttachment:
-        self._validate_root()
-        _uuid(request_id)
-        _uuid(attachment_id)
-        path = self.root / request_id / attachment_id / "metadata.json"
+    def _save_quota(
+        self, request: AnchoredDirectory, request_id: str, entries: list[dict[str, Any]]
+    ) -> None:
+        if request.exists("attachments.json"):
+            descriptor = request.open_file("attachments.json")
+            os.close(descriptor)
+        pending = ".quota-" + str(uuid4())
+        content = json.dumps(
+            {"schema_version": 1, "request_id": request_id, "entries": entries},
+            sort_keys=True,
+        ).encode("utf-8")
+        if len(content) > MAX_METADATA_BYTES:
+            raise IntakeAttachmentError("Attachment quota metadata exceeds its limit.")
         try:
-            value = json.loads(_read_regular(path, MAX_METADATA_BYTES))
+            _stage_file(request, pending, content)
+            request.replace(pending, "attachments.json")
+            os.fsync(request.fd)
+        finally:
+            if request.exists(pending):
+                request.unlink(pending)
+
+    @staticmethod
+    def _metadata(
+        folder: AnchoredDirectory, request_id: str, attachment_id: str
+    ) -> IntakeAttachment:
+        try:
+            value = json.loads(
+                _read_regular(folder, "metadata.json", MAX_METADATA_BYTES)
+            )
             if not isinstance(value, dict) or set(value) != {
                 "attachment_id",
                 "request_id",
@@ -243,18 +220,175 @@ class IntakeAttachmentStore:
             record = IntakeAttachment(**value)
             if (record.request_id, record.attachment_id) != (request_id, attachment_id):
                 raise ValueError
+            return record
         except (OSError, ValueError, TypeError, RecursionError):
             raise IntakeAttachmentError(
                 "Attachment metadata is unavailable or invalid."
             ) from None
+
+    def _physical(
+        self, request: AnchoredDirectory, request_id: str, entries: list[dict[str, Any]]
+    ) -> None:
+        allowed = {entry["attachment_id"] for entry in entries} | {"attachments.json"}
+        if any(name not in allowed for name in os.listdir(request.fd)):
+            raise IntakeAttachmentError("Attachment storage requires recovery.")
+        for entry in entries:
+            if not request.exists(entry["attachment_id"]):
+                if entry["state"] == "complete":
+                    raise IntakeAttachmentError("Attachment storage requires recovery.")
+                continue
+            with request.child(entry["attachment_id"]) as folder:
+                names = os.listdir(folder.fd)
+                if any(name not in {"original.bin", "metadata.json"} for name in names):
+                    raise IntakeAttachmentError("Attachment storage requires recovery.")
+                for name in names:
+                    descriptor = folder.open_file(name)
+                    try:
+                        info = os.fstat(descriptor)
+                        cap = (
+                            MAX_METADATA_BYTES
+                            if name == "metadata.json"
+                            else entry["size_bytes"]
+                        )
+                        if info.st_size > cap:
+                            raise IntakeAttachmentError(
+                                "Attachment physical quota is inconsistent."
+                            )
+                    finally:
+                        os.close(descriptor)
+                if entry["state"] == "complete":
+                    descriptor = folder.open_file("original.bin")
+                    try:
+                        if os.fstat(descriptor).st_size != entry["size_bytes"]:
+                            raise IntakeAttachmentError(
+                                "Attachment physical quota is inconsistent."
+                            )
+                    finally:
+                        os.close(descriptor)
+                    record = self._metadata(folder, request_id, entry["attachment_id"])
+                    if record.size_bytes != entry["size_bytes"]:
+                        raise IntakeAttachmentError(
+                            "Attachment quota metadata is inconsistent."
+                        )
+
+    def attach(
+        self, request_id: str, filename: str, payload: bytes
+    ) -> IntakeAttachment:
+        require_supported_platform()
+        _uuid(request_id)
+        name, media = validate_attachment_payload(filename, payload)
+        record = IntakeAttachment(
+            str(uuid4()),
+            request_id,
+            name,
+            media,
+            len(payload),
+            hashlib.sha256(payload).hexdigest(),
+        )
+        try:
+            with (
+                AnchoredDirectory(self.root) as root,
+                root.lock(request_id + ".lock"),
+                root.child(request_id, create=True) as request,
+            ):
+                os.fsync(root.fd)
+                entries = self._quota(request, request_id)
+                self._physical(request, request_id, entries)
+                if (
+                    len(entries) >= MAX_REQUEST_FILES
+                    or sum(entry["size_bytes"] for entry in entries) + record.size_bytes
+                    > MAX_REQUEST_BYTES
+                ):
+                    raise IntakeAttachmentError(
+                        "Request attachments exceed 100,000,000 bytes or 100 files."
+                    )
+                if any(
+                    entry["attachment_id"] == record.attachment_id for entry in entries
+                ):
+                    raise IntakeAttachmentError("Attachment identity already exists.")
+                reserved = [
+                    *entries,
+                    {
+                        "attachment_id": record.attachment_id,
+                        "size_bytes": record.size_bytes,
+                        "state": "reserved",
+                    },
+                ]
+                self._save_quota(request, request_id, reserved)
+                with request.child(record.attachment_id, create=True) as folder:
+                    os.fsync(request.fd)
+                    _publish_file(folder, "original.bin", payload)
+                    _publish_file(
+                        folder,
+                        "metadata.json",
+                        json.dumps(record.to_dict(), sort_keys=True).encode("utf-8"),
+                    )
+                reserved[-1]["state"] = "complete"
+                self._save_quota(request, request_id, reserved)
+        except OSError:
+            raise IntakeAttachmentError("Attachment could not be stored.") from None
         return record
 
-    def read(self, request_id: str, attachment_id: str) -> bytes:
-        record = self.get(request_id, attachment_id)
-        path = self.root / request_id / attachment_id / "original.bin"
+    def attach_stream(
+        self, request_id: str, filename: str, stream: BinaryIO
+    ) -> IntakeAttachment:
+        require_supported_platform()
         try:
-            payload = _read_regular(path, MAX_ATTACHMENT_BYTES)
+            payload = stream.read(MAX_ATTACHMENT_BYTES + 1)
         except (OSError, ValueError):
+            raise IntakeAttachmentError(
+                "Attachment content could not be read."
+            ) from None
+        return self.attach(request_id, filename, payload)
+
+    def get(self, request_id: str, attachment_id: str) -> IntakeAttachment:
+        require_supported_platform()
+        _uuid(request_id)
+        _uuid(attachment_id)
+        try:
+            with (
+                AnchoredDirectory(self.root) as root,
+                root.child(request_id) as request,
+            ):
+                entries = self._quota(request, request_id)
+                self._physical(request, request_id, entries)
+                if not any(
+                    entry["attachment_id"] == attachment_id
+                    and entry["state"] == "complete"
+                    for entry in entries
+                ):
+                    raise ValueError
+                with request.child(attachment_id) as folder:
+                    return self._metadata(folder, request_id, attachment_id)
+        except (OSError, ValueError, TypeError):
+            raise IntakeAttachmentError(
+                "Attachment metadata is unavailable or invalid."
+            ) from None
+
+    def read(self, request_id: str, attachment_id: str) -> bytes:
+        require_supported_platform()
+        _uuid(request_id)
+        _uuid(attachment_id)
+        try:
+            # One directory walk anchors receipt, metadata and bytes together.
+            with (
+                AnchoredDirectory(self.root) as root,
+                root.child(request_id) as request,
+            ):
+                entries = self._quota(request, request_id)
+                self._physical(request, request_id, entries)
+                if not any(
+                    entry["attachment_id"] == attachment_id
+                    and entry["state"] == "complete"
+                    for entry in entries
+                ):
+                    raise ValueError
+                with request.child(attachment_id) as folder:
+                    record = self._metadata(folder, request_id, attachment_id)
+                    payload = _read_regular(
+                        folder, "original.bin", MAX_ATTACHMENT_BYTES
+                    )
+        except (OSError, ValueError, TypeError):
             raise IntakeAttachmentError(
                 "Attachment original is unavailable or invalid."
             ) from None
@@ -265,5 +399,5 @@ class IntakeAttachmentStore:
             raise IntakeAttachmentError(
                 "Attachment original failed its integrity check."
             )
-        _media(record.original_name, payload)
+        validate_attachment_payload(record.original_name, payload)
         return payload
