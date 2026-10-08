@@ -34,3 +34,21 @@ errors. Queue pages are bounded and allow callers to inspect the entire queue.
 Rollback disables Work Intake and preserves its local database for owner-led
 recovery; source Events and website code are untouched. This synthetic MVP is not
 production activation and establishes no live SharePoint compatibility claim.
+
+
+## Owner-selected protected MVP storage and approval
+
+Only Linux/WSL protected storage is supported. Native Windows refuses before any
+runtime root or database create/modify operation. Existing absolute owned private
+0700 roots and regular owned0600 single-link database/sidecar files are required;
+symlink ancestry, hardlinks and unsafe ancestry permissions fail closed. Shared
+request locks use owned0600 flock files. Runtime roots are selected explicitly;
+this code does not grant production access or modify permissions on existing data.
+
+The single local operator may explicitly self-approve. The visible audit stores
+local UID with label `local operator (self-approval)`, exact revision, content hash,
+UTC timestamp and decision in an append-only table. Editing invalidates current
+approval but retains previous decisions. Attachments are at most20,000,000bytes
+per file and100,000,000bytes aggregate per request, without arbitrary ten-file cap.
+This revised pre-merge MVP schema rejects earlier synthetic lookalikes rather than
+silently adopting an unaudited store; no real-store migration has been performed.

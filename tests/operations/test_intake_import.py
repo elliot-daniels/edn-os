@@ -1,12 +1,19 @@
 """Synthetic website fixture intake never implies source access or sync."""
 
 import json
+import os
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from edn.operations.intake import DDL, REVISIONS_DDL, IntakeError, IntakeStore
+from edn.operations.intake import (
+    APPROVALS_DDL,
+    DDL,
+    REVISIONS_DDL,
+    IntakeError,
+    IntakeStore,
+)
 from tests.operations.test_intake import fields, store
 
 
@@ -22,6 +29,8 @@ def contract(**changes):
 
 def test_synthetic_import_provenance_approval_and_replay_preserve_local_edits(tmp_path):
     requests = store(tmp_path)
+    if requests is None:
+        return
     original = contract()
     imported = requests.import_contract(original, "fixture-one")
     assert imported.state == "draft" and imported.approved_revision is None
@@ -69,6 +78,8 @@ def test_synthetic_import_provenance_approval_and_replay_preserve_local_edits(tm
 )
 def test_invalid_fixture_never_creates_or_approves_request(tmp_path, changes):
     requests = store(tmp_path)
+    if requests is None:
+        return
     with pytest.raises(IntakeError, match="Invalid synthetic website contract"):
         requests.import_contract(contract(**changes), "fixture-one")
     assert requests.list_requests() == ()
@@ -76,6 +87,8 @@ def test_invalid_fixture_never_creates_or_approves_request(tmp_path, changes):
 
 def test_missing_contract_field_identity_and_read_only_fail_without_write(tmp_path):
     requests = store(tmp_path)
+    if requests is None:
+        return
     missing = contract()
     del missing["phone"]
     with pytest.raises(IntakeError):
@@ -93,6 +106,8 @@ def test_missing_contract_field_identity_and_read_only_fail_without_write(tmp_pa
 
 def test_concurrent_replay_creates_one_draft_and_one_registry_record(tmp_path):
     requests = store(tmp_path)
+    if requests is None:
+        return
     with ThreadPoolExecutor(max_workers=4) as workers:
         imported = list(
             workers.map(
@@ -110,11 +125,17 @@ def test_concurrent_replay_creates_one_draft_and_one_registry_record(tmp_path):
 def test_explicit_upgrade_preserves_existing_manual_rows_and_readonly_version1(
     tmp_path,
 ):
+    if os.name != "posix":
+        assert store(tmp_path) is None
+        return
+    tmp_path.chmod(0o700)
     path = tmp_path / "legacy.db"
     with sqlite3.connect(path) as connection:
         connection.execute(DDL)
         connection.execute(REVISIONS_DDL)
+        connection.execute(APPROVALS_DDL)
         connection.execute("PRAGMA user_version=1")
+    path.chmod(0o600)
     requests = IntakeStore(path)
     manual = requests.create(fields())
     before = path.read_bytes()
@@ -131,11 +152,17 @@ def test_explicit_upgrade_preserves_existing_manual_rows_and_readonly_version1(
 def test_legacy_upgrade_rolls_back_on_injected_failure(tmp_path, monkeypatch):
     from edn.operations import intake
 
+    if os.name != "posix":
+        assert store(tmp_path) is None
+        return
+    tmp_path.chmod(0o700)
     path = tmp_path / "legacy.db"
     with sqlite3.connect(path) as connection:
         connection.execute(DDL)
         connection.execute(REVISIONS_DDL)
+        connection.execute(APPROVALS_DDL)
         connection.execute("PRAGMA user_version=1")
+    path.chmod(0o600)
     before = path.read_bytes()
     monkeypatch.setattr(intake, "IMPORTS_DDL", "CREATE TABLE malformed (")
     with pytest.raises(sqlite3.OperationalError):
@@ -145,6 +172,8 @@ def test_legacy_upgrade_rolls_back_on_injected_failure(tmp_path, monkeypatch):
 
 def test_surrogate_fixture_has_fixed_error_without_write(tmp_path):
     requests = store(tmp_path)
+    if requests is None:
+        return
     before = requests.path.read_bytes()
     with pytest.raises(IntakeError, match="Invalid synthetic website contract"):
         requests.import_contract(contract(jobDescription="\ud800"), "fixture")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import sqlite3
 from collections.abc import Mapping, Sequence
@@ -11,6 +12,12 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
+
+from edn.operations.intake_security import (
+    protect_file,
+    require_supported_platform,
+    validate_root,
+)
 
 SERVICES = (
     "Network infrastructure",
@@ -113,6 +120,7 @@ def _attachments(
     values: Sequence[Mapping[str, object]], request_id: str
 ) -> tuple[dict[str, object], ...]:
     result = []
+    total_size = 0
     allowed = {
         "attachment_id",
         "request_id",
@@ -133,15 +141,18 @@ def _attachments(
             or not item["original_name"]
             or not isinstance(item["media_type"], str)
             or type(item["size_bytes"]) is not int
-            or not 0 < item["size_bytes"] <= 10 * 1024 * 1024
+            or not 0 < item["size_bytes"] <= 20_000_000
             or not isinstance(item["sha256"], str)
             or re.fullmatch(r"[0-9a-f]{64}", item["sha256"]) is None
         ):
             raise IntakeError("Invalid attachment metadata")
         result.append(item)
-    if len(result) > 10 or len({item["attachment_id"] for item in result}) != len(
-        result
-    ):
+        size = item["size_bytes"]
+        assert isinstance(size, int)
+        total_size += size
+    if total_size > 100_000_000 or len(
+        {item["attachment_id"] for item in result}
+    ) != len(result):
         raise IntakeError("Attachment count or identity is invalid")
     return tuple(result)
 
@@ -174,6 +185,8 @@ class IntakeRequest:
     created_at: str
     updated_at: str
     approved_revision: int | None
+    approval_actor: str | None = None
+    approval_timestamp: str | None = None
 
 
 DDL = """CREATE TABLE intake_requests (
@@ -228,6 +241,17 @@ def _contract(payload: Mapping[str, object]) -> tuple[dict[str, str], str, str]:
         raise IntakeError("Invalid synthetic website contract") from None
 
 
+APPROVALS_DDL = """CREATE TABLE intake_approvals (
+decision_id TEXT PRIMARY KEY NOT NULL,
+request_id TEXT NOT NULL REFERENCES intake_requests(request_id),
+revision INTEGER NOT NULL,
+content_hash TEXT NOT NULL,
+actor TEXT NOT NULL,
+decided_at TEXT NOT NULL,
+decision TEXT NOT NULL CHECK(decision='approved')
+)"""
+
+
 class IntakeStore:
     def __init__(self, path: Path, *, read_only: bool = False) -> None:
         self.path = path
@@ -246,6 +270,7 @@ class IntakeStore:
         expected = sorted(
             [("intake_requests", DDL), ("intake_revisions", REVISIONS_DDL)]
         )
+        expected = sorted([*expected, ("intake_approvals", APPROVALS_DDL)])
         version = connection.execute("PRAGMA user_version").fetchone()[0]
         if version == 2:
             expected = sorted([*expected, ("intake_imports", IMPORTS_DDL)])
@@ -255,6 +280,13 @@ class IntakeStore:
             raise IntakeError("Request store integrity is invalid")
 
     def _connect(self) -> sqlite3.Connection:
+        require_supported_platform()
+        validate_root(self.path.parent)
+        protect_file(self.path)
+        for suffix in ("-journal", "-wal", "-shm"):
+            sidecar = Path(str(self.path) + suffix)
+            if sidecar.exists() or sidecar.is_symlink():
+                protect_file(sidecar)
         connection = sqlite3.connect(
             f"{self.path.resolve().as_uri()}?mode={'ro' if self.read_only else 'rw'}",
             uri=True,
@@ -268,7 +300,9 @@ class IntakeStore:
         return connection
 
     def initialise(self) -> None:
+        require_supported_platform()
         self._write()
+        validate_root(self.path.parent)
         if self.path.exists():
             with self._connect() as connection:
                 connection.execute("BEGIN IMMEDIATE")
@@ -278,8 +312,7 @@ class IntakeStore:
                 return
         # Exclusive creation never adopts or rewrites another database.
         try:
-            with self.path.open("xb"):
-                pass
+            protect_file(self.path, create=True)
         except FileExistsError:
             raise IntakeError("Request store already exists") from None
         with sqlite3.connect(self.path) as connection:
@@ -287,6 +320,7 @@ class IntakeStore:
             connection.execute("BEGIN IMMEDIATE")
             connection.execute(DDL)
             connection.execute(REVISIONS_DDL)
+            connection.execute(APPROVALS_DDL)
             connection.execute(IMPORTS_DDL)
             connection.execute("PRAGMA user_version=2")
 
@@ -365,6 +399,16 @@ class IntakeStore:
                 raise ValueError
         except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
             raise IntakeError("Stored request is invalid") from None
+        approval = None
+        if row[2] == "approved":
+            approval = connection.execute(
+                "SELECT actor,decided_at FROM intake_approvals WHERE request_id=? "
+                "AND revision=? AND content_hash=? AND decision='approved' "
+                "ORDER BY decided_at DESC,decision_id DESC LIMIT 1",
+                (request_id, row[1], row[7]),
+            ).fetchone()
+            if approval is None:
+                raise IntakeError("Approved request audit is missing")
         return IntakeRequest(
             request_id,
             row[1],
@@ -375,6 +419,8 @@ class IntakeStore:
             row[4],
             row[5],
             row[6],
+            approval[0] if approval else None,
+            approval[1] if approval else None,
         )
 
     def get(self, request_id: str) -> IntakeRequest:
@@ -462,23 +508,58 @@ class IntakeStore:
             raise IntakeError("Request changed; reload before continuing")
 
     def approve(self, request_id: str, expected_revision: int) -> IntakeRequest:
+        require_supported_platform()
         self._write()
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             request = self._get(connection, request_id)
             self._expected(request, expected_revision)
+            decided = datetime.now(UTC).isoformat()
+            actor = f"local operator (self-approval), uid={os.geteuid()}"
+            content_hash = _digest(request.fields, request.attachments)
+            connection.execute(
+                "INSERT INTO intake_approvals VALUES (?,?,?,?,?,?,'approved')",
+                (
+                    str(uuid4()),
+                    request_id,
+                    request.revision,
+                    content_hash,
+                    actor,
+                    decided,
+                ),
+            )
             connection.execute(
                 "UPDATE intake_requests SET "
                 "state='approved',approved_revision=?,approval_hash=?,updated_at=? "
                 "WHERE request_id=?",
                 (
                     request.revision,
-                    _digest(request.fields, request.attachments),
-                    datetime.now(UTC).isoformat(),
+                    content_hash,
+                    decided,
                     request_id,
                 ),
             )
             return self._get(connection, request_id)
+
+    def audit_history(self, request_id: str) -> tuple[dict[str, object], ...]:
+        with self._connect() as connection:
+            self._get(connection, request_id)
+            rows = connection.execute(
+                "SELECT revision,content_hash,actor,decided_at,decision "
+                "FROM intake_approvals WHERE request_id=? "
+                "ORDER BY decided_at,decision_id",
+                (request_id,),
+            ).fetchall()
+            return tuple(
+                dict(
+                    zip(
+                        ("revision", "content_hash", "actor", "decided_at", "decision"),
+                        row,
+                        strict=True,
+                    )
+                )
+                for row in rows
+            )
 
     def export(self, request_id: str, expected_revision: int) -> dict[str, object]:
         self._write()
