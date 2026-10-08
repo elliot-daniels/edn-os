@@ -475,17 +475,22 @@ def render() -> None:
         )
         try:
             sync = SyntheticSyncStore(root / "synthetic-sync")
-            receipt = sync.get(payload)
         except (ValueError, OSError):
             sync = None
-            receipt = None
             st.error("Synthetic synchronisation status is unconfirmed.")
         if sync is not None:
-            if receipt is None:
+            lookup_failed = False
+            try:
+                receipt = sync.get(payload)
+            except (ValueError, OSError):
+                receipt = None
+                lookup_failed = True
+                st.error("Synthetic status is unconfirmed. Reconcile before retrying.")
+            if receipt is None and not lookup_failed:
                 st.info(
                     "Synthetic transport: not attempted · live SharePoint: not synced"
                 )
-            else:
+            elif receipt is not None:
                 st.write(
                     f"Synthetic transport: {receipt['status']} · "
                     "live SharePoint: not synced"
@@ -494,17 +499,24 @@ def render() -> None:
             outcome = st.selectbox(
                 "Simulated transport outcome", ("success", "failed", "unknown")
             )
-            unconfirmed = receipt is not None and receipt["status"] in {
-                "pending",
-                "unknown",
-            }
+            unconfirmed = lookup_failed or (
+                receipt is not None
+                and receipt["status"]
+                in {
+                    "pending",
+                    "unknown",
+                }
+            )
             if st.button("Run synthetic sync", disabled=unconfirmed):
                 try:
                     sync.deliver(payload, outcome)
                     st.rerun()
                 except (ValueError, OSError):
                     st.error("Synthetic attempt is unconfirmed. Reload and reconcile.")
-            if st.button("Reconcile synthetic attempt", disabled=receipt is None):
+            if st.button(
+                "Reconcile synthetic attempt",
+                disabled=receipt is None and not lookup_failed,
+            ):
                 try:
                     sync.reconcile(payload)
                     st.rerun()

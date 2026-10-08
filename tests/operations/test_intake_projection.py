@@ -90,6 +90,10 @@ def approved_payload():
         "idempotency_key": "synthetic-submission-01",
         "attachment_manifest": (),
         "operation": "create_proposal",
+        "not_ready": [
+            "Live target identifiers are not configured",
+            "Current source permissions are unverified",
+        ],
         "target": {
             "integration": "sharepoint",
             "list_contract": "Job Requests",
@@ -109,7 +113,8 @@ def test_ready_expected_mapping_is_explicitly_not_live_ready():
     assert result["not_synced"] is True
     assert result["schema_validation"]["live_schema_status"] == "unverified"
     assert result["target"] == approved_payload()["target"]
-    assert len(result["not_ready"]) == 3
+    assert len(result["not_ready"]) == 5
+    assert "Current source permissions are unverified" in result["not_ready"]
     assert result["fields"] == fields()
 
 

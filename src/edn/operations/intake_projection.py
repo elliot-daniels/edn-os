@@ -122,6 +122,7 @@ def prepare_envelope(
         key = payload["idempotency_key"]
         target = payload["target"]
         operation = payload["operation"]
+        not_ready = payload["not_ready"]
         if (
             type(revision) is not int
             or revision < 1
@@ -143,6 +144,9 @@ def prepare_envelope(
             or target.get("list_contract") != "Job Requests"
             or target.get("live_status") != "unverified"
             or operation not in {"create_proposal", "reference_existing"}
+            or not isinstance(not_ready, list)
+            or not not_ready
+            or any(not isinstance(item, str) or not item for item in not_ready)
         ):
             raise ValueError
         timestamp = datetime.fromisoformat(approval["timestamp"].replace("Z", "+00:00"))
@@ -201,11 +205,16 @@ def prepare_envelope(
         },
         "not_synced": True,
         "target": target,
-        "not_ready": [
-            "Live SharePoint schema is unverified",
-            "Live transport is not authorised or enabled",
-            "Attachments are local evidence and have not been uploaded",
-        ],
+        "not_ready": list(
+            dict.fromkeys(
+                [
+                    *not_ready,
+                    "Live SharePoint schema is unverified",
+                    "Live transport is not authorised or enabled",
+                    "Evidence attachments are not transferred by this dry run",
+                ]
+            )
+        ),
         "attachment_manifest": {
             "request_id": payload["request_id"],
             "revision": payload["revision"],

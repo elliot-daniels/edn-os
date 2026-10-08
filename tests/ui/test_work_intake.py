@@ -275,6 +275,26 @@ def test_file_upload_approval_export_and_synthetic_failure_reconciliation(
     assert not app.exception
     assert any("Synthetic transport: synced" in item.value for item in app.markdown)
     assert any("live SharePoint: not synced" in item.value for item in app.markdown)
+    import json
+    from uuid import uuid4
+
+    from edn.operations.intake_sync import SyntheticSyncStore
+
+    receipt_path = next((store.path.parent / "synthetic-sync").glob("*.receipt.json"))
+    recorded = json.loads(receipt_path.read_text(encoding="utf-8"))
+    expected_id = recorded["synthetic_id"]
+    recorded["synthetic_id"] = "SYNTHETIC-" + str(uuid4())
+    receipt_path.write_text(json.dumps(recorded), encoding="utf-8")
+    app.run()
+    assert not app.exception
+    assert any("status is unconfirmed" in item.value for item in app.error)
+    assert button(app, "Run synthetic sync").disabled
+    assert not button(app, "Reconcile synthetic attempt").disabled
+    assert not any("not attempted" in item.value for item in app.info)
+    button(app, "Reconcile synthetic attempt").click().run()
+    assert not app.exception
+    restored = SyntheticSyncStore(store.path.parent / "synthetic-sync").get(prepared)
+    assert restored["synthetic_id"] == expected_id and restored["live_synced"] is False
 
 
 def test_synthetic_import_and_manual_share_queue_without_duplicate_create_proposal(
