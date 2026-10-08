@@ -2,6 +2,7 @@
 
 import os
 import stat
+from uuid import uuid4
 
 import pytest
 
@@ -27,7 +28,7 @@ def test_exhaustive_state_transition_table(tmp_path, source, target):
     requests = store(tmp_path)
     if requests is None:
         return
-    request = requests.create(fields())
+    request = requests.create(fields(), submission_id=str(uuid4()))
     if source == "approved":
         request = requests.approve(request.request_id, 1)
     elif source in {"rejected", "cancelled"}:
@@ -95,7 +96,7 @@ def test_post_publish_sync_failure_is_uncertain_and_reload_finds_actual_revision
     requests = store(tmp_path)
     if requests is None:
         return
-    request = requests.create(fields())
+    request = requests.create(fields(), submission_id=str(uuid4()))
     original_sync = os.fsync
 
     def fail_directory(descriptor):
@@ -125,7 +126,7 @@ def test_backend_physical_orphans_and_receipt_corruption_refuse_approval(
         return
     root = tmp_path / "evidence"
     root.mkdir(mode=0o700)
-    request = requests.create(fields())
+    request = requests.create(fields(), submission_id=str(uuid4()))
     directory = root / request.request_id
     directory.mkdir(mode=0o700)
     identifier = str(uuid4())

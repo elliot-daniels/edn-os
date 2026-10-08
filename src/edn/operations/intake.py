@@ -15,7 +15,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from types import TracebackType
 from typing import Literal
-from uuid import UUID, uuid4
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from edn.operations.intake_security import (
     AnchoredDirectory,
@@ -308,6 +308,26 @@ class IntakeListResult:
     malformed: int
 
 
+@dataclass(frozen=True)
+class SubmissionIntent:
+    submission_id: str
+    fields: dict[str, str] | None
+    request_id: str | None
+
+
+SUBMISSIONS_DDL = """CREATE TABLE intake_submissions (
+submission_id TEXT PRIMARY KEY NOT NULL,
+fields TEXT,
+attachments TEXT,
+initial_hash TEXT,
+request_id TEXT UNIQUE REFERENCES intake_requests(request_id)
+)"""
+INTENT_DDL = """CREATE TABLE intake_intent (
+singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+submission_id TEXT NOT NULL REFERENCES intake_submissions(submission_id)
+)"""
+
+
 MAX_DATABASE_BYTES = 100_000_000
 
 
@@ -402,9 +422,16 @@ class IntakeStore:
             [("intake_requests", DDL), ("intake_revisions", REVISIONS_DDL)]
         )
         expected = sorted([*expected, ("intake_approvals", APPROVALS_DDL)])
-        if rows != expected or connection.execute("PRAGMA user_version").fetchone() != (
-            1,
-        ):
+        version = connection.execute("PRAGMA user_version").fetchone()[0]
+        if version == 2:
+            expected = sorted(
+                [
+                    *expected,
+                    ("intake_submissions", SUBMISSIONS_DDL),
+                    ("intake_intent", INTENT_DDL),
+                ]
+            )
+        if rows != expected or version not in {1, 2}:
             raise IntakeError("Unsupported request store schema")
         if connection.execute("PRAGMA foreign_key_check").fetchone() is not None:
             raise IntakeError("Request store integrity is invalid")
@@ -472,13 +499,94 @@ class IntakeStore:
         require_supported_platform()
         self._write()
         with self._connect(initialise=True) as connection:
-            if connection.execute("PRAGMA user_version").fetchone() == (1,):
+            version = connection.execute("PRAGMA user_version").fetchone()[0]
+            if version == 2:
                 return
             connection.execute("BEGIN IMMEDIATE")
-            connection.execute(DDL)
-            connection.execute(REVISIONS_DDL)
-            connection.execute(APPROVALS_DDL)
-            connection.execute("PRAGMA user_version=1")
+            if version == 0:
+                connection.execute(DDL)
+                connection.execute(REVISIONS_DDL)
+                connection.execute(APPROVALS_DDL)
+            connection.execute(SUBMISSIONS_DDL)
+            connection.execute(INTENT_DDL)
+            if version == 1:
+                for (request_id,) in connection.execute(
+                    "SELECT request_id FROM intake_requests"
+                ).fetchall():
+                    self._get(connection, request_id)
+                    original = connection.execute(
+                        "SELECT fields,attachments FROM intake_revisions "
+                        "WHERE request_id=? AND revision=1",
+                        (request_id,),
+                    ).fetchone()
+                    if original is None:
+                        raise IntakeError("Original request revision is missing")
+                    original_fields = validate_fields(json.loads(original[0]))
+                    original_evidence = _attachments(
+                        json.loads(original[1]), request_id
+                    )
+                    key = str(uuid5(NAMESPACE_URL, "edn-intake-manual:" + request_id))
+                    connection.execute(
+                        "INSERT INTO intake_submissions VALUES (?,?,?,?,?)",
+                        (
+                            key,
+                            _json(original_fields),
+                            _json(original_evidence),
+                            _digest(original_fields, original_evidence),
+                            request_id,
+                        ),
+                    )
+            connection.execute("PRAGMA user_version=2")
+            assert isinstance(connection, _ProtectedConnection)
+            connection.initialise_snapshot = True
+
+    @staticmethod
+    def _submission_schema(connection: sqlite3.Connection) -> None:
+        if connection.execute("PRAGMA user_version").fetchone() != (2,):
+            raise IntakeError("Initialize submission receipts explicitly")
+
+    def begin_submission(self) -> SubmissionIntent:
+        self._write()
+        submission_id = str(uuid4())
+        with self._connect() as connection:
+            self._submission_schema(connection)
+            connection.execute(
+                "INSERT INTO intake_submissions VALUES (?,NULL,NULL,NULL,NULL)",
+                (submission_id,),
+            )
+            connection.execute(
+                "INSERT INTO intake_intent VALUES (1,?) ON CONFLICT(singleton) "
+                "DO UPDATE SET submission_id=excluded.submission_id",
+                (submission_id,),
+            )
+        return SubmissionIntent(submission_id, None, None)
+
+    def current_submission(self) -> SubmissionIntent | None:
+        with self._connect() as connection:
+            self._submission_schema(connection)
+            row = connection.execute(
+                "SELECT s.submission_id,s.fields,s.request_id,s.attachments,"
+                "s.initial_hash FROM "
+                "intake_intent i JOIN intake_submissions s ON "
+                "s.submission_id=i.submission_id WHERE i.singleton=1"
+            ).fetchone()
+            if row is None:
+                return None
+            try:
+                _identity(row[0])
+                fields = (
+                    validate_fields(json.loads(row[1])) if row[1] is not None else None
+                )
+                if row[2] is not None:
+                    self._get(connection, row[2])
+                    evidence = _attachments(json.loads(row[3]), row[2])
+                    if row[4] != _digest(fields, evidence):
+                        raise ValueError
+                elif fields is not None or row[3] is not None or row[4] is not None:
+                    raise ValueError
+            except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
+                raise IntakeError("Stored submission intent is invalid") from None
+            return SubmissionIntent(row[0], fields, row[2])
 
     @staticmethod
     def _get(connection: sqlite3.Connection, request_id: str) -> IntakeRequest:
@@ -606,14 +714,33 @@ class IntakeStore:
         self,
         fields: Mapping[str, object],
         *,
+        submission_id: str,
         attachments: Sequence[Mapping[str, object]] = (),
     ) -> IntakeRequest:
         self._write()
+        _identity(submission_id)
         request_id = str(uuid4())
         cleaned = validate_fields(fields)
         attached = _attachments(attachments, request_id)
         now = datetime.now(UTC).isoformat()
         with self._connect() as connection:
+            self._submission_schema(connection)
+            connection.execute("BEGIN IMMEDIATE")
+            receipt = connection.execute(
+                "SELECT fields,attachments,initial_hash,request_id FROM "
+                "intake_submissions WHERE submission_id=?",
+                (submission_id,),
+            ).fetchone()
+            if receipt is not None and receipt[3] is not None:
+                if receipt[:3] != (
+                    _json(cleaned),
+                    _json(attached),
+                    _digest(cleaned, attached),
+                ):
+                    raise IntakeError(
+                        "Submission identity conflicts with original facts"
+                    )
+                return self._get(connection, receipt[3])
             connection.execute(
                 "INSERT INTO intake_requests VALUES "
                 "(?,1,'draft','not_synced',?,?,NULL,NULL,1)",
@@ -622,6 +749,18 @@ class IntakeStore:
             connection.execute(
                 "INSERT INTO intake_revisions VALUES (?,1,?,?)",
                 (request_id, _json(cleaned), _json(attached)),
+            )
+            connection.execute(
+                "INSERT INTO intake_submissions VALUES (?,?,?,?,?) ON "
+                "CONFLICT(submission_id) DO UPDATE SET "
+                "fields=excluded.fields,attachments=excluded.attachments,initial_hash=excluded.initial_hash,request_id=excluded.request_id",
+                (
+                    submission_id,
+                    _json(cleaned),
+                    _json(attached),
+                    _digest(cleaned, attached),
+                    request_id,
+                ),
             )
             connection.execute(
                 "INSERT INTO intake_approvals VALUES (?,?,?,?,?,?,?,NULL)",
@@ -853,7 +992,23 @@ class IntakeStore:
                     "actor": request.approval_actor,
                     "timestamp": request.approval_timestamp,
                 },
+                "submission_id": self._submission_id(connection, request_id),
+                "idempotency_key": self._submission_id(connection, request_id),
+                "source_provenance": {
+                    "source_type": "manual",
+                    "source": "EDN OS Manual",
+                },
             }
+
+    @staticmethod
+    def _submission_id(connection: sqlite3.Connection, request_id: str) -> str:
+        row = connection.execute(
+            "SELECT submission_id FROM intake_submissions WHERE request_id=?",
+            (request_id,),
+        ).fetchone()
+        if row is None:
+            raise IntakeError("Request submission receipt is missing")
+        return _identity(row[0])
 
     def _verify_evidence(self, request: IntakeRequest) -> None:
         if not request.attachments and self.evidence_root is None:
