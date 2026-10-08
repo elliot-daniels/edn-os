@@ -51,7 +51,14 @@ def delivery_identity(payload: dict[str, Any]) -> dict[str, Any]:
         ).encode("utf-8")
         if len(encoded) > 65536:
             raise ValueError
-    except (ValueError, KeyError, TypeError, AttributeError, UnicodeError):
+    except (
+        ValueError,
+        KeyError,
+        TypeError,
+        AttributeError,
+        UnicodeError,
+        RecursionError,
+    ):
         raise SyntheticSyncError(
             "Approved synthetic delivery snapshot is invalid"
         ) from None

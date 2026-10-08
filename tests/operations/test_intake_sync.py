@@ -50,6 +50,15 @@ def test_identity_binds_exact_payload():
     assert delivery_identity(changed)["payload_hash"] != original["payload_hash"]
 
 
+def test_recursive_payload_has_fixed_failure():
+    candidate = payload()
+    nested = {}
+    nested["self"] = nested
+    candidate["fields"] = nested
+    with pytest.raises(SyntheticSyncError):
+        delivery_identity(candidate)
+
+
 @pytest.mark.parametrize(
     "mutation", ["list_status", "extra", "bool_revision", "bad_time"]
 )
@@ -150,3 +159,101 @@ def test_missing_success_ledger_never_claims_confirmation_or_allows_retry(tmp_pa
         with pytest.raises(SyntheticSyncError):
             action(payload())
     assert receipt.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "phase",
+    [
+        "before_pending",
+        "after_pending",
+        "before_ledger",
+        "after_ledger",
+        "before_final",
+        "after_final",
+    ],
+)
+def test_interrupted_publication_restarts_without_duplicate_delivery(
+    tmp_path, monkeypatch, phase
+):
+    store = store_or_refusal(tmp_path)
+    if store is None:
+        return
+    actual_write = SyntheticSyncStore._write
+
+    def interrupted(anchor, name, value):
+        stage = (
+            "ledger"
+            if name.endswith(".ledger.json")
+            else ("pending" if value["status"] == "pending" else "final")
+        )
+        if phase == "before_" + stage:
+            raise OSError("synthetic pre-publication fault")
+        actual_write(anchor, name, value)
+        if phase == "after_" + stage:
+            raise OSError("synthetic post-publication fault")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(SyntheticSyncStore, "_write", staticmethod(interrupted))
+        with pytest.raises(OSError):
+            store.deliver(payload())
+    reopened = SyntheticSyncStore(store.root)
+    receipt = reopened.get(payload())
+    if receipt is None:
+        assert phase == "before_pending"
+        confirmed = reopened.deliver(payload())
+    elif receipt["status"] == "synced":
+        assert phase == "after_final"
+        confirmed = reopened.deliver(payload())
+    else:
+        assert receipt["status"] == "pending"
+        with pytest.raises(SyntheticSyncError, match="Reconcile"):
+            reopened.deliver(payload())
+        reconciled = reopened.reconcile(payload())
+        confirmed = (
+            reopened.deliver(payload())
+            if reconciled["status"] == "failed"
+            else reconciled
+        )
+    assert confirmed["status"] == "synced" and confirmed["live_synced"] is False
+    assert len(list(store.root.glob("*.ledger.json"))) == 1
+    assert reopened.deliver(payload())["synthetic_id"] == confirmed["synthetic_id"]
+
+
+@pytest.mark.parametrize("directory_fsync", [1, 2, 3])
+def test_directory_fsync_failure_reloads_actual_publication(
+    tmp_path, monkeypatch, directory_fsync
+):
+    store = store_or_refusal(tmp_path)
+    if store is None:
+        return
+    import os
+    import stat
+
+    from edn.operations import intake_sync
+
+    actual_fsync = os.fsync
+    observed = 0
+
+    def failed_directory_sync(descriptor):
+        nonlocal observed
+        if stat.S_ISDIR(os.fstat(descriptor).st_mode):
+            observed += 1
+            if observed == directory_fsync:
+                raise OSError("synthetic uncertain directory durability")
+        return actual_fsync(descriptor)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(intake_sync.os, "fsync", failed_directory_sync)
+        with pytest.raises(OSError):
+            store.deliver(payload())
+    reopened = SyntheticSyncStore(store.root)
+    current = reopened.get(payload())
+    assert current is not None
+    if current["status"] == "pending":
+        with pytest.raises(SyntheticSyncError, match="Reconcile"):
+            reopened.deliver(payload())
+        current = reopened.reconcile(payload())
+    if current["status"] == "failed":
+        current = reopened.deliver(payload())
+    assert current["status"] == "synced" and current["live_synced"] is False
+    assert len(list(store.root.glob("*.ledger.json"))) == 1
