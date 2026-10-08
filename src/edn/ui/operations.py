@@ -15,7 +15,7 @@ from edn.operations.storage import EventStore
 def render_import_status(path: Path) -> None:
     """Bounded read-only history; persisted Events never imply intake completeness."""
     try:
-        history = ImportOutcomeStore(path, read_only=True).latest(limit=20)
+        history = ImportOutcomeStore(path, read_only=True).latest_per_account(limit=20)
     except (sqlite3.Error, ValueError):
         st.warning("Import history is unavailable; completeness is unknown.")
         return
@@ -23,14 +23,10 @@ def render_import_status(path: Path) -> None:
         st.caption("Import status: never run · no recorded import outcome.")
         return
     st.caption(
-        "Latest recorded import per account within the 20 most recent attempts. "
+        "Latest recorded import per account · up to 20 accounts. "
         "Coverage applies only to the requested Inbox window."
     )
-    seen: set[str] = set()
     for run in history:
-        if run.source_account in seen:
-            continue
-        seen.add(run.source_account)
         state = (
             "In progress or interrupted · incomplete"
             if run.state == "in_progress"

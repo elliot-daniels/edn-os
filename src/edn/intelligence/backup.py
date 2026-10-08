@@ -8,14 +8,19 @@ import hashlib
 import json
 import os
 import re
+import sqlite3
 import stat
 import tempfile
+import time
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, BinaryIO
 
 _SCHEMA_VERSION = 1
+_SQLITE_HEADER = b"SQLite format 3\x00"
+_SQLITE_SNAPSHOT_SECONDS = 30.0
 _PROHIBITED_PARTS = frozenset(
     {"token", "tokens", "secret", "secrets", "credential", "credentials", "raw-graph"}
 )
@@ -25,6 +30,11 @@ _PROHIBITED_PARTS = frozenset(
 class BackupComponent:
     name: str
     path: Path
+    sqlite_snapshot: bool = False
+
+    def __post_init__(self) -> None:
+        if type(self.sqlite_snapshot) is not bool:
+            raise ValueError("SQLite snapshot selection must be a boolean")
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,12 +156,23 @@ class OperationalBackup:
                 raise PermissionError(
                     "prohibited material cannot enter operational backup"
                 )
+            with _open_regular(component.path) as stream:
+                sqlite_header = stream.read(len(_SQLITE_HEADER)) == _SQLITE_HEADER
+            if sqlite_header and not component.sqlite_snapshot:
+                raise ValueError("SQLite components require explicit consistent snapshot mode")
+            if component.sqlite_snapshot and not sqlite_header:
+                raise ValueError("SQLite snapshot requires a SQLite database")
+            if component.sqlite_snapshot:
+                _reject_sqlite_links(component.path)
         destination.mkdir(parents=True)
         records: list[tuple[str, str, int, str]] = []
         for component in sorted(components, key=lambda item: item.name):
             filename = f"{len(records):03d}-{component.name}.bin"
             target = destination / filename
-            _copy_exclusive(component.path, target)
+            if component.sqlite_snapshot:
+                _sqlite_snapshot(component.path, target)
+            else:
+                _copy_exclusive(component.path, target, reject_sqlite=True)
             digest = _sha256(target)
             records.append((component.name, digest, target.stat().st_size, filename))
         backup_id = (
@@ -239,12 +260,60 @@ def _reject_links(path: Path) -> None:
             raise ValueError("backup paths must not contain symlinks or junctions")
 
 
-def _copy_exclusive(source: Path, target: Path) -> None:
+def _copy_exclusive(source: Path, target: Path, *, reject_sqlite: bool = False) -> None:
     _reject_links(source)
     _reject_links(target)
-    with _open_regular(source) as incoming, target.open("xb") as outgoing:
-        for block in iter(lambda: incoming.read(1024 * 1024), b""):
-            outgoing.write(block)
+    with _open_regular(source) as incoming:
+        header = incoming.read(len(_SQLITE_HEADER))
+        if reject_sqlite and header == _SQLITE_HEADER:
+            raise ValueError("SQLite components require explicit consistent snapshot mode")
+        with target.open("xb") as outgoing:
+            outgoing.write(header)
+            for block in iter(lambda: incoming.read(1024 * 1024), b""):
+                outgoing.write(block)
+
+
+def _reject_sqlite_links(path: Path) -> None:
+    _reject_links(path)
+    for suffix in ("-wal", "-shm", "-journal"):
+        _reject_links(Path(str(path) + suffix))
+
+
+def _sqlite_snapshot(source: Path, target: Path) -> None:
+    _reject_sqlite_links(source)
+    _reject_sqlite_links(target)
+    with _open_regular(source) as stream:
+        if stream.read(len(_SQLITE_HEADER)) != _SQLITE_HEADER:
+            raise ValueError("SQLite snapshot requires a SQLite database")
+    # Reserve our new component before SQLite opens it in existing-file mode.
+    with target.open("xb"):
+        pass
+    deadline = time.monotonic() + _SQLITE_SNAPSHOT_SECONDS
+
+    def check_deadline(_status: int, _remaining: int, _total: int) -> None:
+        if time.monotonic() >= deadline:
+            raise TimeoutError("SQLite snapshot exceeded its time bound")
+
+    try:
+        with (
+            closing(sqlite3.connect(
+                f"{source.absolute().as_uri()}?mode=ro", uri=True, timeout=0.1
+            )) as incoming,
+            closing(sqlite3.connect(
+                f"{target.absolute().as_uri()}?mode=rw", uri=True, timeout=0.1
+            )) as outgoing,
+        ):
+            incoming.backup(outgoing, pages=128, progress=check_deadline, sleep=0.05)
+            check_deadline(0, 0, 0)
+            outgoing.set_progress_handler(lambda: int(time.monotonic() >= deadline), 1000)
+            # Normalize only the new snapshot, so restore needs no WAL sidecars.
+            if outgoing.execute("PRAGMA journal_mode=DELETE").fetchone() != ("delete",):
+                raise ValueError("SQLite snapshot could not become self-contained")
+            if outgoing.execute("PRAGMA quick_check(1)").fetchall() != [("ok",)]:
+                raise ValueError("SQLite snapshot integrity failed")
+            check_deadline(0, 0, 0)
+    except sqlite3.Error:
+        raise ValueError("SQLite snapshot failed safely") from None
 
 
 def _open_regular(path: Path) -> BinaryIO:
