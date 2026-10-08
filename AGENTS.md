@@ -1,5 +1,7 @@
 # EDN OS engineer onboarding
 
+October technical baseline accepted on 1 October 2026: authoritative `main` merge `c85938c44ef230b5e4574b084d709f263b92adc0`, validated source `a81bda7bfa6674c767aeac607ec281da6fd980c0`. See [baseline record](docs/sprint/OCTOBER-BASELINE.md) and [agent onboarding](docs/sprint/AGENT-ONBOARDING.md). This approves repository development, not deployment or live access.
+
 Applies to every AI agent and human engineer working in this repository. Start here; no prior chat history is required. Snapshot: 1 October 2026, Australia/Sydney. Owner and escalation authority: Elliot.
 
 ## Read before editing
@@ -43,4 +45,4 @@ Linux is needed to validate the POSIX protected stores. `python -m mypy --platfo
 
 Provide the issue ID, base and head SHAs, changed behavior, test commands/results, failure identities, security impact, documentation updates and rollback method. List remaining limits and owner decisions. GitHub issue/PR evidence and versioned repository documentation are the durable record; neither Dot's nor Grok's memory is authoritative.
 
-Pre-promotion status: HOLD. Proposed PR checks and reconciled authority state are prepared locally; original 48d902e remains unchanged and has not been promoted. See [authority reconciliation](docs/sprint/AUTHORITY-RECONCILIATION.md).
+October baseline is merged; production/live activation remains separately gated. The pre-promotion audit below is historical; the baseline record is current.

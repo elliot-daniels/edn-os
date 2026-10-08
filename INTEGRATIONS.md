@@ -1,5 +1,7 @@
 # Integration inventory and boundaries
 
+October technical baseline accepted on 1 October 2026: authoritative `main` merge `c85938c44ef230b5e4574b084d709f263b92adc0`, validated source `a81bda7bfa6674c767aeac607ec281da6fd980c0`. See [baseline record](docs/sprint/OCTOBER-BASELINE.md) and [agent onboarding](docs/sprint/AGENT-ONBOARDING.md). This approves repository development, not deployment or live access.
+
 The inventory is code/documentation evidence at `0b2a0ba`, not a live tenant audit. No credentials or production data were read. Exact operational runbooks remain linked below.
 
 | Integration | Implemented path | Boundary and current limit |

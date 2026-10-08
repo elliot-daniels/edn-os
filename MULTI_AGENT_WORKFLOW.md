@@ -1,6 +1,6 @@
 # Dot, Grok and Elliot development workflow
 
-Proposed October 2026 operating agreement. GitHub issues, PRs, commits and repository documents are the shared record. This file defines team behavior; branch protection and CI are not yet established on the inspected implementation. No provider-specific memory is required.
+October 2026 repository development operating agreement. GitHub issues, PRs, commits and repository documents are the shared record. This file defines team behavior; hosted PR CI is established; required-check/review enforcement is manual until Elliot separately approves repository protection settings. No provider-specific memory is required.
 
 ## Ownership
 
@@ -17,9 +17,9 @@ These are responsibilities, not automatic access grants. If the agents cannot co
 
 1. Elliot selects priority; Dot writes a bounded issue using the template. Include exact base SHA, allowed files/behavior, exclusions, dependencies, acceptance tests, data boundary and rollback. Assign one implementation owner and one reviewer. Record any expiry/owner gates explicitly.
 2. Before coding, the implementer records the claim and overlapping files in the issue. A second implementer must pick a different issue or wait. Unknown availability is not an implicit claim.
-3. Use one isolated checkout/worktree per agent and issue. After OCT-01 chooses the integration base, start `feature/oct-<ticket>-<slug>` for behavior or `docs/oct-<ticket>-<slug>` for documentation. No common working copy and no direct main edits. Do not start from remote main blindly.
+3. Use one isolated checkout/worktree per agent and issue. From current authoritative main after verifying the accepted merge ancestry, start `feature/oct-<ticket>-<slug>` for behavior or `docs/oct-<ticket>-<slug>` for documentation. No common working copy and no direct main edits. Verify main contains the approved October baseline before starting.
 4. Commit small reviewable increments; test the assigned behavior with synthetic fixtures. Update current docs and maintain frozen manifests unchanged unless that exact change is approved. Supply commands, results and base/head SHAs.
-5. Open a PR against the agreed integration target. A docs-only PR may still inherit substantial unmerged feature history: disclose that explicitly. Separate stack review from feature approval; never treat the full range as a routine documentation merge.
+5. Open a PR against main. Disclose any additional unmerged stack separately; ordinary new issues start from main, not an old feature stack.
 6. Dot reviews acceptance, source/provenance, policy/error paths, replay, data compatibility, docs and rollback. Review must concern the current head SHA. Author fixes findings; review and required checks repeat after relevant changes. No self-approval.
 7. Merge is allowed only after current required checks, independent review, resolved findings and Elliot's explicit merge approval. Elliot/designated authorized maintainer performs the merge. Until protection is configured, enforce this manually; written policy alone is not technical enforcement.
 
@@ -27,9 +27,9 @@ Issue states: proposed -> ready -> claimed -> in progress -> review -> accepted/
 
 ## Validation and CI
 
-OCT-02 proposes a Linux PR workflow for the agreed integration target: install `.[dev]`, full pytest with JUnit, Ruff, strict mypy, relevant config/frozen-manifest integrity checks and whitespace validation. Use read-only repository permissions, no source credentials, no live APIs or real datasets. Avoid exposing private artifacts. Treat PowerShell/Pester tests separately for installer changes.
+The merged `.github/workflows/pr-checks.yml` runs full Linux Python 3.11/3.12 pytest, Ruff, strict native Linux types, frozen/config integrity, full PR-range whitespace and clean-tree checks. Windows Python 3.12 runs all tests and the exact baseline guard. Read-only repository token, no checkout credentials, no live data and no automatic deployment. Actual hosted checks are `Linux synthetic validation (3.11)`, `Linux synthetic validation (3.12)` and `Windows baseline regression guard`; all passed for the accepted successor. IMS PowerShell/Pester checks remain separate.
 
-Current `chore/uwc-linux-validation` workflow triggers only for its own branch/manual dispatch. It is not an all-PR required check. The audited Operations base had no CI workflow. The repair candidate adds `.github/workflows/pr-checks.yml` for all PR targets, merge-group and manual execution; it has not run on GitHub. Branch protection, reviewer enforcement and staging availability are unverified; OCT-02's report must state what was actually configured versus merely recommended.
+Issue #4 tracks the repository protection proposal. Until a settings change is separately approved and verified, Elliot manually enforces current-head checks, independent review and explicit merge approval. Agent roles do not grant accounts or privileges.
 
 Windows has 92 baseline failures; preserve a machine-readable identity comparison on each relevant change. No new failures are acceptable. A known Windows baseline does not permit a failing Linux release gate. Linux-targeted type checking is not runtime acceptance. Do not suppress security tests to achieve green.
 
@@ -51,14 +51,14 @@ Promotion requires the exact candidate SHA, successful required checks, approved
 
 Done means acceptance behavior demonstrated, no new regressions, required checks on current SHA, independent review, docs current, rollback understood and owner merge approval recorded. Live acceptance is a separate status. Track accepted tickets, cycle time, Elliot minutes per ticket, review defects/rework, regressions, blocked time, agent/tool spend and autonomous completion within scope. Review weekly on 8, 15, 22 and 29 October; final evaluation on 31 October (Sydney dates). No reminder or automation was created.
 
-Pre-promotion status: HOLD. Proposed PR checks and reconciled authority state are prepared locally; original 48d902e remains unchanged and has not been promoted. See [authority reconciliation](docs/sprint/AUTHORITY-RECONCILIATION.md).
+October baseline is accepted on main. See docs/sprint/OCTOBER-BASELINE.md for exact SHAs and retained limitations.
 
 ## Exact-candidate validation handover
 
 Use the SHA in the repair delivery report, never a moving branch name as evidence.
-Proposed required checks are `Linux synthetic validation (3.11)`,
+Required workflow check names are `Linux synthetic validation (3.11)`,
 `Linux synthetic validation (3.12)` and `Windows baseline regression guard`.
-Confirm their actual hosted names before configuring protection; settings changes
+These names are confirmed by hosted jobs. Configuring protection/settings changes
 require Elliot's separate authority. Linux requires zero failures and no broad
 security skips. Windows runs every Python test, then matches only the 92 audited
 identities/signatures and the one known skip; resolved failures are allowed and
@@ -66,4 +66,4 @@ new failures/skips/errors/missing baseline cases or collection shrinkage fail.
 Do not introduce source credentials. IMS Pester checks remain separate for IMS
 changes and require an offline environment with the command surface needed for
 mocking; missing PnP commands are environmental failures, not tenant access.
-See docs/sprint/PREPROMOTION-REPAIRS.md for exact local results and remaining gates.
+See docs/sprint/OCTOBER-BASELINE.md for accepted hosted results; PREPROMOTION-REPAIRS.md remains historical evidence.

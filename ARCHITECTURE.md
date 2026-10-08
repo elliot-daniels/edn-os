@@ -1,5 +1,7 @@
 # EDN OS implemented architecture
 
+October technical baseline accepted on 1 October 2026: authoritative `main` merge `c85938c44ef230b5e4574b084d709f263b92adc0`, validated source `a81bda7bfa6674c767aeac607ec281da6fd980c0`. See [baseline record](docs/sprint/OCTOBER-BASELINE.md) and [agent onboarding](docs/sprint/AGENT-ONBOARDING.md). This approves repository development, not deployment or live access.
+
 Inspected implementation: `0b2a0bac1419af32106bf1c17a388f3e9b0cdd5f`, 1 October 2026. This is an implementation inventory, not approval to redesign the system. The [Constitution](docs/CONSTITUTION.md), [module map](docs/MODULE-MAP.md) and module specifications remain design authorities. The earlier [architecture specification](docs/ARCHITECTURE.md) describes Foundation/Memory intent; its proposed schema and layout differ from today's implementation.
 
 ## Product and flow

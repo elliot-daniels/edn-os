@@ -1,5 +1,7 @@
 # October authority and source-state reconciliation
 
+Current October technical baseline is accepted on main at `c85938c44ef230b5e4574b084d709f263b92adc0`. See [baseline record](OCTOBER-BASELINE.md). The dated audit/scope statements below remain historical evidence and do not grant live authority.
+
 Repository-only evidence at 48d902ef9e98c17c0488bc7164d3d9bf9c0a01a9, 1 October 2026. The corrections are included in the isolated repair candidate. This is not an approved release, a grant, a live tenant inspection or a merge.
 
 - Intelligence state previously named feature/intelligence-core-v0.1 and two expired August grants, alongside stale dirty paths and last_validated_commit 90c88c0. The corrected state now identifies the isolated repair branch, zero expected dirty paths, expired grants and HOLD. Original metadata remains historical. Source grants/provider stores were not read or changed.

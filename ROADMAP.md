@@ -1,6 +1,6 @@
 # October 2026 development roadmap
 
-Objective: make EDN OS independently understandable and safely advance the Operations Inbox using Dot as technical lead/reviewer and Grok as implementer. Preserve `docs/NOW.md` scope. This is a proposed sequence; Elliot chooses priority and approves gated changes. See [scoped tickets](docs/sprint/OCTOBER-2026-TICKETS.md).
+Objective: make EDN OS independently understandable and safely advance the Operations Inbox using Dot as technical lead/reviewer and Grok as implementer. Preserve `docs/NOW.md` scope. OCT-01 is complete and CI is verified; published issues track current claims/dependencies. This is a proposed delivery sequence; Elliot chooses priority and approves gated changes. See [scoped tickets](docs/sprint/OCTOBER-2026-TICKETS.md).
 
 | Window (Sydney) | Delivery focus | Exit evidence |
 |---|---|---|
