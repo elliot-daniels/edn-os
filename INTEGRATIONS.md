@@ -22,7 +22,7 @@ The inventory is code/documentation evidence at `0b2a0ba`, not a live tenant aud
 
 Delegated mode verifies the signed-in identity and permits that business mailbox only; Mail.Read plus User.Read is documented. Application mode requires existing approved Mail.Read and mailbox restrictions. SharePoint access does not imply mail access. Cross-tenant accounts need separate authenticated runs into the selected local store, retaining source_account provenance.
 
-Operations window is at most 31 days, at most 100 pages of 50 messages; continuation URLs must remain on the expected Graph host/mailbox resource. Attachment metadata is retained, not binaries. Malformed/page-exhausted results are incomplete and exit nonzero; network failures stop intake, with committed Events replay-safe. No delta sync or scheduler exists. A replay never synchronizes subsequent source flag/body changes.
+Operations window is at most 31 days, at most 100 pages of 50 messages; continuation URLs must retain the exact HTTPS Graph origin/mailbox Inbox resource and original `$select`, `$expand`, `$filter`, `$orderby` and `$top` values. Exactly one nonblank opaque `$skiptoken` or canonical nonnegative ASCII integer `$skip` is allowed; duplicate, omitted, added or changed query fields, raw controls and fragments are rejected before authentication/transport. Attachment metadata is retained, not binaries. Malformed/page-exhausted results are incomplete and exit nonzero; network failures stop intake, with committed Events replay-safe. No delta sync or scheduler exists. A replay never synchronizes subsequent source flag/body changes.
 
 ## Handoffs and runbooks
 
