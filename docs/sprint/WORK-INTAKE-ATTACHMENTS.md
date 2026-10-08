@@ -55,12 +55,25 @@ staging cannot expose a partial final file through the API. Existing originals
 and attachment records are never replaced.
 No hard-link publication is used. The receipt has a 65,536-byte bound.
 
-Incomplete/unbound originals still consume their full reservation. Unknown
-physical folders/files, oversized originals, mismatched metadata/receipt sizes
-or quota tampering fail closed rather than being silently adopted. Failed writes
-or hard interruption may leave reserved/incomplete entries or pending receipt
-files requiring owner-led recovery; they are not returned as completed uploads.
-There is no automatic garbage collection, deletion or stale finalization.
+Incomplete/unbound originals consume their reservation until a committed recovery
+sweep. Startup and the next upload run a bounded, request-locked sweep. A durable
+recovery journal plans descriptor-relative no-clobber moves into private
+`.quarantine/<request UUID>/<recovery UUID>` storage. Incomplete reserved folders,
+untracked opaque folders and stale pending receipts are retained there; no
+operational original is deleted. Completed registered originals remain untouched.
+Only after all asset moves and directory fsyncs does an atomic receipt replacement
+free operational quota. The retained sweep journal records provenance; interruption
+resumes the journal rather than freeing quota early or moving files twice.
+Recovery is bounded to 1,000 requests, 300 assets/request and private regular
+single-link files. Unsafe assets, receipt corruption or inconsistent journals fail
+closed. Quarantined bytes are retained outside active request quota for owner-led
+retention/discard decisions.
+
+Upload replay is keyed by exact request UUID plus SHA-256. A repeated payload
+returns the original immutable metadata after verifying persisted bytes; it does
+not allocate another ID, file, receipt slot or quota. Different requests retain
+independent evidence. Concurrency uses the same flock as reservation/recovery.
+
 
 Attachment persistence precedes the separate request-revision transaction.
 The core must bind metadata to the matching request, invalidate approval when
@@ -96,3 +109,14 @@ acceptance. Required full hosted Linux/Windows CI and independent QA are recorde
 against the exact PR head. Revert the feature code to remove this API; retained
 private files require an owner-approved recovery/discard decision, not automatic
 migration or permission changes.
+
+
+## Direct Grok QA follow-up
+
+F41-05 startup quarantine/resumable sweep and F41-09 request/hash replay now have
+synthetic Linux regressions, including an injected failure after quarantine but
+before receipt commit. F41-10 diagnostics preserve meaningful size and stored-ID
+errors without changing rejection/no-mutation assertions. Shared F41-06 DrvFs
+refusal belongs to the refreshed core helper; F41-07 owner scope is recorded in
+core docs/NOW.md. Shared codec F40-13/14 guards are exercised before any upload.
+Full hosted checks and direct exact-head QA PASS remain acceptance gates.

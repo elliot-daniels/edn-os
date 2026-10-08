@@ -402,7 +402,9 @@ def _init_upload_worker(barrier):
 def _concurrent_upload(root):
     attachments = IntakeAttachmentStore(Path(root))
     _BARRIER.wait(timeout=30)
+    marker = str(os.getpid()).encode()
     payload = b"%PDF-1.4\n" + b"x" * (MAX_ATTACHMENT_BYTES - 16) + b"\n%%EOF\n"
+    payload = payload[:20] + marker + payload[20 + len(marker) :]
     try:
         attachments.attach(REQUEST, "concurrent.pdf", payload)
         return "stored"
@@ -417,8 +419,9 @@ def test_aggregate_quota_is_atomic_across_competing_processes(tmp_path):
 
     attachments = store(tmp_path)
     payload = b"%PDF-1.4\n" + b"x" * (MAX_ATTACHMENT_BYTES - 16) + b"\n%%EOF\n"
-    for _ in range(4):
-        attachments.attach(REQUEST, "support.pdf", payload)
+    for index in range(4):
+        distinct = payload[:20] + str(index).encode() + payload[21:]
+        attachments.attach(REQUEST, "support.pdf", distinct)
     context = multiprocessing.get_context("spawn")
     with ProcessPoolExecutor(
         max_workers=2,
@@ -514,7 +517,10 @@ def test_windows_storage_methods_refuse_before_io_even_without_constructor(
     "name,payload",
     [
         ("notes.txt", b"synthetic text"),
-        ("mail.eml", b"Subject: Example\r\n\r\nBody"),
+        (
+            "mail.eml",
+            b"From: synthetic@example.invalid\r\nSubject: Example\r\n\r\nBody",
+        ),
         ("report.docx", docx_bytes()),
     ],
 )
@@ -540,15 +546,21 @@ def test_untracked_original_folder_cannot_bypass_physical_quota(tmp_path):
     )
     with os.fdopen(descriptor, "wb") as stream:
         stream.write(b"untracked synthetic bytes")
-    with pytest.raises(IntakeAttachmentError, match="recovery"):
-        attachments.attach(REQUEST, "notes.txt", b"second file")
+    second = attachments.attach(REQUEST, "notes.txt", b"second file")
+    assert attachments.read(REQUEST, second.attachment_id) == b"second file"
+    assert not orphan.exists()
+    assert list((attachments.root / ".quarantine" / REQUEST).rglob("original.bin"))
+    ledger = json.loads((attachments.root / REQUEST / "attachments.json").read_text())
+    assert len(ledger["entries"]) == 2
 
 
 @linux_storage_test
 def test_per_request_file_count_is_bounded_at_one_hundred(tmp_path):
     attachments = store(tmp_path)
-    for _ in range(module.MAX_REQUEST_FILES):
-        attachments.attach(REQUEST, "notes.txt", b"small synthetic text")
+    for index in range(module.MAX_REQUEST_FILES):
+        attachments.attach(
+            REQUEST, "notes.txt", f"small synthetic text {index}".encode()
+        )
     with pytest.raises(IntakeAttachmentError, match="100 files"):
         attachments.attach(REQUEST, "notes.txt", b"extra file")
     ledger = json.loads((attachments.root / REQUEST / "attachments.json").read_text())
@@ -678,3 +690,117 @@ IntakeAttachmentStore(Path(sys.argv[1])).attach(
     assert not (folder / "metadata.json").exists()
     with pytest.raises(IntakeAttachmentError):
         IntakeAttachmentStore(attachments.root).read(REQUEST, record_id)
+
+
+@linux_storage_test
+def test_same_request_sha256_replay_keeps_metadata_and_quota(tmp_path):
+    attachments = store(tmp_path)
+    first = attachments.attach(REQUEST, "same.pdf", PDF)
+    before = (attachments.root / REQUEST / "attachments.json").read_bytes()
+    assert attachments.attach(REQUEST, "renamed.pdf", PDF) == first
+    assert (
+        IntakeAttachmentStore(attachments.root).attach(REQUEST, "same.pdf", PDF)
+        == first
+    )
+    assert (attachments.root / REQUEST / "attachments.json").read_bytes() == before
+    assert len(list((attachments.root / REQUEST).rglob("original.bin"))) == 1
+    other = attachments.attach(OTHER, "same.pdf", PDF)
+    assert other.attachment_id != first.attachment_id
+
+
+@linux_storage_test
+def test_metadata_publish_failure_quarantines_on_restart_and_releases_committed_quota(
+    tmp_path, monkeypatch
+):
+    attachments = store(tmp_path)
+    publish = module._publish_file
+
+    def fail_metadata(directory, name, payload):
+        if name == "metadata.json":
+            raise OSError("PRIVATE_FAILURE")
+        return publish(directory, name, payload)
+
+    monkeypatch.setattr(module, "_publish_file", fail_metadata)
+    with pytest.raises(IntakeAttachmentError):
+        attachments.attach(REQUEST, "support.pdf", PDF)
+    ledger = attachments.root / REQUEST / "attachments.json"
+    failed = json.loads(ledger.read_text())["entries"][0]
+    assert failed["state"] == "reserved"
+    monkeypatch.setattr(module, "_publish_file", publish)
+    reopened = IntakeAttachmentStore(attachments.root)
+    assert json.loads(ledger.read_text())["entries"] == []
+    assert not (attachments.root / REQUEST / failed["attachment_id"]).exists()
+    retained = list((attachments.root / ".quarantine" / REQUEST).rglob("original.bin"))
+    assert len(retained) == 1 and retained[0].read_bytes() == PDF
+    assert list((attachments.root / ".quarantine" / REQUEST).rglob("sweep.json"))
+    successful = reopened.attach(REQUEST, "support.pdf", PDF)
+    assert reopened.read(REQUEST, successful.attachment_id) == PDF
+
+
+@linux_storage_test
+def test_recovery_failure_never_frees_quota_before_committed_sweep(
+    tmp_path, monkeypatch
+):
+    attachments = store(tmp_path)
+    publish = module._publish_file
+
+    def fail_metadata(directory, name, payload):
+        if name == "metadata.json":
+            raise OSError("synthetic failure")
+        return publish(directory, name, payload)
+
+    monkeypatch.setattr(module, "_publish_file", fail_metadata)
+    with pytest.raises(IntakeAttachmentError):
+        attachments.attach(REQUEST, "support.pdf", PDF)
+    monkeypatch.setattr(module, "_publish_file", publish)
+    ledger = attachments.root / REQUEST / "attachments.json"
+    before = ledger.read_bytes()
+    save = module.IntakeAttachmentStore._save_quota
+
+    def fail_commit(*args, **kwargs):
+        raise OSError("synthetic sweep failure")
+
+    monkeypatch.setattr(module.IntakeAttachmentStore, "_save_quota", fail_commit)
+    with pytest.raises(IntakeAttachmentError, match="recovery"):
+        IntakeAttachmentStore(attachments.root)
+    assert ledger.read_bytes() == before
+    assert (attachments.root / REQUEST / ".recovery.json").exists()
+    monkeypatch.setattr(module.IntakeAttachmentStore, "_save_quota", save)
+    IntakeAttachmentStore(attachments.root)
+    assert json.loads(ledger.read_text())["entries"] == []
+    assert not (attachments.root / REQUEST / ".recovery.json").exists()
+    assert (
+        len(list((attachments.root / ".quarantine" / REQUEST).rglob("original.bin")))
+        == 1
+    )
+
+
+@linux_storage_test
+def test_stale_pending_quota_and_orphan_folder_are_quarantined_without_deletion(
+    tmp_path,
+):
+    attachments = store(tmp_path)
+    good = attachments.attach(REQUEST, "support.pdf", PDF)
+    request_path = attachments.root / REQUEST
+    pending = request_path / (".quota-" + OTHER)
+    descriptor = os.open(pending, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    with os.fdopen(descriptor, "wb") as stream:
+        stream.write(b"partial private receipt")
+    orphan = request_path / OTHER
+    orphan.mkdir(mode=0o700)
+    descriptor = os.open(
+        orphan / (".pending-" + OTHER), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600
+    )
+    with os.fdopen(descriptor, "wb") as stream:
+        stream.write(b"partial private original")
+    reopened = IntakeAttachmentStore(attachments.root)
+    assert reopened.read(REQUEST, good.attachment_id) == PDF
+    assert not pending.exists() and not orphan.exists()
+    quarantine = attachments.root / ".quarantine" / REQUEST
+    retained = [
+        p.read_bytes()
+        for p in quarantine.rglob("*")
+        if p.is_file() and p.name != "sweep.json"
+    ]
+    assert b"partial private receipt" in retained
+    assert b"partial private original" in retained

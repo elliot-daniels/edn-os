@@ -1,5 +1,17 @@
 # EDN Operations v1
 
+> Owner-approved bounded exception, 8 October 2026: Work Intake MVP development
+> is authorised alongside Operations. Reuse the EDN Job Requests website schema
+> for manual entry, supporting uploads, a unified local queue, review/correction,
+> recorded single-operator self-approval and synthetic intake with SharePoint
+> dry-run mapping. Approval binds to exact record version and content hash;
+> edits invalidate it. Protected storage is Linux/WSL only, private to the runtime
+> identity; native Windows must refuse before creating or modifying storage.
+> Uploads allow PDF, PNG, JPEG, DOCX, EML and TXT, at most 20,000,000 bytes each
+> and 100,000,000 bytes per request. No live Microsoft mutation, production
+> access, website changes, credential/permission changes, deployment or main
+> promotion is authorised. Earlier frozen restrictions remain for unrelated work.
+
 > October pre-promotion correction: UWC no-flow/submission statements below describe the recorded August stage. Later excluded branch 839e75c records a blocked Developer flow/binding attempt. No working capture path or current production state is verified. See [authority reconciliation](sprint/AUTHORITY-RECONCILIATION.md).
 
 ## Current objective

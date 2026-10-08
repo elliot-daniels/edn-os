@@ -61,6 +61,10 @@ class IntakeError(ValueError):
     """Fixed diagnostic; no request content belongs in public errors."""
 
 
+class IntakeCommitUncertainError(IntakeError):
+    """Publication occurred but its directory durability could not be confirmed."""
+
+
 def validate_fields(fields: Mapping[str, object]) -> dict[str, str]:
     if not isinstance(fields, Mapping) or set(fields) - INPUT_FIELDS:
         raise IntakeError("Unsupported request fields")
@@ -71,7 +75,7 @@ def validate_fields(fields: Mapping[str, object]) -> dict[str, str]:
             raise IntakeError("Request fields must be text")
         value = value.strip()
         if any(
-            unicodedata.category(c) in {"Cc", "Cf"}
+            unicodedata.category(c) in {"Cc", "Cf", "Zl", "Zp"}
             and not (name == "jobDescription" and c in "\n\r")
             for c in value
         ):
@@ -188,7 +192,7 @@ def _audit_row(
     connection: sqlite3.Connection, request_id: str, row: tuple[object, ...]
 ) -> dict[str, object]:
     try:
-        decision_id, revision, content_hash, actor, decided_at, decision = row
+        decision_id, revision, content_hash, actor, decided_at, decision, reason = row
         _identity(decision_id)
         if (
             type(revision) is not int
@@ -197,12 +201,33 @@ def _audit_row(
             or re.fullmatch(r"[0-9a-f]{64}", content_hash) is None
             or not isinstance(actor, str)
             or re.fullmatch(
-                r"local operator \(self-approval\), uid=(0|[1-9][0-9]*)", actor
+                r"local operator(?: \(self-approval\))?, uid=(0|[1-9][0-9]*)", actor
             )
             is None
             or not isinstance(decided_at, str)
-            or decision not in {"approved", "edited", "edited_approval_invalidated"}
+            or decision
+            not in {
+                "created",
+                "approved",
+                "edited",
+                "edited_approval_invalidated",
+                "rejected",
+                "cancelled",
+                "reopened",
+            }
         ):
+            raise ValueError
+        if decision in {"rejected", "cancelled", "reopened"}:
+            if (
+                not isinstance(reason, str)
+                or not reason.strip()
+                or len(reason) > 500
+                or any(
+                    unicodedata.category(c) in {"Cc", "Cf", "Zl", "Zp"} for c in reason
+                )
+            ):
+                raise ValueError
+        elif reason is not None:
             raise ValueError
         timestamp = datetime.fromisoformat(decided_at)
         if timestamp.utcoffset() != UTC.utcoffset(timestamp):
@@ -222,8 +247,8 @@ def _audit_row(
         raise IntakeError("Stored approval audit is invalid") from None
     return dict(
         zip(
-            ("revision", "content_hash", "actor", "decided_at", "decision"),
-            (revision, content_hash, actor, decided_at, decision),
+            ("revision", "content_hash", "actor", "decided_at", "decision", "reason"),
+            (revision, content_hash, actor, decided_at, decision, reason),
             strict=True,
         )
     )
@@ -242,12 +267,13 @@ class IntakeRequest:
     approved_revision: int | None
     approval_actor: str | None = None
     approval_timestamp: str | None = None
+    entered_by: str | None = None
 
 
 DDL = """CREATE TABLE intake_requests (
 request_id TEXT PRIMARY KEY NOT NULL,
 revision INTEGER NOT NULL,
-state TEXT NOT NULL CHECK(state IN ('draft','approved')),
+state TEXT NOT NULL CHECK(state IN ('draft','approved','rejected','cancelled')),
 sync_status TEXT NOT NULL CHECK(sync_status IN ('not_synced','dry_run')),
 created_at TEXT NOT NULL,
 updated_at TEXT NOT NULL,
@@ -270,7 +296,9 @@ content_hash TEXT NOT NULL,
 actor TEXT NOT NULL,
 decided_at TEXT NOT NULL,
 decision TEXT NOT NULL
-CHECK(decision IN ('approved','edited','edited_approval_invalidated'))
+CHECK(decision IN ('created','approved','edited',
+'edited_approval_invalidated','rejected','cancelled','reopened')),
+reason TEXT
 )"""
 
 
@@ -314,7 +342,12 @@ class _ProtectedConnection(sqlite3.Connection):
                 finally:
                     os.close(descriptor)
                 self.anchor.replace(pending, self.database_name)
-            os.fsync(self.anchor.fd)
+            try:
+                os.fsync(self.anchor.fd)
+            except OSError:
+                raise IntakeCommitUncertainError(
+                    "Request publication is unconfirmed; reload before retrying"
+                ) from None
         finally:
             if self.anchor.exists(pending):
                 self.anchor.unlink(pending)
@@ -387,8 +420,8 @@ class IntakeStore:
             directory.close()
             raise sqlite3.OperationalError("Request store is unavailable")
         storage_lock = directory.lock(self.path.name + ".lock")
-        storage_lock.__enter__()
         try:
+            storage_lock.__enter__()
             payload = None
             original_inode = None
             try:
@@ -468,7 +501,9 @@ class IntakeStore:
             for timestamp in (row[4], row[5]):
                 if datetime.fromisoformat(timestamp).utcoffset() is None:
                     raise ValueError
-            if row[2] not in {"draft", "approved"} or row[3] not in {
+            if row[2] not in {"draft", "approved", "rejected", "cancelled"} or row[
+                3
+            ] not in {
                 "not_synced",
                 "dry_run",
             }:
@@ -483,7 +518,9 @@ class IntakeStore:
         approval = None
         if row[2] == "approved":
             approval = connection.execute(
-                "SELECT decision_id,revision,content_hash,actor,decided_at,decision "
+                "SELECT "
+                "decision_id,revision,content_hash,actor,decided_at,decision,reason "
+                ""
                 "FROM intake_approvals WHERE request_id=? "
                 "AND revision=? AND content_hash=? AND decision='approved' "
                 "ORDER BY decided_at DESC,decision_id DESC LIMIT 1",
@@ -492,6 +529,39 @@ class IntakeStore:
             if approval is None:
                 raise IntakeError("Approved request audit is missing")
             _audit_row(connection, request_id, approval)
+        creation = connection.execute(
+            "SELECT decision_id,revision,content_hash,actor,decided_at,decision,reason "
+            "FROM intake_approvals WHERE request_id=? AND decision='created' "
+            "ORDER BY decided_at,decision_id LIMIT 1",
+            (request_id,),
+        ).fetchone()
+        if creation is None:
+            raise IntakeError("Request creation audit is missing")
+        _audit_row(connection, request_id, creation)
+        if creation[1] != 1 or creation[4] != row[4]:
+            raise IntakeError("Request creation timestamp is inconsistent")
+        latest = connection.execute(
+            "SELECT decision_id,revision,content_hash,actor,decided_at,decision,reason "
+            "FROM intake_approvals WHERE request_id=? ORDER BY rowid DESC LIMIT 1",
+            (request_id,),
+        ).fetchone()
+        if latest is None:
+            raise IntakeError("Current request audit is missing")
+        _audit_row(connection, request_id, latest)
+        expected_decisions = {
+            "draft": {"created"}
+            if row[1] == 1
+            else {"edited", "edited_approval_invalidated", "reopened"},
+            "approved": {"approved"},
+            "rejected": {"rejected"},
+            "cancelled": {"cancelled"},
+        }
+        if (
+            latest[1] != row[1]
+            or latest[2] != _digest(fields, attachments)
+            or latest[5] not in expected_decisions[row[2]]
+        ):
+            raise IntakeError("Current request state has no matching audited decision")
         return IntakeRequest(
             request_id,
             row[1],
@@ -504,6 +574,7 @@ class IntakeStore:
             row[6],
             approval[3] if approval else None,
             approval[4] if approval else None,
+            creation[3],
         )
 
     def get(self, request_id: str) -> IntakeRequest:
@@ -574,6 +645,18 @@ class IntakeStore:
                 "INSERT INTO intake_revisions VALUES (?,1,?,?)",
                 (request_id, _json(cleaned), _json(attached)),
             )
+            connection.execute(
+                "INSERT INTO intake_approvals VALUES (?,?,?,?,?,?,?,NULL)",
+                (
+                    str(uuid4()),
+                    request_id,
+                    1,
+                    _digest(cleaned, attached),
+                    f"local operator, uid={os.geteuid()}",
+                    now,
+                    "created",
+                ),
+            )
             return self._get(connection, request_id)
 
     def update(
@@ -590,6 +673,8 @@ class IntakeStore:
             connection.execute("BEGIN IMMEDIATE")
             original = self._get(connection, request_id)
             self._expected(original, expected_revision)
+            if original.state not in {"draft", "approved"}:
+                raise IntakeError("Reopen a rejected request before editing")
             attached = (
                 original.attachments
                 if attachments is None
@@ -609,7 +694,7 @@ class IntakeStore:
                 (revision, now, request_id),
             )
             connection.execute(
-                "INSERT INTO intake_approvals VALUES (?,?,?,?,?,?,?)",
+                "INSERT INTO intake_approvals VALUES (?,?,?,?,?,?,?,NULL)",
                 (
                     str(uuid4()),
                     request_id,
@@ -637,11 +722,13 @@ class IntakeStore:
             request = self._get(connection, request_id)
             self._expected(request, expected_revision)
             self._verify_evidence(request)
+            if request.state != "draft":
+                raise IntakeError("Only a draft request can be approved")
             decided = datetime.now(UTC).isoformat()
             actor = f"local operator (self-approval), uid={os.geteuid()}"
             content_hash = _digest(request.fields, request.attachments)
             connection.execute(
-                "INSERT INTO intake_approvals VALUES (?,?,?,?,?,?,'approved')",
+                "INSERT INTO intake_approvals VALUES (?,?,?,?,?,?,'approved',NULL)",
                 (
                     str(uuid4()),
                     request_id,
@@ -664,11 +751,71 @@ class IntakeStore:
             )
             return self._get(connection, request_id)
 
+    def transition(
+        self, request_id: str, expected_revision: int, target_state: str, *, reason: str
+    ) -> IntakeRequest:
+        self._write()
+        if (
+            not isinstance(reason, str)
+            or not reason.strip()
+            or len(reason) > 500
+            or any(unicodedata.category(c) in {"Cc", "Cf", "Zl", "Zp"} for c in reason)
+        ):
+            raise IntakeError("A bounded single-line decision reason is required")
+        allowed = {
+            ("draft", "rejected"),
+            ("draft", "cancelled"),
+            ("approved", "rejected"),
+            ("approved", "cancelled"),
+            ("rejected", "draft"),
+        }
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            original = self._get(connection, request_id)
+            self._expected(original, expected_revision)
+            if (original.state, target_state) not in allowed:
+                raise IntakeError("Invalid request state transition")
+            revision = original.revision + 1
+            now = datetime.now(UTC).isoformat()
+            connection.execute(
+                "INSERT INTO intake_revisions VALUES (?,?,?,?)",
+                (
+                    request_id,
+                    revision,
+                    _json(original.fields),
+                    _json(original.attachments),
+                ),
+            )
+            connection.execute(
+                "UPDATE intake_requests SET "
+                "revision=?,state=?,sync_status='not_synced',updated_at=?,"
+                "approved_revision=NULL,approval_hash=NULL "
+                "WHERE request_id=?",
+                (revision, target_state, now, request_id),
+            )
+            decision = "reopened" if target_state == "draft" else target_state
+            connection.execute(
+                "INSERT INTO intake_approvals VALUES (?,?,?,?,?,?,?,?)",
+                (
+                    str(uuid4()),
+                    request_id,
+                    revision,
+                    _digest(original.fields, original.attachments),
+                    f"local operator, uid={os.geteuid()}",
+                    now,
+                    decision,
+                    reason.strip(),
+                ),
+            )
+            return self._get(connection, request_id)
+
     def audit_history(self, request_id: str) -> tuple[dict[str, object], ...]:
         with self._connect() as connection:
             self._get(connection, request_id)
             rows = connection.execute(
-                "SELECT decision_id,revision,content_hash,actor,decided_at,decision "
+                "SELECT "
+                "decision_id,revision,content_hash,actor,decided_at,decision,reason "
+                ""
                 "FROM intake_approvals WHERE request_id=? "
                 "ORDER BY decided_at,decision_id",
                 (request_id,),
@@ -711,6 +858,17 @@ class IntakeStore:
                 "revision": request.revision,
                 "content_hash": _digest(request.fields, request.attachments),
                 "attachment_manifest": request.attachments,
+                "target": {
+                    "integration": "sharepoint",
+                    "list_contract": "Job Requests",
+                    "live_status": "unverified",
+                },
+                "not_ready": [
+                    "Live target identifiers are not configured",
+                    "Current source permissions are unverified",
+                    "Live list schema compatibility is unverified",
+                    "Dry run performs no remote write",
+                ],
                 "approval": {
                     "revision": request.revision,
                     "content_hash": _digest(request.fields, request.attachments),
@@ -720,7 +878,7 @@ class IntakeStore:
             }
 
     def _verify_evidence(self, request: IntakeRequest) -> None:
-        if not request.attachments:
+        if not request.attachments and self.evidence_root is None:
             return
         if self.evidence_root is None:
             raise IntakeError("Configure protected evidence storage before approval")

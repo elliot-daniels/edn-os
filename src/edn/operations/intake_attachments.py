@@ -129,6 +129,256 @@ class IntakeAttachmentStore:
         except OSError:
             raise IntakeAttachmentError("Attachment storage is unavailable.") from None
         self.root = root
+        self.recover()
+
+    @staticmethod
+    def _names(directory: AnchoredDirectory, limit: int = 2100) -> list[str]:
+        names: list[str] = []
+        with os.scandir(directory.fd) as entries:
+            for entry in entries:
+                if len(names) >= limit:
+                    raise IntakeAttachmentError(
+                        "Attachment recovery exceeds its bounded limit."
+                    )
+                names.append(entry.name)
+        return names
+
+    @staticmethod
+    def _pending(name: str) -> bool:
+        for prefix in (".pending-", ".quota-"):
+            if name.startswith(prefix):
+                try:
+                    _uuid(name.removeprefix(prefix))
+                    return True
+                except IntakeAttachmentError:
+                    return False
+        return False
+
+    @staticmethod
+    def _validate_entries(entries: Any) -> None:
+        if not isinstance(entries, list) or len(entries) > MAX_REQUEST_FILES:
+            raise IntakeAttachmentError("Attachment receipt entries are invalid.")
+        seen: set[str] = set()
+        total = 0
+        for entry in entries:
+            if not isinstance(entry, dict) or set(entry) != {
+                "attachment_id",
+                "size_bytes",
+                "state",
+            }:
+                raise IntakeAttachmentError("Attachment receipt entries are invalid.")
+            _uuid(entry["attachment_id"])
+            if (
+                entry["attachment_id"] in seen
+                or type(entry["size_bytes"]) is not int
+                or not 1 <= entry["size_bytes"] <= MAX_ATTACHMENT_BYTES
+                or entry["state"] not in {"reserved", "complete"}
+            ):
+                raise IntakeAttachmentError("Attachment receipt entries are invalid.")
+            seen.add(entry["attachment_id"])
+            total += entry["size_bytes"]
+        if total > MAX_REQUEST_BYTES:
+            raise IntakeAttachmentError("Attachment receipt exceeds its quota.")
+
+    def recover(self) -> None:
+        """Quarantine interrupted reservations at startup; never delete originals."""
+        require_supported_platform()
+        try:
+            with AnchoredDirectory(self.root) as root:
+                requests: list[str] = []
+                for name in self._names(root):
+                    try:
+                        _uuid(name)
+                    except IntakeAttachmentError:
+                        continue
+                    requests.append(name)
+                    if len(requests) > 1000:
+                        raise IntakeAttachmentError(
+                            "Attachment recovery exceeds its bounded limit."
+                        )
+                for request_id in requests:
+                    with (
+                        root.lock(request_id + ".lock"),
+                        root.child(request_id) as request,
+                    ):
+                        self._recover_request(root, request, request_id)
+        except OSError:
+            raise IntakeAttachmentError(
+                "Attachment recovery could not be committed."
+            ) from None
+        except (ValueError, TypeError, RecursionError) as error:
+            if isinstance(error, IntakeAttachmentError):
+                raise
+            raise IntakeAttachmentError(
+                "Attachment recovery metadata is invalid."
+            ) from None
+
+    def _journal(self, request: AnchoredDirectory, payload: dict[str, Any]) -> None:
+        pending = ".quota-" + str(uuid4())
+        content = json.dumps(payload, sort_keys=True).encode("utf-8")
+        if len(content) > MAX_METADATA_BYTES:
+            raise IntakeAttachmentError(
+                "Attachment recovery exceeds its bounded limit."
+            )
+        try:
+            _stage_file(request, pending, content)
+            request.replace(pending, ".recovery.json")
+            os.fsync(request.fd)
+        finally:
+            if request.exists(pending):
+                request.unlink(pending)
+
+    def _recover_request(
+        self, root: AnchoredDirectory, request: AnchoredDirectory, request_id: str
+    ) -> None:
+        if request.exists(".recovery.json"):
+            plan = json.loads(
+                _read_regular(request, ".recovery.json", MAX_METADATA_BYTES)
+            )
+        else:
+            names = self._names(request, 301)
+            if not request.exists("attachments.json"):
+                if not names:
+                    return
+                entries: list[dict[str, Any]] = []
+            else:
+                entries = self._quota(request, request_id)
+            complete = {
+                entry["attachment_id"]
+                for entry in entries
+                if entry["state"] == "complete"
+            }
+            moves: list[dict[str, str]] = []
+            for name in names:
+                if name == "attachments.json" or name in complete:
+                    continue
+                if self._pending(name):
+                    descriptor = request.open_file(name)
+                    try:
+                        if os.fstat(descriptor).st_size > MAX_METADATA_BYTES:
+                            raise IntakeAttachmentError(
+                                "Attachment recovery asset is invalid."
+                            )
+                    finally:
+                        os.close(descriptor)
+                    kind = "file"
+                else:
+                    _uuid(name)
+                    with request.child(name) as folder:
+                        for member in self._names(folder, 10):
+                            if member not in {
+                                "original.bin",
+                                "metadata.json",
+                            } and not self._pending(member):
+                                raise IntakeAttachmentError(
+                                    "Attachment recovery asset is invalid."
+                                )
+                            descriptor = folder.open_file(member)
+                            try:
+                                if os.fstat(descriptor).st_size > MAX_ATTACHMENT_BYTES:
+                                    raise IntakeAttachmentError(
+                                        "Attachment recovery asset is invalid."
+                                    )
+                            finally:
+                                os.close(descriptor)
+                    kind = "directory"
+                moves.append(
+                    {"source": name, "target": f"asset-{len(moves):03d}", "kind": kind}
+                )
+            kept = [entry for entry in entries if entry["state"] == "complete"]
+            if not moves and kept == entries:
+                return
+            plan = {
+                "schema_version": 1,
+                "request_id": request_id,
+                "recovery_id": str(uuid4()),
+                "old_entries": entries,
+                "new_entries": kept,
+                "moves": moves,
+            }
+            self._journal(request, plan)
+        if (
+            not isinstance(plan, dict)
+            or set(plan)
+            != {
+                "schema_version",
+                "request_id",
+                "recovery_id",
+                "old_entries",
+                "new_entries",
+                "moves",
+            }
+            or type(plan["schema_version"]) is not int
+            or plan["schema_version"] != 1
+            or plan["request_id"] != request_id
+        ):
+            raise IntakeAttachmentError("Attachment recovery journal is invalid.")
+        _uuid(plan["recovery_id"])
+        for key in ("old_entries", "new_entries"):
+            self._validate_entries(plan[key])
+        if plan["new_entries"] != [
+            entry for entry in plan["old_entries"] if entry["state"] == "complete"
+        ]:
+            raise IntakeAttachmentError("Attachment recovery journal is invalid.")
+        moves = plan["moves"]
+        if not isinstance(moves, list) or len(moves) > 300:
+            raise IntakeAttachmentError("Attachment recovery journal is invalid.")
+        current = (
+            self._quota(request, request_id)
+            if request.exists("attachments.json")
+            else []
+        )
+        if current not in (plan["old_entries"], plan["new_entries"]):
+            raise IntakeAttachmentError("Attachment recovery receipt changed.")
+        with (
+            root.child(".quarantine", create=True) as quarantine,
+            quarantine.child(request_id, create=True) as request_archive,
+            request_archive.child(plan["recovery_id"], create=True) as archive,
+        ):
+            seen: set[str] = set()
+            for index, move in enumerate(moves):
+                if (
+                    not isinstance(move, dict)
+                    or set(move) != {"source", "target", "kind"}
+                    or move["target"] != f"asset-{index:03d}"
+                    or move["kind"] not in {"file", "directory"}
+                    or move["source"] in seen
+                ):
+                    raise IntakeAttachmentError(
+                        "Attachment recovery journal is invalid."
+                    )
+                if move["kind"] == "file":
+                    if not self._pending(move["source"]):
+                        raise IntakeAttachmentError(
+                            "Attachment recovery journal is invalid."
+                        )
+                else:
+                    _uuid(move["source"])
+                    if any(
+                        entry["attachment_id"] == move["source"]
+                        and entry["state"] == "complete"
+                        for entry in plan["old_entries"]
+                    ):
+                        raise IntakeAttachmentError(
+                            "Completed attachments cannot be quarantined."
+                        )
+                seen.add(move["source"])
+                if request.exists(move["source"]):
+                    if archive.exists(move["target"]):
+                        raise IntakeAttachmentError(
+                            "Attachment quarantine target already exists."
+                        )
+                    request.move_to(move["source"], archive, move["target"])
+                    os.fsync(request.fd)
+                    os.fsync(archive.fd)
+                elif not archive.exists(move["target"]):
+                    raise IntakeAttachmentError(
+                        "Attachment quarantine asset is missing."
+                    )
+            self._save_quota(request, request_id, plan["new_entries"])
+            request.move_to(".recovery.json", archive, "sweep.json")
+            os.fsync(request.fd)
+            os.fsync(archive.fd)
 
     def _quota(
         self, request: AnchoredDirectory, request_id: str
@@ -292,8 +542,28 @@ class IntakeAttachmentStore:
                 root.child(request_id, create=True) as request,
             ):
                 os.fsync(root.fd)
+                self._recover_request(root, request, request_id)
                 entries = self._quota(request, request_id)
                 self._physical(request, request_id, entries)
+                for entry in entries:
+                    if entry["state"] != "complete":
+                        continue
+                    with request.child(entry["attachment_id"]) as existing:
+                        previous = self._metadata(
+                            existing, request_id, entry["attachment_id"]
+                        )
+                        if previous.sha256 == record.sha256:
+                            original = _read_regular(
+                                existing, "original.bin", MAX_ATTACHMENT_BYTES
+                            )
+                            if (
+                                hashlib.sha256(original).hexdigest() != record.sha256
+                                or len(original) != previous.size_bytes
+                            ):
+                                raise IntakeAttachmentError(
+                                    "Stored attachment failed its integrity check."
+                                )
+                            return previous
                 if (
                     len(entries) >= MAX_REQUEST_FILES
                     or sum(entry["size_bytes"] for entry in entries) + record.size_bytes
@@ -305,7 +575,9 @@ class IntakeAttachmentStore:
                 if any(
                     entry["attachment_id"] == record.attachment_id for entry in entries
                 ):
-                    raise IntakeAttachmentError("Attachment identity already exists.")
+                    raise IntakeAttachmentError(
+                        "Attachment could not be stored: identity already exists."
+                    )
                 reserved = [
                     *entries,
                     {
