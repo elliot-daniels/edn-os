@@ -71,8 +71,30 @@ publish with descriptor-relative atomic replacement; readonly query_only session
 never persist. Initial publication is no-clobber. SQLite never opens a disk pathname
 or infers ownership from descriptor numbers. DB metadata is bounded to100MB;
 evidence bytes stay separate. Missing stdlib snapshot primitives fail closed.
-Failed transactions/publication preserve the original snapshot; process termination
+Failed transactions and pre-publication failures preserve the original snapshot; process termination
 before publication leaves only a private unconfirmed pending file. Existing active
 WAL/journal stores require owner-led recovery rather than automatic adoption.
 Linux roundtrip, concurrent/restart, failure and parent/final-name replacement tests
 remain mandatory hosted evidence before acceptance. No real-store migration occurs.
+
+
+Snapshot publication is the commit point. A directory fsync failure after atomic
+replacement is an uncertain commit, not a rollback guarantee; reload determines
+the actual durable revision before retrying. No destructive reverse rename is
+attempted. Pending files before publication remain unconfirmed private recovery
+artifacts. The backend accounts every physical request folder and all receipt
+entries, rejecting orphans, incomplete reservations and inconsistent quota sizes.
+Native Linux mount identity is verified; DrvFs/9p and unsupported filesystems are
+refused even when metadata presents private modes.
+
+| From | Permitted target/action | Reason/audit |
+|---|---|---|
+| draft | approved; rejected; cancelled; edited draft | approve explicit; rejection/cancel need bounded reason |
+| approved | edited draft; rejected; cancelled | edit invalidates approval; terminal decisions need reason |
+| rejected | reopened draft | bounded reopening reason |
+| cancelled | none | terminal, source/revisions retained |
+
+Creation records entered_by local UID, UTC instant, first revision and content
+hash. All transitions append revisions/audits; source facts and previous approval
+history remain intact. Exports itemize unconfigured/unverified live prerequisites
+and carry a truthful contract target descriptor, never fabricated tenant/list IDs.

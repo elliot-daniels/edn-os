@@ -187,3 +187,50 @@ def test_decimal_upload_bounds_are_exact_and_create_no_storage(monkeypatch):
         validate_attachment_payload("support.pdf", payload + b"x")
     assert module.MAX_REQUEST_BYTES == 100_000_000
     assert module.MAX_REQUEST_FILES == 100
+
+
+@pytest.mark.parametrize("prefix", [b"%PDF-1.7\n", b"prefix", b"PK\x05\x06"])
+def test_docx_requires_local_zip_header_at_offset_zero(prefix):
+    with pytest.raises(IntakeAttachmentError, match="local header"):
+        validate_attachment_payload("support.docx", prefix + docx_bytes())
+
+
+def test_pdf_with_zip_tail_is_rejected_even_when_eof_is_near_end():
+    from zipfile import ZipFile
+
+    stream = io.BytesIO()
+    with ZipFile(stream, "w") as archive:
+        archive.writestr("payload", b"synthetic")
+    polyglot = PDF + stream.getvalue()
+    assert b"%%EOF" in polyglot[-1024:]
+    with pytest.raises(IntakeAttachmentError, match="polyglot"):
+        validate_attachment_payload("support.pdf", polyglot)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"Subject: Example\r\n\r\nBody",
+        b"From: synthetic@example.invalid\r\n" + b"X-A: value\r\n" * 1000 + b"\r\nBody",
+        b"From: synthetic@example.invalid\r\nX-Long: " + b"x" * 1200 + b"\r\n\r\nBody",
+    ],
+)
+def test_eml_minimum_fields_and_header_resource_bounds(payload):
+    with pytest.raises(IntakeAttachmentError, match="EML"):
+        validate_attachment_payload("support.eml", payload)
+
+
+@pytest.mark.parametrize(
+    "minimum",
+    [b"From: synthetic@example.invalid", b"Date: Thu, 09 Oct 2026 10:00:00 +0000"],
+)
+def test_eml_boundary_accepts_from_or_date_and_exactly_one_thousand_headers(minimum):
+    payload = minimum + b"\r\n" + b"X-A: value\r\n" * 999 + b"\r\nBody"
+    assert validate_attachment_payload("support.eml", payload)[1] == "message/rfc822"
+    line = b"X-Long: " + b"x" * (998 - len(b"X-Long: "))
+    assert (
+        validate_attachment_payload(
+            "support.eml", minimum + b"\r\n" + line + b"\r\n\r\nBody"
+        )[1]
+        == "message/rfc822"
+    )

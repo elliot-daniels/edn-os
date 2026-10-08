@@ -34,6 +34,36 @@ def require_supported_platform() -> None:
         ) from None
 
 
+def _require_linux_filesystem(descriptor: int) -> None:
+    try:
+        fdinfo = Path(f"/proc/self/fdinfo/{descriptor}").read_text(encoding="ascii")
+        mount_id = next(
+            line.split()[1]
+            for line in fdinfo.splitlines()
+            if line.startswith("mnt_id:")
+        )
+        mountinfo = Path("/proc/self/mountinfo").read_text(encoding="utf-8")
+        line = next(
+            line for line in mountinfo.splitlines() if line.split()[0] == mount_id
+        )
+        filesystem = line.split(" - ", 1)[1].split()[0]
+        if filesystem not in {
+            "ext2",
+            "ext3",
+            "ext4",
+            "xfs",
+            "btrfs",
+            "tmpfs",
+            "overlay",
+            "zfs",
+        }:
+            raise ValueError
+    except (OSError, ValueError, IndexError, StopIteration):
+        raise IntakeSecurityError(
+            "Intake storage requires a protected Linux filesystem; DrvFs is unsupported"
+        ) from None
+
+
 def validate_root(root: Path) -> Path:
     require_supported_platform()
     if not root.is_absolute():
@@ -132,6 +162,7 @@ class AnchoredDirectory:
                 os.close(descriptor)
                 descriptor = following
             self._check_directory(descriptor)
+            _require_linux_filesystem(descriptor)
         except BaseException:
             os.close(descriptor)
             raise
@@ -143,6 +174,7 @@ class AnchoredDirectory:
         result.fd = descriptor
         try:
             cls._check_directory(descriptor)
+            _require_linux_filesystem(descriptor)
         except BaseException:
             os.close(descriptor)
             raise
@@ -183,9 +215,9 @@ class AnchoredDirectory:
 
     def open_file(self, name: str, *, create: bool = False, write: bool = False) -> int:
         name = self._name(name)
-        flags = (os.O_RDWR if write else os.O_RDONLY) | os.O_NOFOLLOW
+        flags = (os.O_RDWR if write else os.O_RDONLY) | os.O_NOFOLLOW | os.O_NONBLOCK
         if create:
-            flags = os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+            flags = os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_NONBLOCK
         descriptor = os.open(name, flags, 0o600, dir_fd=self.fd)
         try:
             _validate_descriptor(descriptor)
@@ -210,6 +242,11 @@ class AnchoredDirectory:
         )
 
     def publish(self, source: str, target: str) -> None:
+        self.move_to(source, self, target)
+
+    def move_to(self, source: str, destination: AnchoredDirectory, target: str) -> None:
+        self._check_directory(self.fd)
+        self._check_directory(destination.fd)
         import ctypes
 
         libc = ctypes.CDLL(None, use_errno=True)
@@ -228,7 +265,7 @@ class AnchoredDirectory:
             rename(
                 self.fd,
                 os.fsencode(self._name(source)),
-                self.fd,
+                destination.fd,
                 os.fsencode(self._name(target)),
                 1,
             )
@@ -273,88 +310,152 @@ def verify_evidence(
     root: Path, request_id: str, manifest: tuple[dict[str, object], ...]
 ) -> None:
     """Require completed quota receipts and exact persisted evidence bytes."""
-    import hashlib
-    import json
 
     try:
         if str(UUID(request_id)) != request_id:
             raise ValueError
         with (
             AnchoredDirectory(root) as directory,
-            directory.child(request_id) as request,
         ):
-            receipt_fd = request.open_file("attachments.json")
-            with os.fdopen(receipt_fd, "rb") as stream:
-                receipt = json.loads(stream.read(65537))
+            if not directory.exists(request_id) and not manifest:
+                return
+            with directory.child(request_id) as request:
+                _verify_request_evidence(request, request_id, manifest)
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RecursionError):
+        raise IntakeSecurityError(
+            "Stored request evidence is unavailable or invalid"
+        ) from None
+
+
+def _verify_request_evidence(
+    request: AnchoredDirectory, request_id: str, manifest: tuple[dict[str, object], ...]
+) -> None:
+    import hashlib
+    import json
+
+    try:
+        receipt_fd = request.open_file("attachments.json")
+        with os.fdopen(receipt_fd, "rb") as stream:
+            receipt = json.loads(stream.read(65537))
+        if (
+            set(receipt) != {"schema_version", "request_id", "entries"}
+            or type(receipt["schema_version"]) is not int
+            or receipt["schema_version"] != 1
+            or receipt["request_id"] != request_id
+        ):
+            raise ValueError
+        entries = receipt["entries"]
+        if not isinstance(entries, list) or len(entries) > 100:
+            raise ValueError
+        total = 0
+        complete = {}
+        for entry in entries:
             if (
-                set(receipt) != {"schema_version", "request_id", "entries"}
-                or receipt["schema_version"] != 1
-                or receipt["request_id"] != request_id
+                set(entry) != {"attachment_id", "size_bytes", "state"}
+                or str(UUID(entry["attachment_id"])) != entry["attachment_id"]
+                or type(entry["size_bytes"]) is not int
+                or not 0 < entry["size_bytes"] <= 20_000_000
+                or entry["state"] not in {"reserved", "complete"}
             ):
                 raise ValueError
-            entries = receipt["entries"]
-            if not isinstance(entries, list) or len(entries) > 100:
+            if entry["attachment_id"] in complete:
                 raise ValueError
-            total = 0
-            complete = {}
-            for entry in entries:
-                if (
-                    set(entry) != {"attachment_id", "size_bytes", "state"}
-                    or str(UUID(entry["attachment_id"])) != entry["attachment_id"]
-                    or type(entry["size_bytes"]) is not int
-                    or not 0 < entry["size_bytes"] <= 20_000_000
-                    or entry["state"] not in {"reserved", "complete"}
-                ):
+            complete[entry["attachment_id"]] = entry
+            total += entry["size_bytes"]
+        if total > 100_000_000:
+            raise ValueError
+        if any(entry["state"] != "complete" for entry in entries):
+            raise ValueError
+        allowed = set(complete) | {"attachments.json"}
+        if any(name not in allowed for name in os.listdir(request.fd)):
+            raise ValueError
+        for entry in entries:
+            identifier = entry["attachment_id"]
+            if not request.exists(identifier):
+                if entry["state"] == "complete":
                     raise ValueError
-                if entry["attachment_id"] in complete:
+                continue
+            with request.child(identifier) as folder:
+                names = os.listdir(folder.fd)
+                if any(name not in {"original.bin", "metadata.json"} for name in names):
                     raise ValueError
-                complete[entry["attachment_id"]] = entry
-                total += entry["size_bytes"]
-            if total > 100_000_000:
-                raise ValueError
-            for metadata in manifest:
-                attachment_id = metadata["attachment_id"]
-                if (
-                    not isinstance(attachment_id, str)
-                    or metadata["request_id"] != request_id
-                ):
-                    raise ValueError
-                entry = complete.get(attachment_id)
-                if (
-                    entry is None
-                    or entry["state"] != "complete"
-                    or entry["size_bytes"] != metadata["size_bytes"]
-                ):
-                    raise ValueError
-                with request.child(attachment_id) as attachment:
-                    fd = attachment.open_file("metadata.json")
-                    with os.fdopen(fd, "rb") as stream:
-                        stored = json.loads(stream.read(65537))
-                    if stored != metadata:
+                for name in names:
+                    fd = folder.open_file(name)
+                    try:
+                        observed = os.fstat(fd)
+                        cap = 65536 if name == "metadata.json" else entry["size_bytes"]
+                        if observed.st_size > cap:
+                            raise ValueError
+                        if (
+                            entry["state"] == "complete"
+                            and name == "original.bin"
+                            and observed.st_size != entry["size_bytes"]
+                        ):
+                            raise ValueError
+                    finally:
+                        os.close(fd)
+                if entry["state"] == "complete":
+                    if set(names) != {"original.bin", "metadata.json"}:
                         raise ValueError
-                    fd = attachment.open_file("original.bin")
+                    fd = folder.open_file("metadata.json")
                     with os.fdopen(fd, "rb") as stream:
-                        payload = stream.read(20_000_001)
-                    from edn.operations.intake_formats import (
-                        validate_attachment_payload,
-                    )
+                        metadata = json.loads(stream.read(65537))
+                    if (
+                        set(metadata)
+                        != {
+                            "attachment_id",
+                            "request_id",
+                            "original_name",
+                            "media_type",
+                            "size_bytes",
+                            "sha256",
+                        }
+                        or metadata["attachment_id"] != identifier
+                        or metadata["request_id"] != request_id
+                        or type(metadata["size_bytes"]) is not int
+                        or metadata["size_bytes"] != entry["size_bytes"]
+                    ):
+                        raise ValueError
+        for metadata in manifest:
+            attachment_id = metadata["attachment_id"]
+            if (
+                not isinstance(attachment_id, str)
+                or metadata["request_id"] != request_id
+            ):
+                raise ValueError
+            entry = complete.get(attachment_id)
+            if (
+                entry is None
+                or entry["state"] != "complete"
+                or entry["size_bytes"] != metadata["size_bytes"]
+            ):
+                raise ValueError
+            with request.child(attachment_id) as attachment:
+                fd = attachment.open_file("metadata.json")
+                with os.fdopen(fd, "rb") as stream:
+                    stored = json.loads(stream.read(65537))
+                if stored != metadata:
+                    raise ValueError
+                fd = attachment.open_file("original.bin")
+                with os.fdopen(fd, "rb") as stream:
+                    payload = stream.read(20_000_001)
+                from edn.operations.intake_formats import (
+                    validate_attachment_payload,
+                )
 
-                    original_name = metadata["original_name"]
-                    if not isinstance(original_name, str):
-                        raise ValueError
-                    normalized_name, media = validate_attachment_payload(
-                        original_name, payload
-                    )
-                    if (
-                        normalized_name != original_name
-                        or media != metadata["media_type"]
-                    ):
-                        raise ValueError
-                    if (
-                        len(payload) != metadata["size_bytes"]
-                        or hashlib.sha256(payload).hexdigest() != metadata["sha256"]
-                    ):
-                        raise ValueError
+                original_name = metadata["original_name"]
+                if not isinstance(original_name, str):
+                    raise ValueError
+                normalized_name, media = validate_attachment_payload(
+                    original_name, payload
+                )
+                if normalized_name != original_name or media != metadata["media_type"]:
+                    raise ValueError
+                if (
+                    len(payload) != metadata["size_bytes"]
+                    or hashlib.sha256(payload).hexdigest() != metadata["sha256"]
+                ):
+                    raise ValueError
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RecursionError):
         raise IntakeSecurityError(
             "Stored request evidence is unavailable or invalid"

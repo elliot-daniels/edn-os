@@ -26,3 +26,13 @@ The protected storage/receipt/hash checks belong to the separate shared security
 helper and writer. This dependency can be merged into core without importing the
 attachment writer. Synthetic pure-codec tests run on Windows and Linux; they do
 not establish positive protected storage acceptance.
+
+## Direct QA repairs F40-13/F40-14
+
+DOCX must begin with `PK\x03\x04` at byte offset zero. Valid ZIP polyglots
+appended to PDF/image payloads are rejected, including a ZIP tail that leaves
+PDF EOF within the previous envelope bound. EML has at most1,000 header fields,
+998 octets per header line excluding CRLF, and65,536 header bytes. The chosen
+minimum is a nonempty From or Date header; Subject-only messages are rejected.
+These policies apply identically at upload and backend approval/export. Pure
+regressions reproduce the direct Grok findings and test exact boundary acceptance.

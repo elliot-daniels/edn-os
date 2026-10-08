@@ -13,7 +13,7 @@ from email.parser import BytesHeaderParser
 from pathlib import Path, PurePosixPath
 from typing import cast
 from xml.etree import ElementTree
-from zipfile import ZIP_DEFLATED, ZIP_STORED, BadZipFile, ZipFile
+from zipfile import ZIP_DEFLATED, ZIP_STORED, BadZipFile, ZipFile, is_zipfile
 
 MAX_ATTACHMENT_BYTES = 20_000_000
 MAX_REQUEST_BYTES = 100_000_000
@@ -60,6 +60,8 @@ def _text(payload: bytes) -> str:
 
 
 def _docx(payload: bytes) -> None:
+    if not payload.startswith(b"PK\x03\x04"):
+        raise IntakeAttachmentError("DOCX must begin with its ZIP local header.")
     try:
         with ZipFile(io.BytesIO(payload)) as archive:
             entries = archive.infolist()
@@ -165,7 +167,9 @@ def validate_attachment_payload(filename: str, payload: bytes) -> tuple[str, str
     if not isinstance(payload, bytes):
         raise IntakeAttachmentError("Attachment content must be bytes.")
     if not 1 <= len(payload) <= MAX_ATTACHMENT_BYTES:
-        raise IntakeAttachmentError("Attachment exceeds the 20,000,000-byte limit.")
+        raise IntakeAttachmentError(
+            "Attachment size exceeds the 20,000,000-byte limit."
+        )
     suffix = Path(name).suffix.casefold()
     media = MEDIA_TYPES.get(suffix)
     if media is None:
@@ -175,16 +179,19 @@ def validate_attachment_payload(filename: str, payload: bytes) -> tuple[str, str
     if suffix == ".docx":
         _docx(payload)
     elif suffix in {".txt", ".eml"}:
-        text = _text(payload)
+        _text(payload)
         if suffix == ".eml":
-            headers = re.split(r"\r?\n\r?\n", text, maxsplit=1)[0]
-            if len(headers.encode("utf-8")) > 65_536:
+            headers = re.split(rb"\r?\n\r?\n", payload, maxsplit=1)[0]
+            if len(headers) > 65_536 or any(
+                len(line.rstrip(b"\r")) > 998 for line in headers.split(b"\n")
+            ):
                 raise IntakeAttachmentError("EML headers exceed the supported limit.")
             try:
                 message = BytesHeaderParser(policy=policy.default).parsebytes(payload)
-                valid_headers = not message.defects and any(
-                    message.get(field)
-                    for field in ("From", "To", "Subject", "Date", "Message-ID")
+                valid_headers = (
+                    not message.defects
+                    and len(tuple(message.raw_items())) <= 1000
+                    and any(message.get(field) for field in ("From", "Date"))
                 )
             except Exception:
                 # Untrusted standard-library parsing must not disclose payloads.
@@ -192,6 +199,8 @@ def validate_attachment_payload(filename: str, payload: bytes) -> tuple[str, str
             if not valid_headers:
                 raise IntakeAttachmentError("EML headers are invalid.")
     else:
+        if is_zipfile(io.BytesIO(payload)):
+            raise IntakeAttachmentError("Attachment format polyglots are unsupported.")
         valid = (
             (
                 suffix == ".pdf"

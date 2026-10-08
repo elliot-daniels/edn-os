@@ -42,7 +42,8 @@ def test_owned_modes_links_and_self_approval_audit(tmp_path):
     assert "self-approval" in approved.approval_actor
     assert approved.approval_timestamp
     audit = requests.audit_history(request.request_id)
-    assert audit[0]["revision"] == 1 and audit[0]["decision"] == "approved"
+    assert audit[0]["revision"] == 1 and audit[0]["decision"] == "created"
+    assert audit[1]["decision"] == "approved"
     requests.update(request.request_id, 1, fields(reference="changed"))
     assert requests.audit_history(request.request_id)[0] == audit[0]
     assert (
