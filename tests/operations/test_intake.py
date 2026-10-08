@@ -45,25 +45,37 @@ def test_review_approve_dry_run_edit_restart_and_exact_mapping(tmp_path):
     requests = store(tmp_path)
     if requests is None:
         return
-    request = requests.create(fields(), submission_id=str(uuid4()))
+    submission_id = str(uuid4())
+    request = requests.create(fields(), submission_id=submission_id)
     assert request.state == "draft" and request.sync_status == "not_synced"
     with pytest.raises(IntakeError, match="Approve"):
         requests.export(request.request_id, 1)
-    requests.approve(request.request_id, 1)
+    approved = requests.approve(request.request_id, 1)
     exported = requests.export(request.request_id, 1)
-    assert {
-        key: value
-        for key, value in exported.items()
-        if key
-        not in {
-            "content_hash",
-            "attachment_manifest",
-            "approval",
-            "submission_id",
-            "idempotency_key",
-            "source_provenance",
-        }
-    } == {
+    audit = requests.audit_history(request.request_id)[-1]
+    assert exported == {
+        "submission_id": submission_id,
+        "idempotency_key": submission_id,
+        "source_provenance": {"source_type": "manual", "source": "EDN OS Manual"},
+        "content_hash": audit["content_hash"],
+        "attachment_manifest": (),
+        "approval": {
+            "revision": 1,
+            "content_hash": audit["content_hash"],
+            "actor": approved.approval_actor,
+            "timestamp": approved.approval_timestamp,
+        },
+        "target": {
+            "integration": "sharepoint",
+            "list_contract": "Job Requests",
+            "live_status": "unverified",
+        },
+        "not_ready": [
+            "Live target identifiers are not configured",
+            "Current source permissions are unverified",
+            "Live list schema compatibility is unverified",
+            "Dry run performs no remote write",
+        ],
         "request_id": request.request_id,
         "revision": 1,
         "dry_run": True,

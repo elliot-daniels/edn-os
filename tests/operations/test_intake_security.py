@@ -46,11 +46,15 @@ def test_owned_modes_links_and_self_approval_audit(tmp_path):
     assert audit[0]["revision"] == 1 and audit[0]["decision"] == "created"
     assert audit[1]["decision"] == "approved"
     requests.update(request.request_id, 1, fields(reference="changed"))
-    assert requests.audit_history(request.request_id)[0] == audit[0]
-    assert (
-        requests.audit_history(request.request_id)[1]["decision"]
-        == "edited_approval_invalidated"
-    )
+    history = requests.audit_history(request.request_id)
+    assert history[:2] == audit
+    assert [entry["decision"] for entry in history] == [
+        "created",
+        "approved",
+        "edited_approval_invalidated",
+    ]
+    assert [entry["revision"] for entry in history] == [1, 1, 2]
+    assert history[2]["content_hash"] != history[1]["content_hash"]
     assert requests.get(request.request_id).approval_actor is None
     link = tmp_path / "hardlink.db"
     os.link(requests.path, link)
@@ -128,7 +132,9 @@ def test_corrupt_audit_refuses_get_export_history_without_write(tmp_path, field,
     request = requests.create(fields(), submission_id=str(uuid4()))
     requests.approve(request.request_id, 1)
     with sqlite3.connect(requests.path) as connection:
-        connection.execute(f"UPDATE intake_approvals SET {field}=?", (value,))
+        connection.execute(
+            f"UPDATE intake_approvals SET {field}=? WHERE decision='approved'", (value,)
+        )
     before = requests.path.read_bytes()
     for action in (
         lambda: requests.get(request.request_id),
