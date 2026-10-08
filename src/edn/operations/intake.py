@@ -61,7 +61,11 @@ def validate_fields(fields: Mapping[str, object]) -> dict[str, str]:
         value = value.strip()
         if any(ord(c) < 32 and c not in "\n\r\t" for c in value):
             raise IntakeError("Request contains unsupported controls")
-        if len(value.encode("utf-16-le")) // 2 > LIMITS.get(name, 100):
+        try:
+            length = len(value.encode("utf-16-le")) // 2
+        except UnicodeEncodeError:
+            raise IntakeError("Request field contains invalid Unicode") from None
+        if length > LIMITS.get(name, 100):
             raise IntakeError("Request field exceeds its limit")
         result[name] = value
     if any(

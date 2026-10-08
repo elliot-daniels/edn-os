@@ -208,3 +208,28 @@ def test_queue_pages_preserve_all_requests_and_reject_invalid_bounds(tmp_path):
     for options in ({"limit": 0}, {"offset": -1}, {"limit": True}):
         with pytest.raises(IntakeError):
             requests.list_requests(**options)
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "contactName",
+        "company",
+        "email",
+        "phone",
+        "siteLocation",
+        "preferredDate",
+        "jobDescription",
+        "reference",
+        "serviceRequired",
+        "urgency",
+    ],
+)
+def test_invalid_unicode_has_fixed_diagnostic_and_no_write(tmp_path, name):
+    requests = store(tmp_path)
+    before = requests.path.read_bytes()
+    with pytest.raises(IntakeError, match="invalid Unicode") as raised:
+        requests.create(fields(**{name: "\ud800"}))
+    assert raised.value.__cause__ is None
+    assert requests.path.read_bytes() == before
+    assert requests.list_requests() == ()
