@@ -15,6 +15,16 @@ synthetic item or records a known failure if no item exists. Repeated successful
 delivery returns the prior receipt without creating another synthetic item.
 Changed payloads cannot silently reuse a delivery key.
 
+Manual submission identity remains stable. Synthetic delivery identity derives
+from that key, canonical work UUID, approved revision and approved content hash.
+Each approved version has its own receipt, while the private receiver work record
+keeps one synthetic identity across versions. Known failed/successful versions
+allow a newly reviewed version; any pending/unknown version blocks delivery of
+later versions until explicit reconciliation. Older unconfirmed receipts expose
+only identity/status/audit metadata and can be reconciled without caching source
+bodies in the UI. A bounded descriptor-relative scan refuses stores exceeding
+3,000 entries. This is a synthetic demo bound, not an operational migration.
+
 Receipts and ledger use existing Linux/WSL protected-storage contracts: private
 owned directories/files, bounded reads, descriptor-relative operations, serialized
 lock, complete staged writes and fsync before atomic publication. Native Windows
