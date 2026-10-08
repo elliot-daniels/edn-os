@@ -538,8 +538,30 @@ class IntakeStore:
         if creation is None:
             raise IntakeError("Request creation audit is missing")
         _audit_row(connection, request_id, creation)
-        if creation[4] != row[4]:
+        if creation[1] != 1 or creation[4] != row[4]:
             raise IntakeError("Request creation timestamp is inconsistent")
+        latest = connection.execute(
+            "SELECT decision_id,revision,content_hash,actor,decided_at,decision,reason "
+            "FROM intake_approvals WHERE request_id=? ORDER BY rowid DESC LIMIT 1",
+            (request_id,),
+        ).fetchone()
+        if latest is None:
+            raise IntakeError("Current request audit is missing")
+        _audit_row(connection, request_id, latest)
+        expected_decisions = {
+            "draft": {"created"}
+            if row[1] == 1
+            else {"edited", "edited_approval_invalidated", "reopened"},
+            "approved": {"approved"},
+            "rejected": {"rejected"},
+            "cancelled": {"cancelled"},
+        }
+        if (
+            latest[1] != row[1]
+            or latest[2] != _digest(fields, attachments)
+            or latest[5] not in expected_decisions[row[2]]
+        ):
+            raise IntakeError("Current request state has no matching audited decision")
         return IntakeRequest(
             request_id,
             row[1],

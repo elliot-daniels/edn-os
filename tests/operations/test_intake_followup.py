@@ -183,3 +183,44 @@ def test_backend_physical_orphans_and_receipt_corruption_refuse_approval(
     with pytest.raises(ValueError, match="evidence"):
         requests.approve(request.request_id, revised.revision)
     assert requests.path.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["forged_rejected", "forged_cancelled", "missing_edit", "missing_reopen"],
+)
+def test_current_state_requires_matching_current_revision_audit(tmp_path, mutation):
+    import sqlite3
+
+    requests = store(tmp_path)
+    if requests is None:
+        return
+    request = requests.create(fields())
+    if mutation == "missing_edit":
+        requests.update(request.request_id, 1, fields(reference="edited"))
+    elif mutation == "missing_reopen":
+        rejected = requests.transition(
+            request.request_id, 1, "rejected", reason="Synthetic reject"
+        )
+        requests.transition(
+            request.request_id, rejected.revision, "draft", reason="Synthetic reopen"
+        )
+    with sqlite3.connect(requests.path) as connection:
+        if mutation.startswith("forged"):
+            connection.execute(
+                "UPDATE intake_requests SET state=?",
+                (mutation.removeprefix("forged_"),),
+            )
+        else:
+            connection.execute(
+                "DELETE FROM intake_approvals WHERE rowid="
+                "(SELECT max(rowid) FROM intake_approvals)"
+            )
+    before = requests.path.read_bytes()
+    with pytest.raises(IntakeError):
+        requests.get(request.request_id)
+    result = requests.list_requests_with_diagnostics()
+    assert result.requests == () and result.malformed == 1
+    with pytest.raises(IntakeError):
+        requests.export(request.request_id, 1)
+    assert requests.path.read_bytes() == before
