@@ -286,11 +286,15 @@ class MicrosoftGraphCalendarClient:
             payload = self._get(next_url, timezone_name=timezone_name)
             raw_values = payload.get("value")
             if not isinstance(raw_values, list):
-                raise RuntimeError("Microsoft Graph returned an unexpected response.")
+                raise SourceUnavailableError(
+                    "Microsoft Graph returned an invalid collection"
+                )
             if len(raw_values) > (25 if max_items is None else max_items):
                 raise SourceUnavailableError("Graph calendar page exceeds record limit")
             if not all(isinstance(item, dict) for item in raw_values):
-                raise RuntimeError("Microsoft Graph returned an unexpected record")
+                raise SourceUnavailableError(
+                    "Microsoft Graph returned an invalid record"
+                )
             values.extend(cast(dict[str, Any], item) for item in raw_values)
             # Event reads are one bounded page before category admission. A server
             # continuation never authorizes a second calendarView request.
@@ -344,7 +348,16 @@ class MicrosoftGraphCalendarClient:
                     raise SourceUnavailableError(
                         "Graph calendar response exceeds byte limit"
                     )
-                return _json_object(content)
+                value = json.loads(content)
+                if not isinstance(value, dict):
+                    raise SourceUnavailableError(
+                        "Microsoft Graph returned an invalid object"
+                    )
+                return value
+        except (json.JSONDecodeError, UnicodeError, RecursionError):
+            raise SourceUnavailableError(
+                "Microsoft Graph Calendar returned invalid JSON"
+            ) from None
         except (urllib.error.URLError, TimeoutError) as error:
             raise SourceUnavailableError(
                 "Microsoft Graph read failed safely."
