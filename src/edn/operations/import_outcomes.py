@@ -307,6 +307,26 @@ class ImportOutcomeStore:
                 connection=connection,
             )
 
+    def latest_per_account(self, *, limit: int = 20) -> tuple[ImportOutcome, ...]:
+        """Select each account's newest attempt before bounding the account view."""
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("Outcome account limit must be between 1 and 100")
+        with self._connect() as connection:
+            table = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' "
+                "AND name='operations_import_outcomes'"
+            ).fetchone()
+            if table is None:
+                return ()
+            rows = connection.execute(
+                "SELECT * FROM (SELECT *, ROW_NUMBER() OVER ("
+                "PARTITION BY source_account ORDER BY started_at DESC, run_id DESC"
+                ") AS account_rank FROM operations_import_outcomes) "
+                "WHERE account_rank=1 ORDER BY started_at DESC, run_id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return tuple(ImportOutcome(*row[:-1]) for row in rows)
+
     def latest(
         self, *, account: str | None = None, limit: int = 20
     ) -> tuple[ImportOutcome, ...]:
