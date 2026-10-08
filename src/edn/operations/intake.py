@@ -1070,6 +1070,8 @@ class IntakeStore:
             connection.execute("BEGIN IMMEDIATE")
             original = self._get(connection, request_id)
             self._expected(original, expected_revision)
+            if self._canonical(connection, request_id) != request_id:
+                raise IntakeError("Linked request lifecycle belongs to canonical work")
             if (original.state, target_state) not in allowed:
                 raise IntakeError("Invalid request state transition")
             revision = original.revision + 1
@@ -1591,6 +1593,13 @@ class IntakeStore:
                 }:
                     raise IntakeError("Reopen requests before linking the same work")
                 canonical = self._canonical(connection, other_id)
+                if canonical != other_id:
+                    raise IntakeError("Select the canonical work request for linkage")
+                parent = self._get(connection, canonical)
+                if parent.state not in {"draft", "approved"}:
+                    raise IntakeError(
+                        "Reopen canonical work before linking the same work"
+                    )
                 if (
                     canonical == request_id
                     or self._canonical(connection, request_id) != request_id
@@ -1600,7 +1609,6 @@ class IntakeStore:
                     "INSERT INTO intake_work_links VALUES (?,?)",
                     (request_id, canonical),
                 )
-                parent = self._get(connection, canonical)
                 self._record_revision(
                     connection,
                     parent,
