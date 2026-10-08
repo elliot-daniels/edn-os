@@ -196,7 +196,7 @@ def ingest_mailbox(
         report = _ingest_mailbox(
             client, store, mailbox, start, end, max_pages=max_pages, progress=progress
         )
-    except Exception:
+    except (Exception, KeyboardInterrupt, SystemExit):
         outcomes.update(
             run_id,
             inserted=counts[0],

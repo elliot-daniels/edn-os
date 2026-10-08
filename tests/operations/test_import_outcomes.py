@@ -115,7 +115,7 @@ def test_malformed_and_bounded_runs_are_partial(tmp_path, page, limit, reason):
     assert outcome.state == "partial" and outcome.reason == reason
 
 
-def test_unhandled_interrupt_remains_durable_in_progress_after_restart(tmp_path):
+def test_catchable_interrupt_is_durable_partial_after_restart(tmp_path):
     events, outcomes = stores(tmp_path)
     with pytest.raises(KeyboardInterrupt):
         ingest_mailbox(
@@ -127,7 +127,8 @@ def test_unhandled_interrupt_remains_durable_in_progress_after_restart(tmp_path)
             outcomes=outcomes,
         )
     outcome = ImportOutcomeStore(events.path, read_only=True).latest()[0]
-    assert outcome.state == "in_progress" and outcome.finished_at is None
+    assert outcome.state == "partial" and outcome.finished_at is not None
+    assert outcome.reason == "import_error"
     assert outcome.inserted == outcome.pages == 1
 
 
@@ -170,7 +171,7 @@ def test_cli_import_status_reads_metadata_without_authentication(tmp_path, capsy
         ("malformed", "Partial"),
         ("network", "Partial"),
         ("failed", "Failed"),
-        ("interrupted", "In progress or interrupted"),
+        ("interrupted", "Partial"),
         ("complete", "Complete"),
         ("never", "never run"),
     ],
