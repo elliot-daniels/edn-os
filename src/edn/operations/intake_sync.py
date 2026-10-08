@@ -26,9 +26,15 @@ def delivery_identity(payload: dict[str, Any]) -> dict[str, Any]:
         content_hash = payload["content_hash"]
         key = payload["idempotency_key"]
         approval = payload["approval"]
+        provenance = payload.get("source_provenance", {})
+        if not isinstance(provenance, dict):
+            raise ValueError
+        work_id = provenance.get("canonical_work_id", request_id)
         if (
             not isinstance(request_id, str)
             or str(UUID(request_id)) != request_id
+            or not isinstance(work_id, str)
+            or str(UUID(work_id)) != work_id
             or type(revision) is not int
             or revision < 1
             or not isinstance(content_hash, str)
@@ -66,7 +72,13 @@ def delivery_identity(payload: dict[str, Any]) -> dict[str, Any]:
         "request_id": request_id,
         "revision": revision,
         "content_hash": content_hash,
-        "idempotency_key": key,
+        "work_id": work_id,
+        "submission_key": key,
+        "idempotency_key": hashlib.sha256(
+            json.dumps(
+                [key, work_id, revision, content_hash], separators=(",", ":")
+            ).encode()
+        ).hexdigest(),
         "payload_hash": hashlib.sha256(encoded).hexdigest(),
     }
 
@@ -178,6 +190,16 @@ class SyntheticSyncStore:
     def _stored_identity(value: Any, expected: dict[str, Any]) -> None:
         if (
             not isinstance(value, dict)
+            or set(value)
+            != {
+                "request_id",
+                "work_id",
+                "submission_key",
+                "revision",
+                "content_hash",
+                "idempotency_key",
+                "payload_hash",
+            }
             or set(value) != set(expected)
             or type(value.get("revision")) is not int
             or any(
@@ -190,6 +212,86 @@ class SyntheticSyncStore:
             raise SyntheticSyncError(
                 "Stored synthetic identity does not match approved content"
             )
+        try:
+            for key in ("request_id", "work_id"):
+                if str(UUID(value[key])) != value[key]:
+                    raise ValueError
+            if value["revision"] < 1 or not 1 <= len(value["submission_key"]) <= 256:
+                raise ValueError
+            for key in ("content_hash", "idempotency_key", "payload_hash"):
+                if re.fullmatch(r"[0-9a-f]{64}", value[key]) is None:
+                    raise ValueError
+            derived = hashlib.sha256(
+                json.dumps(
+                    [
+                        value["submission_key"],
+                        value["work_id"],
+                        value["revision"],
+                        value["content_hash"],
+                    ],
+                    separators=(",", ":"),
+                ).encode()
+            ).hexdigest()
+            if value["idempotency_key"] != derived:
+                raise ValueError
+        except (ValueError, TypeError, AttributeError):
+            raise SyntheticSyncError("Stored synthetic identity is invalid") from None
+
+    def _pending_receipts(
+        self, anchor: AnchoredDirectory, identity: dict[str, Any]
+    ) -> tuple[dict[str, Any], ...]:
+        # Bound the synthetic demo scan; ambiguous older versions block new delivery.
+        pending = []
+        with os.scandir(anchor.fd) as entries:
+            for count, entry in enumerate(entries):
+                if count >= 3000:
+                    raise SyntheticSyncError(
+                        "Synthetic delivery store exceeds its entry bound"
+                    )
+                if re.fullmatch(r"[0-9a-f]{64}\.receipt\.json", entry.name) is None:
+                    continue
+                other = self._read(anchor, entry.name)
+                if other is None or not isinstance(other.get("identity"), dict):
+                    raise SyntheticSyncError("Stored synthetic receipt is invalid")
+                self._validate(other, other["identity"])
+                if entry.name != self._name(other["identity"], ".receipt.json"):
+                    raise SyntheticSyncError(
+                        "Stored synthetic receipt identity is inconsistent"
+                    )
+                if other["identity"]["work_id"] == identity["work_id"] and other[
+                    "status"
+                ] in {"pending", "unknown"}:
+                    pending.append(other)
+        return tuple(pending)
+
+    def unconfirmed(self, payload: dict[str, Any]) -> tuple[dict[str, Any], ...]:
+        identity = delivery_identity(payload)
+        with AnchoredDirectory(self.root) as anchor, anchor.lock("sync.lock"):
+            return self._pending_receipts(anchor, identity)
+
+    def _work(
+        self,
+        anchor: AnchoredDirectory,
+        identity: dict[str, Any],
+        *,
+        create: bool = False,
+    ) -> str:
+        name = hashlib.sha256(identity["work_id"].encode()).hexdigest() + ".work.json"
+        work = self._read(anchor, name)
+        if work is None and create:
+            work = {
+                "work_id": identity["work_id"],
+                "synthetic_id": "SYNTHETIC-" + str(uuid4()),
+            }
+            self._write(anchor, name, work)
+        if (
+            work is None
+            or set(work) != {"work_id", "synthetic_id"}
+            or work["work_id"] != identity["work_id"]
+        ):
+            raise SyntheticSyncError("Synthetic work identity is unconfirmed")
+        self._synthetic_id(work["synthetic_id"])
+        return str(work["synthetic_id"])
 
     @staticmethod
     def _ledger(value: dict[str, Any], identity: dict[str, Any]) -> None:
@@ -214,6 +316,8 @@ class SyntheticSyncStore:
             raise SyntheticSyncError(
                 "Synthetic confirmation is inconsistent; reconcile"
             )
+        if self._work(anchor, identity) != ledger["synthetic_id"]:
+            raise SyntheticSyncError("Synthetic work confirmation is inconsistent")
 
     @staticmethod
     def _synthetic_id(value: Any) -> None:
@@ -246,6 +350,10 @@ class SyntheticSyncStore:
                     raise SyntheticSyncError(
                         "Reconcile the unconfirmed attempt before retrying"
                     )
+            if self._pending_receipts(anchor, identity):
+                raise SyntheticSyncError(
+                    "Reconcile the unconfirmed work version before retrying"
+                )
             receipt = {
                 "identity": identity,
                 "status": "pending",
@@ -261,7 +369,7 @@ class SyntheticSyncStore:
                 # Simulate delivery followed by lost acknowledgement.
                 ledger = {
                     "identity": identity,
-                    "synthetic_id": "SYNTHETIC-" + str(uuid4()),
+                    "synthetic_id": self._work(anchor, identity, create=True),
                 }
                 existing = self._read(anchor, self._name(identity, ".ledger.json"))
                 if existing is not None:
@@ -282,22 +390,41 @@ class SyntheticSyncStore:
     def reconcile(self, payload: dict[str, Any]) -> dict[str, Any]:
         identity = delivery_identity(payload)
         with AnchoredDirectory(self.root) as anchor, anchor.lock("sync.lock"):
-            name = self._name(identity, ".receipt.json")
-            receipt = self._read(anchor, name)
-            if receipt is None:
-                raise SyntheticSyncError("No synthetic attempt exists")
-            self._validate(receipt, identity)
-            ledger = self._read(anchor, self._name(identity, ".ledger.json"))
-            if ledger is not None:
-                self._ledger(ledger, identity)
-                receipt["status"] = "synced"
-                receipt["synthetic_id"] = ledger["synthetic_id"]
-            elif receipt["status"] in {"unknown", "pending"}:
-                receipt["status"] = "failed"
-            elif receipt["status"] == "synced":
-                raise SyntheticSyncError(
-                    "Synthetic confirmation ledger is missing; recovery is required"
-                )
-            receipt["timestamp"] = datetime.now(UTC).isoformat()
-            self._write(anchor, name, receipt)
-            return receipt
+            return self._reconcile(anchor, identity)
+
+    def reconcile_record(
+        self, payload: dict[str, Any], prior_identity: dict[str, Any]
+    ) -> dict[str, Any]:
+        current = delivery_identity(payload)
+        self._stored_identity(prior_identity, prior_identity)
+        if prior_identity["work_id"] != current["work_id"]:
+            raise SyntheticSyncError(
+                "The prior attempt belongs to another work request"
+            )
+        with AnchoredDirectory(self.root) as anchor, anchor.lock("sync.lock"):
+            return self._reconcile(anchor, prior_identity)
+
+    def _reconcile(
+        self, anchor: AnchoredDirectory, identity: dict[str, Any]
+    ) -> dict[str, Any]:
+        name = self._name(identity, ".receipt.json")
+        receipt = self._read(anchor, name)
+        if receipt is None:
+            raise SyntheticSyncError("No synthetic attempt exists")
+        self._validate(receipt, identity)
+        ledger = self._read(anchor, self._name(identity, ".ledger.json"))
+        if ledger is not None:
+            self._ledger(ledger, identity)
+            if self._work(anchor, identity) != ledger["synthetic_id"]:
+                raise SyntheticSyncError("Synthetic work confirmation is inconsistent")
+            receipt["status"] = "synced"
+            receipt["synthetic_id"] = ledger["synthetic_id"]
+        elif receipt["status"] in {"unknown", "pending"}:
+            receipt["status"] = "failed"
+        elif receipt["status"] == "synced":
+            raise SyntheticSyncError(
+                "Synthetic confirmation ledger is missing; recovery is required"
+            )
+        receipt["timestamp"] = datetime.now(UTC).isoformat()
+        self._write(anchor, name, receipt)
+        return receipt

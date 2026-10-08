@@ -166,6 +166,8 @@ def test_missing_success_ledger_never_claims_confirmation_or_allows_retry(tmp_pa
     [
         "before_pending",
         "after_pending",
+        "before_work",
+        "after_work",
         "before_ledger",
         "after_ledger",
         "before_final",
@@ -182,9 +184,13 @@ def test_interrupted_publication_restarts_without_duplicate_delivery(
 
     def interrupted(anchor, name, value):
         stage = (
-            "ledger"
-            if name.endswith(".ledger.json")
-            else ("pending" if value["status"] == "pending" else "final")
+            "work"
+            if name.endswith(".work.json")
+            else (
+                "ledger"
+                if name.endswith(".ledger.json")
+                else ("pending" if value["status"] == "pending" else "final")
+            )
         )
         if phase == "before_" + stage:
             raise OSError("synthetic pre-publication fault")
@@ -219,7 +225,7 @@ def test_interrupted_publication_restarts_without_duplicate_delivery(
     assert reopened.deliver(payload())["synthetic_id"] == confirmed["synthetic_id"]
 
 
-@pytest.mark.parametrize("directory_fsync", [1, 2, 3])
+@pytest.mark.parametrize("directory_fsync", [1, 2, 3, 4])
 def test_directory_fsync_failure_reloads_actual_publication(
     tmp_path, monkeypatch, directory_fsync
 ):
@@ -257,3 +263,51 @@ def test_directory_fsync_failure_reloads_actual_publication(
         current = reopened.deliver(payload())
     assert current["status"] == "synced" and current["live_synced"] is False
     assert len(list(store.root.glob("*.ledger.json"))) == 1
+
+
+def next_version():
+    revised = payload()
+    revised["revision"] = 3
+    revised["content_hash"] = "b" * 64
+    revised["approval"] = {"revision": 3, "content_hash": "b" * 64}
+    revised["fields"] = {"Title": "Corrected synthetic work"}
+    return revised
+
+
+@pytest.mark.parametrize("prior_outcome", ["failed", "success"])
+def test_corrected_approved_version_uses_one_receiver_work_identity(
+    tmp_path, prior_outcome
+):
+    store = store_or_refusal(tmp_path)
+    if store is None:
+        return
+    prior = store.deliver(payload(), prior_outcome)
+    current = next_version()
+    assert current["idempotency_key"] == payload()["idempotency_key"]
+    assert (
+        delivery_identity(current)["idempotency_key"]
+        != delivery_identity(payload())["idempotency_key"]
+    )
+    assert store.get(current) is None
+    revised = store.deliver(current)
+    assert revised["status"] == "synced" and revised["live_synced"] is False
+    if prior_outcome == "success":
+        assert revised["synthetic_id"] == prior["synthetic_id"]
+    assert len(list(store.root.glob("*.work.json"))) == 1
+    assert store.deliver(current) == revised
+
+
+def test_older_unknown_version_can_reconcile_without_original_source_body(tmp_path):
+    store = store_or_refusal(tmp_path)
+    if store is None:
+        return
+    old = store.deliver(payload(), "unknown")
+    current = next_version()
+    unresolved = store.unconfirmed(current)
+    assert unresolved == (old,)
+    with pytest.raises(SyntheticSyncError, match="Reconcile"):
+        store.deliver(current)
+    previous = store.reconcile_record(current, unresolved[0]["identity"])
+    assert previous["status"] == "synced"
+    assert store.unconfirmed(current) == ()
+    assert store.deliver(current)["synthetic_id"] == previous["synthetic_id"]

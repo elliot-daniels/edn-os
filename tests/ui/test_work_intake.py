@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from uuid import uuid4
 
+import pytest
 from streamlit.testing.v1 import AppTest
 
 from edn.operations.intake import IntakeStore
@@ -295,6 +296,41 @@ def test_file_upload_approval_export_and_synthetic_failure_reconciliation(
     assert not app.exception
     restored = SyntheticSyncStore(store.path.parent / "synthetic-sync").get(prepared)
     assert restored["synthetic_id"] == expected_id and restored["live_synced"] is False
+    current = store.get(request.request_id)
+    app.text_input(
+        key=f"review-{request.request_id}-{current.revision}-reference"
+    ).set_value("REVIEWED-VERSION-3")
+    button(app, "Save corrections").click().run()
+    assert not app.exception
+    button(app, "Approve reviewed request (self-approval)").click().run()
+    button(app, "Prepare SharePoint record (dry run)").click().run()
+    assert not app.exception and not button(app, "Run synthetic sync").disabled
+    next(
+        item for item in app.selectbox if item.label == "Simulated transport outcome"
+    ).select("unknown")
+    button(app, "Run synthetic sync").click().run()
+    assert not app.exception
+    current = store.get(request.request_id)
+    app.text_input(
+        key=f"review-{request.request_id}-{current.revision}-reference"
+    ).set_value("REVIEWED-VERSION-4")
+    button(app, "Save corrections").click().run()
+    button(app, "Approve reviewed request (self-approval)").click().run()
+    button(app, "Prepare SharePoint record (dry run)").click().run()
+    assert not app.exception and button(app, "Run synthetic sync").disabled
+    assert not button(app, "Reconcile prior version").disabled
+    button(app, "Reconcile prior version").click().run()
+    assert not app.exception and not button(app, "Run synthetic sync").disabled
+    next(
+        item for item in app.selectbox if item.label == "Simulated transport outcome"
+    ).select("success")
+    button(app, "Run synthetic sync").click().run()
+    assert not app.exception
+    newest = app.session_state["prepared-record"]
+    confirmed = SyntheticSyncStore(store.path.parent / "synthetic-sync").get(newest)
+    assert (
+        confirmed["synthetic_id"] == expected_id and confirmed["live_synced"] is False
+    )
 
 
 def test_synthetic_import_and_manual_share_queue_without_duplicate_create_proposal(
@@ -348,3 +384,99 @@ def test_synthetic_import_and_manual_share_queue_without_duplicate_create_propos
         item.label != "Download SharePoint create payload"
         for item in app.get("download_button")
     )
+
+
+@pytest.mark.parametrize("prior_outcome", ["failed", "success"])
+def test_reviewed_correction_after_known_sync_outcome_remains_deliverable(
+    tmp_path, monkeypatch, prior_outcome
+):
+    if unsupported_app(tmp_path, monkeypatch):
+        return
+    from edn.operations.intake_sync import SyntheticSyncStore
+
+    root, store = initialise(tmp_path, monkeypatch)
+    request = store.create(FIELDS, submission_id=str(uuid4()))
+    app = AppTest.from_string(SCRIPT).run()
+    button(app, "Approve reviewed request (self-approval)").click().run()
+    button(app, "Prepare SharePoint record (dry run)").click().run()
+    original = app.session_state["prepared-record"]
+    next(
+        item for item in app.selectbox if item.label == "Simulated transport outcome"
+    ).select(prior_outcome)
+    button(app, "Run synthetic sync").click().run()
+    assert not app.exception
+    receipt = SyntheticSyncStore(root / "synthetic-sync").get(original)
+    app.text_input(key=f"review-{request.request_id}-1-reference").set_value(
+        "CORRECTED-AFTER-SYNC"
+    )
+    button(app, "Save corrections").click().run()
+    assert (
+        not app.exception
+        and button(app, "Prepare SharePoint record (dry run)").disabled
+    )
+    button(app, "Approve reviewed request (self-approval)").click().run()
+    button(app, "Prepare SharePoint record (dry run)").click().run()
+    assert not app.exception and not button(app, "Run synthetic sync").disabled
+    corrected = app.session_state["prepared-record"]
+    assert corrected["submission_id"] == original["submission_id"]
+    assert (
+        corrected["revision"] == 2
+        and corrected["content_hash"] != original["content_hash"]
+    )
+    next(
+        item for item in app.selectbox if item.label == "Simulated transport outcome"
+    ).select("success")
+    button(app, "Run synthetic sync").click().run()
+    assert not app.exception
+    delivered = SyntheticSyncStore(root / "synthetic-sync").get(corrected)
+    assert delivered["status"] == "synced" and delivered["live_synced"] is False
+    if prior_outcome == "success":
+        assert delivered["synthetic_id"] == receipt["synthetic_id"]
+
+
+def test_post_publication_uncertainty_clears_artifact_and_reloads_actual_revision(
+    tmp_path, monkeypatch
+):
+    if unsupported_app(tmp_path, monkeypatch):
+        return
+    import os
+    import stat
+
+    from edn.operations import intake
+
+    root, store = initialise(tmp_path, monkeypatch)
+    request = store.create(FIELDS, submission_id=str(uuid4()))
+    app = AppTest.from_string(SCRIPT).run()
+    button(app, "Approve reviewed request (self-approval)").click().run()
+    button(app, "Prepare SharePoint record (dry run)").click().run()
+    assert not app.exception
+    app.text_input(key=f"review-{request.request_id}-1-reference").set_value(
+        "PUBLISHED-BUT-UNCERTAIN"
+    )
+    actual_fsync = os.fsync
+    parent_inode = root.stat().st_ino
+
+    def fail_parent_durability(descriptor):
+        observed = os.fstat(descriptor)
+        if stat.S_ISDIR(observed.st_mode) and observed.st_ino == parent_inode:
+            raise OSError("synthetic post-publication durability failure")
+        return actual_fsync(descriptor)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(intake.os, "fsync", fail_parent_durability)
+        button(app, "Save corrections").click().run()
+    assert not app.exception
+    assert any("unconfirmed" in item.value for item in app.error)
+    assert not any("not saved" in item.value for item in app.error)
+    with pytest.raises(KeyError):
+        app.session_state["prepared-record"]
+    actual = store.get(request.request_id)
+    assert actual.revision == 2 and actual.state == "draft"
+    assert actual.fields["reference"] == "PUBLISHED-BUT-UNCERTAIN"
+    app.run()
+    assert not app.exception
+    assert (
+        app.text_input(key=f"review-{request.request_id}-2-reference").value
+        == "PUBLISHED-BUT-UNCERTAIN"
+    )
+    assert button(app, "Prepare SharePoint record (dry run)").disabled

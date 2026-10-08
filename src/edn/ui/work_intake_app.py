@@ -6,10 +6,17 @@ import json
 import os
 import sqlite3
 from pathlib import Path
+from typing import Any
 
 import streamlit as st
 
-from edn.operations.intake import SERVICES, URGENCY_LEVELS, IntakeRequest, IntakeStore
+from edn.operations.intake import (
+    SERVICES,
+    URGENCY_LEVELS,
+    IntakeCommitUncertainError,
+    IntakeRequest,
+    IntakeStore,
+)
 from edn.operations.intake_attachments import IntakeAttachmentStore
 from edn.operations.intake_projection import prepare_envelope
 from edn.operations.intake_security import require_supported_platform
@@ -60,6 +67,8 @@ def attach_file(
     payload: bytes,
 ) -> None:
     metadata = files.attach(request.request_id, filename, payload).to_dict()
+    if metadata in request.attachments:
+        return
     store.update(
         request.request_id,
         request.revision,
@@ -103,6 +112,7 @@ def render_manual_creation(store: IntakeStore, reader: IntakeStore) -> None:
             )
             create = st.form_submit_button("Save request locally")
         if create:
+            st.session_state.pop("prepared-record", None)
             try:
                 request = store.create(fields, submission_id=intent.submission_id)
                 st.session_state["selected-request"] = request.request_id
@@ -147,6 +157,7 @@ def render() -> None:
             )
             import_request = st.form_submit_button("Import synthetic request")
         if import_request:
+            st.session_state.pop("prepared-record", None)
             try:
                 if contract_upload is None:
                     raise ValueError("No synthetic contract selected")
@@ -175,8 +186,8 @@ def render() -> None:
                 )
             except (ValueError, sqlite3.Error, OSError, RecursionError):
                 st.error(
-                    "Synthetic request was not imported. "
-                    "Check the contract, source ID and local demo store."
+                    "Synthetic import is unconfirmed. Reload before retrying, "
+                    "then check the contract, source ID and local demo store."
                 )
     render_manual_creation(store, reader)
     st.subheader("Intake queue")
@@ -253,6 +264,7 @@ def render() -> None:
             source_reason = st.text_input("Reason for source resolution")
             resolve_source = st.form_submit_button("Resolve changed source")
         if resolve_source:
+            st.session_state.pop("prepared-record", None)
             try:
                 store.resolve_source_change(
                     request_id,
@@ -283,6 +295,7 @@ def render() -> None:
             duplicate_reason = st.text_input("Reason for duplicate resolution")
             resolve_duplicate = st.form_submit_button("Record duplicate decision")
         if resolve_duplicate:
+            st.session_state.pop("prepared-record", None)
             try:
                 store.resolve_duplicate(
                     request_id,
@@ -306,11 +319,14 @@ def render() -> None:
             disabled=request.state not in {"draft", "approved"} or linked_alias,
         )
     if save:
+        st.session_state.pop("prepared-record", None)
         try:
             store.update(request_id, request.revision, corrected)
             st.rerun()
-        except (ValueError, sqlite3.Error, OSError):
-            st.error("Corrections were not saved. Reload and check the request.")
+        except (ValueError, sqlite3.Error, OSError) as error:
+            st.error("Corrections are unconfirmed. Reload before retrying.")
+            if isinstance(error, IntakeCommitUncertainError):
+                st.stop()
     st.subheader("Supporting files")
     files_valid = True
     try:
@@ -340,6 +356,7 @@ def render() -> None:
             disabled=request.state not in {"draft", "approved"} or linked_alias,
         )
     if add:
+        st.session_state.pop("prepared-record", None)
         if upload is None:
             st.error("Select a supporting file first.")
         else:
@@ -354,8 +371,8 @@ def render() -> None:
                 st.rerun()
             except (ValueError, sqlite3.Error, OSError):
                 st.error(
-                    "Supporting file was not linked to this request. "
-                    "Review local storage and file type."
+                    "File association is unconfirmed. Reload before retrying, "
+                    "then review local storage and file type."
                 )
     st.caption("Corrections and added files require a fresh approval.")
     st.caption(
@@ -370,6 +387,7 @@ def render() -> None:
                 "Record lifecycle decision", disabled=request.state == "cancelled"
             )
         if decide:
+            st.session_state.pop("prepared-record", None)
             try:
                 store.transition(request_id, request.revision, target, reason=reason)
                 st.rerun()
@@ -411,12 +429,15 @@ def render() -> None:
         or bool(duplicates)
         or linked_alias,
     ):
+        st.session_state.pop("prepared-record", None)
         try:
             verify_supporting_files(root, request)
             store.approve(request_id, request.revision)
             st.rerun()
-        except (ValueError, sqlite3.Error, OSError):
-            st.error("Approval was not saved. Reload and review the current revision.")
+        except (ValueError, sqlite3.Error, OSError) as error:
+            st.error("Approval is unconfirmed. Reload and review the current revision.")
+            if isinstance(error, IntakeCommitUncertainError):
+                st.stop()
     if st.button(
         "Prepare SharePoint record (dry run)",
         disabled=request.state != "approved"
@@ -426,6 +447,7 @@ def render() -> None:
         or bool(duplicates)
         or linked_alias,
     ):
+        st.session_state.pop("prepared-record", None)
         try:
             verify_supporting_files(root, request)
             payload = prepare_envelope(
@@ -480,8 +502,10 @@ def render() -> None:
             st.error("Synthetic synchronisation status is unconfirmed.")
         if sync is not None:
             lookup_failed = False
+            unresolved: tuple[dict[str, Any], ...] = ()
             try:
                 receipt = sync.get(payload)
+                unresolved = sync.unconfirmed(payload)
             except (ValueError, OSError):
                 receipt = None
                 lookup_failed = True
@@ -499,13 +523,42 @@ def render() -> None:
             outcome = st.selectbox(
                 "Simulated transport outcome", ("success", "failed", "unknown")
             )
-            unconfirmed = lookup_failed or (
-                receipt is not None
-                and receipt["status"]
-                in {
-                    "pending",
-                    "unknown",
-                }
+            older = tuple(
+                item
+                for item in unresolved
+                if item["identity"]["revision"] != request.revision
+            )
+            if older:
+                st.warning(
+                    "An earlier approved version is unconfirmed. "
+                    "Reconcile it before another delivery."
+                )
+                by_key = {item["identity"]["idempotency_key"]: item for item in older}
+                selected_key = st.selectbox(
+                    "Unconfirmed prior version",
+                    tuple(by_key),
+                    format_func=lambda key: (
+                        f"Revision {by_key[key]['identity']['revision']} · "
+                        f"hash {by_key[key]['identity']['content_hash'][:12]}"
+                    ),
+                )
+                if st.button("Reconcile prior version"):
+                    try:
+                        sync.reconcile_record(payload, by_key[selected_key]["identity"])
+                        st.rerun()
+                    except (ValueError, OSError):
+                        st.error("Prior-version reconciliation is unconfirmed.")
+            unconfirmed = (
+                lookup_failed
+                or bool(unresolved)
+                or (
+                    receipt is not None
+                    and receipt["status"]
+                    in {
+                        "pending",
+                        "unknown",
+                    }
+                )
             )
             if st.button("Run synthetic sync", disabled=unconfirmed):
                 try:
