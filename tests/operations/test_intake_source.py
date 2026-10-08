@@ -297,3 +297,89 @@ def test_source_preview_is_latest_validated_readonly_and_alias_has_canonical_id(
         and provenance["linked_alias"] is True
     )
     assert requests.path.read_bytes() == before
+
+
+@pytest.mark.parametrize("terminal", ["cancelled", "rejected"])
+def test_linked_source_change_preserves_canonical_terminal_state(tmp_path, terminal):
+    requests = store(tmp_path)
+    if requests is None:
+        return
+    canonical = requests.create(fields(), submission_id=str(uuid4()))
+    alias = requests.import_contract(contract(), "1", source_identity=identity())
+    requests.resolve_duplicate(
+        alias.request_id,
+        canonical.request_id,
+        1,
+        decision="same_work",
+        reason="Linked existing synthetic work",
+    )
+    canonical = requests.get(canonical.request_id)
+    terminal_request = requests.transition(
+        canonical.request_id,
+        canonical.revision,
+        terminal,
+        reason="Explicit operator terminal decision",
+    )
+    history = requests.audit_history(canonical.request_id)
+    changed = requests.import_contract(
+        contract(jobDescription="Changed source after terminal decision"),
+        "1",
+        source_identity=identity(),
+    )
+    assert changed.source_pending and changed.state == "draft"
+    assert requests.get(canonical.request_id) == terminal_request
+    assert requests.audit_history(canonical.request_id) == history
+    for action in (requests.approve, requests.export):
+        with pytest.raises(IntakeError):
+            action(canonical.request_id, terminal_request.revision)
+    for decision in ("keep_local", "apply_source"):
+        before = requests.path.read_bytes()
+        with pytest.raises(IntakeError, match="Reopen canonical"):
+            requests.resolve_source_change(
+                alias.request_id,
+                changed.revision,
+                decision=decision,
+                reason="Must not silently reopen terminal work",
+            )
+        assert requests.path.read_bytes() == before
+    assert requests.get(alias.request_id).source_pending
+    if terminal == "rejected":
+        reopened = requests.transition(
+            canonical.request_id,
+            terminal_request.revision,
+            "draft",
+            reason="Explicit legal operator reopening",
+        )
+        resolved = requests.resolve_source_change(
+            alias.request_id,
+            changed.revision,
+            decision="keep_local",
+            reason="Review source after audited reopening",
+        )
+        assert not resolved.source_pending
+        assert requests.get(canonical.request_id) == reopened
+
+
+@pytest.mark.parametrize("terminal", ["cancelled", "rejected"])
+def test_same_work_resolver_does_not_reopen_terminal_canonical_request(
+    tmp_path, terminal
+):
+    requests = store(tmp_path)
+    if requests is None:
+        return
+    canonical = requests.create(fields(), submission_id=str(uuid4()))
+    alias = requests.import_contract(contract(), "1", source_identity=identity())
+    terminal_request = requests.transition(
+        canonical.request_id, 1, terminal, reason="Operator terminal decision"
+    )
+    before = requests.path.read_bytes()
+    with pytest.raises(IntakeError, match="Reopen"):
+        requests.resolve_duplicate(
+            alias.request_id,
+            canonical.request_id,
+            1,
+            decision="same_work",
+            reason="Must not override the terminal decision",
+        )
+    assert requests.path.read_bytes() == before
+    assert requests.get(canonical.request_id) == terminal_request

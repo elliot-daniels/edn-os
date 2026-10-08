@@ -1267,14 +1267,15 @@ class IntakeStore:
                 canonical = self._canonical(connection, request.request_id)
                 if canonical != request.request_id:
                     parent = self._get(connection, canonical)
-                    self._record_revision(
-                        connection,
-                        parent,
-                        parent.fields,
-                        "source_changed",
-                        "Linked synthetic source facts changed; operator resolution is "
-                        "required",
-                    )
+                    if parent.state in {"draft", "approved"}:
+                        self._record_revision(
+                            connection,
+                            parent,
+                            parent.fields,
+                            "source_changed",
+                            "Linked synthetic source facts changed; "
+                            "operator resolution is required",
+                        )
                 return self._get(connection, request.request_id)
             request_id = str(uuid4())
             submission_id = str(uuid5(NAMESPACE_URL, "edn-intake-source:" + source_key))
@@ -1386,15 +1387,20 @@ class IntakeStore:
             )
             source_fields, _ = _source_contract(payload)
             canonical = self._canonical(connection, request_id)
-            if canonical != request_id and decision == "apply_source":
+            if canonical != request_id:
                 parent = self._get(connection, canonical)
                 if parent.state not in {"draft", "approved"}:
                     raise IntakeError(
-                        "Reopen canonical work before applying source facts"
+                        "Reopen canonical work before resolving source facts"
                     )
-                self._record_revision(
-                    connection, parent, source_fields, "source_resolved", reason.strip()
-                )
+                if decision == "apply_source":
+                    self._record_revision(
+                        connection,
+                        parent,
+                        source_fields,
+                        "source_resolved",
+                        reason.strip(),
+                    )
             self._record_revision(
                 connection,
                 request,
@@ -1579,6 +1585,11 @@ class IntakeStore:
             ) != self._initial_fields(connection, other_id):
                 raise IntakeError("Requests are not a duplicate candidate pair")
             if decision == "same_work":
+                if request.state not in {"draft", "approved"} or other.state not in {
+                    "draft",
+                    "approved",
+                }:
+                    raise IntakeError("Reopen requests before linking the same work")
                 canonical = self._canonical(connection, other_id)
                 if (
                     canonical == request_id
