@@ -23,6 +23,27 @@ class EventListResult:
     malformed: int
 
 
+def _decode_event_row(row: tuple[object, ...]) -> Event:
+    """Index fields are authoritative for selection; payload must agree."""
+    payload = row[9]
+    if not isinstance(payload, (str, bytes, bytearray)):
+        raise ValueError("Stored Event payload must be JSON text")
+    event = Event.from_dict(json.loads(payload))
+    if row[:9] != (
+        event.id,
+        event.source,
+        event.source_account,
+        event.external_id,
+        event.to_dict()["occurred_at"],
+        int(event.needs_action),
+        event.client_id,
+        event.project_id,
+        event.job_id,
+    ):
+        raise ValueError("Stored Event provenance or index fields do not match payload")
+    return event
+
+
 class EventStore:
     def __init__(self, path: Path, *, read_only: bool = False) -> None:
         self.path = path
@@ -71,22 +92,13 @@ class EventStore:
                 ),
             )
             row = connection.execute(
-                """SELECT id, source, source_account, external_id, payload
+                """SELECT *
                 FROM operations_events
                 WHERE source=? AND source_account=? AND external_id=?""",
                 (event.source, event.source_account, event.external_id),
             ).fetchone()
             assert row is not None
-            stored = Event.from_dict(json.loads(row[4]))
-            if (
-                stored.id,
-                stored.source,
-                stored.source_account,
-                stored.external_id,
-            ) != row[:4]:
-                raise ValueError(
-                    "Stored Event provenance does not match physical identity"
-                )
+            stored = _decode_event_row(row)
             connection.execute(
                 "INSERT INTO operations_event_identities VALUES (?, ?) "
                 "ON CONFLICT(identity_key) DO NOTHING",
@@ -171,7 +183,7 @@ class EventStore:
         parameters.append(limit)
         with self._connect() as connection:
             rows = connection.execute(
-                "SELECT payload FROM operations_events"
+                "SELECT * FROM operations_events"
                 + where
                 + " ORDER BY occurred_at DESC, id DESC LIMIT ?",
                 parameters,
@@ -180,7 +192,7 @@ class EventStore:
         malformed = 0
         for row in rows:
             try:
-                events.append(Event.from_dict(json.loads(row[0])))
+                events.append(_decode_event_row(row))
             except (ValueError, TypeError, RecursionError):
                 if not tolerate_malformed:
                     raise

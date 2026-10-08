@@ -158,7 +158,7 @@ def test_invalid_bounds_fail_before_read(options):
 )
 def test_malformed_or_oversized_pages_fail_closed(payload):
     client, requests = client_with_pages(payload)
-    with pytest.raises((SourceUnavailableError, RuntimeError)):
+    with pytest.raises(SourceUnavailableError):
         view(client)
     assert len(requests) == 1
 
