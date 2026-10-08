@@ -45,7 +45,8 @@ def test_review_approve_dry_run_edit_restart_and_exact_mapping(tmp_path):
     requests = store(tmp_path)
     if requests is None:
         return
-    request = requests.create(fields())
+    submission_id = str(uuid4())
+    request = requests.create(fields(), submission_id=submission_id)
     assert request.state == "draft" and request.sync_status == "not_synced"
     with pytest.raises(IntakeError, match="Approve"):
         requests.export(request.request_id, 1)
@@ -53,6 +54,9 @@ def test_review_approve_dry_run_edit_restart_and_exact_mapping(tmp_path):
     exported = requests.export(request.request_id, 1)
     audit = requests.audit_history(request.request_id)[-1]
     assert exported == {
+        "submission_id": submission_id,
+        "idempotency_key": submission_id,
+        "source_provenance": {"source_type": "manual", "source": "EDN OS Manual"},
         "content_hash": audit["content_hash"],
         "attachment_manifest": (),
         "approval": {
@@ -139,7 +143,7 @@ def test_invalid_input_rejected_without_creating_requests(tmp_path, change):
     if requests is None:
         return
     with pytest.raises(IntakeError):
-        requests.create(fields(**change))
+        requests.create(fields(**change), submission_id=str(uuid4()))
     assert requests.list_requests() == ()
 
 
@@ -147,7 +151,10 @@ def test_attachments_are_local_exact_request_and_invalidate_approval(tmp_path):
     requests = store(tmp_path)
     if requests is None:
         return
-    first, other = requests.create(fields()), requests.create(fields())
+    first, other = (
+        requests.create(fields(), submission_id=str(uuid4())),
+        requests.create(fields(), submission_id=str(uuid4())),
+    )
     attachment = {
         "attachment_id": str(uuid4()),
         "request_id": first.request_id,
@@ -173,7 +180,10 @@ def test_stale_revision_updates_have_one_winner_and_no_cross_request_change(tmp_
     requests = store(tmp_path)
     if requests is None:
         return
-    request, neighbor = requests.create(fields()), requests.create(fields())
+    request, neighbor = (
+        requests.create(fields(), submission_id=str(uuid4())),
+        requests.create(fields(), submission_id=str(uuid4())),
+    )
 
     def edit(index):
         try:
@@ -207,11 +217,11 @@ def test_read_only_and_missing_store_never_create_or_modify(tmp_path):
     requests = store(tmp_path)
     if requests is None:
         return
-    request = requests.create(fields())
+    request = requests.create(fields(), submission_id=str(uuid4()))
     before = requests.path.read_bytes()
     reader = IntakeStore(requests.path, read_only=True)
     for action in (
-        lambda: reader.create(fields()),
+        lambda: reader.create(fields(), submission_id=str(uuid4())),
         lambda: reader.update(request.request_id, 1, fields()),
         lambda: reader.approve(request.request_id, 1),
         lambda: reader.export(request.request_id, 1),
@@ -225,7 +235,7 @@ def test_corrupt_or_unknown_store_rejects_without_adoption(tmp_path):
     requests = store(tmp_path)
     if requests is None:
         return
-    request = requests.create(fields())
+    request = requests.create(fields(), submission_id=str(uuid4()))
     requests.approve(request.request_id, 1)
     with sqlite3.connect(requests.path) as connection:
         connection.execute(
@@ -246,7 +256,10 @@ def test_queue_pages_preserve_all_requests_and_reject_invalid_bounds(tmp_path):
     requests = store(tmp_path)
     if requests is None:
         return
-    created = {requests.create(fields()).request_id for _ in range(5)}
+    created = {
+        requests.create(fields(), submission_id=str(uuid4())).request_id
+        for _ in range(5)
+    }
     rows = (
         requests.list_requests(limit=2)
         + requests.list_requests(limit=2, offset=2)
@@ -279,7 +292,7 @@ def test_invalid_unicode_has_fixed_diagnostic_and_no_write(tmp_path, name):
         return
     before = requests.path.read_bytes()
     with pytest.raises(IntakeError, match="invalid Unicode") as raised:
-        requests.create(fields(**{name: "\ud800"}))
+        requests.create(fields(**{name: "\ud800"}), submission_id=str(uuid4()))
     assert raised.value.__cause__ is None
     assert requests.path.read_bytes() == before
     assert requests.list_requests() == ()

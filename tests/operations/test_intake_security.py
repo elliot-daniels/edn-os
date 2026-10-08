@@ -2,6 +2,7 @@
 
 import os
 import stat
+from uuid import uuid4
 
 import pytest
 
@@ -25,7 +26,7 @@ def test_native_unsupported_storage_all_entrypoints_do_not_touch_files(tmp_path)
     for action in (
         requests.initialise,
         requests.list_requests,
-        lambda: requests.create(fields()),
+        lambda: requests.create(fields(), submission_id=str(uuid4())),
     ):
         with pytest.raises(IntakeSecurityError, match="Linux or WSL"):
             action()
@@ -37,7 +38,7 @@ def test_owned_modes_links_and_self_approval_audit(tmp_path):
     if requests is None:
         return
     assert stat.S_IMODE(requests.path.stat().st_mode) == 0o600
-    request = requests.create(fields())
+    request = requests.create(fields(), submission_id=str(uuid4()))
     approved = requests.approve(request.request_id, 1)
     assert "self-approval" in approved.approval_actor
     assert approved.approval_timestamp
@@ -128,7 +129,7 @@ def test_corrupt_audit_refuses_get_export_history_without_write(tmp_path, field,
     requests = store(tmp_path)
     if requests is None:
         return
-    request = requests.create(fields())
+    request = requests.create(fields(), submission_id=str(uuid4()))
     requests.approve(request.request_id, 1)
     with sqlite3.connect(requests.path) as connection:
         connection.execute(
@@ -182,7 +183,7 @@ def test_parent_swap_cannot_redirect_anchored_sqlite_writes(tmp_path, monkeypatc
     from contextlib import suppress
 
     with suppress(ValueError, sqlite3.Error, OSError):
-        requests.create(fields())
+        requests.create(fields(), submission_id=str(uuid4()))
     assert sentinel.read_bytes() == b"outside-sentinel"
     assert tuple(outside.iterdir()) == (sentinel,)
 
@@ -194,8 +195,8 @@ def test_backend_manifest_gate_and_queue_corruption_isolation(tmp_path):
     requests = store(tmp_path)
     if requests is None:
         return
-    first = requests.create(fields())
-    second = requests.create(fields())
+    first = requests.create(fields(), submission_id=str(uuid4()))
+    second = requests.create(fields(), submission_id=str(uuid4()))
     metadata = {
         "attachment_id": str(uuid4()),
         "request_id": first.request_id,
@@ -233,7 +234,7 @@ def test_backend_actual_evidence_corruption_blocks_approval_and_export(
         return
     evidence = tmp_path / "evidence"
     evidence.mkdir(mode=0o700)
-    request = requests.create(fields())
+    request = requests.create(fields(), submission_id=str(uuid4()))
     request_root = evidence / request.request_id
     request_root.mkdir(mode=0o700)
     attachment_id = str(uuid4())
@@ -317,7 +318,7 @@ def test_final_database_symlink_swap_rejected_before_sql_and_outside_unchanged(
 
     monkeypatch.setattr(intake.sqlite3, "connect", swap_before_connect)
     with pytest.raises((ValueError, OSError)):
-        requests.create(fields())
+        requests.create(fields(), submission_id=str(uuid4()))
     assert outside.read_bytes() == before
 
 
@@ -331,7 +332,7 @@ def test_snapshot_roundtrip_readonly_and_failed_publication_preserve_original(
     requests = store(tmp_path)
     if requests is None:
         return
-    request = requests.create(fields())
+    request = requests.create(fields(), submission_id=str(uuid4()))
     original = requests.path.read_bytes()
     assert original.startswith(b"SQLite format 3\x00")
     assert IntakeStore(requests.path, read_only=True).get(request.request_id) == request
