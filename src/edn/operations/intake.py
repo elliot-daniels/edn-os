@@ -1690,7 +1690,40 @@ class IntakeStore:
     def source_provenance(self, request_id: str) -> dict[str, object]:
         with self._connect() as connection:
             self._get(connection, request_id)
-            return self._provenance(connection, request_id)
+            provenance = self._provenance(connection, request_id)
+            canonical = self._canonical(connection, request_id)
+            return {
+                **provenance,
+                "canonical_work_id": canonical,
+                "linked_alias": canonical != request_id,
+            }
+
+    def source_snapshot(self, request_id: str) -> dict[str, object]:
+        """Read the bounded validated proposal for explicit operator review."""
+        with self._connect() as connection:
+            self._get(connection, request_id)
+            self._source_schema(connection)
+            row = connection.execute(
+                "SELECT h.payload FROM intake_sources s "
+                "JOIN intake_source_history h ON h.source_key=s.source_key "
+                "AND h.source_revision=s.source_revision WHERE s.request_id=?",
+                (request_id,),
+            ).fetchone()
+            if row is None:
+                raise IntakeError("Manual request has no source snapshot")
+            try:
+                payload = json.loads(row[0])
+                fields, _ = _source_contract(payload)
+                return {
+                    **fields,
+                    "contractVersion": "1.0",
+                    "source": "EDN Systems Website",
+                    "submittedAt": datetime.fromisoformat(
+                        payload["submittedAt"].replace("Z", "+00:00")
+                    ).isoformat(),
+                }
+            except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
+                raise IntakeError("Stored source snapshot is invalid") from None
 
     @staticmethod
     def _source_submitted(

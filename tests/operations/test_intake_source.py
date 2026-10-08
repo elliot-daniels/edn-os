@@ -261,3 +261,39 @@ def test_cancelled_source_update_does_not_resurrect_and_linked_alias_cannot_edit
         requests.update(
             alias.request_id, alias.revision, fields(reference="new correction")
         )
+
+
+def test_source_preview_is_latest_validated_readonly_and_alias_has_canonical_id(
+    tmp_path,
+):
+    requests = store(tmp_path)
+    if requests is None:
+        return
+    manual = requests.create(fields(), submission_id=str(uuid4()))
+    imported = requests.import_contract(contract(), "1", source_identity=identity())
+    requests.resolve_duplicate(
+        imported.request_id,
+        manual.request_id,
+        1,
+        decision="same_work",
+        reason="Explicit existing work link",
+    )
+    changed = requests.import_contract(
+        contract(jobDescription="Proposed changed source details"),
+        "1",
+        source_identity=identity(),
+    )
+    reader = IntakeStore(requests.path, read_only=True)
+    before = requests.path.read_bytes()
+    preview = reader.source_snapshot(changed.request_id)
+    assert preview["jobDescription"] == "Proposed changed source details"
+    assert (
+        preview["source"] == "EDN Systems Website"
+        and preview["contractVersion"] == "1.0"
+    )
+    provenance = reader.source_provenance(changed.request_id)
+    assert (
+        provenance["canonical_work_id"] == manual.request_id
+        and provenance["linked_alias"] is True
+    )
+    assert requests.path.read_bytes() == before
