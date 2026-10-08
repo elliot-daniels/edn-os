@@ -48,6 +48,10 @@ refusal before any transport receipt or ledger write. The check itself writes no
 database changes. All receipt/fault/restart tests now use actual approved records;
 the fabricated envelope remains only for pure negative/identity tests.
 
+The sender freezes a bounded independent JSON snapshot before validation and uses
+only that snapshot for both authority checking and publication. Caller mutation
+after the guard yields cannot alter the delivered fields, approval or manifest.
+
 ## Existing website items (F45-02 / WI-SP-14)
 
 `reference_existing` is reference-only. The synthetic sender refuses it with no

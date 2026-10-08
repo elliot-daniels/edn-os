@@ -474,3 +474,36 @@ def test_delivery_holds_intake_lock_until_transport_publication(tmp_path, monkey
         task.result(timeout=3)
     assert finished.is_set()
     assert intake.get(snapshot["request_id"]).state == "draft"
+
+
+def test_caller_mutation_after_authority_check_cannot_change_delivered_body(
+    tmp_path, monkeypatch
+):
+    import copy
+    from contextlib import contextmanager
+
+    store, _, snapshot = store_or_refusal(tmp_path)
+    if store is None:
+        return
+    approved = copy.deepcopy(snapshot)
+    authorise = IntakeStore.authorise_delivery
+
+    @contextmanager
+    def mutate_caller_after_check(intake, frozen):
+        with authorise(intake, frozen):
+            snapshot["fields"]["JobDescription"] = "UNAPPROVED CALLER MUTATION"
+            snapshot["approval"]["actor"] = "Forged caller"
+            yield
+
+    monkeypatch.setattr(IntakeStore, "authorise_delivery", mutate_caller_after_check)
+    result = store.deliver(snapshot)
+    assert result["status"] == "synced"
+    assert (
+        result["identity"]["payload_hash"]
+        == delivery_identity(approved)["payload_hash"]
+    )
+    assert (
+        result["identity"]["payload_hash"]
+        != delivery_identity(snapshot)["payload_hash"]
+    )
+    assert store.get(approved) == result

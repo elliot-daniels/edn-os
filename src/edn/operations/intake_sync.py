@@ -341,6 +341,16 @@ class SyntheticSyncStore:
     ) -> dict[str, Any]:
         if outcome not in {"success", "failed", "unknown"}:
             raise SyntheticSyncError("Unsupported synthetic outcome")
+        # Caller-owned nested dictionaries must not change after authority checks.
+        try:
+            encoded = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            if len(encoded) > 65536:
+                raise ValueError
+            payload = json.loads(encoded)
+        except (ValueError, TypeError, UnicodeError, RecursionError):
+            raise SyntheticSyncError(
+                "Approved synthetic delivery snapshot is invalid"
+            ) from None
         delivery_identity(payload)
         if payload.get("operation", "create_proposal") != "create_proposal":
             raise SyntheticSyncError("Existing source work is reference-only")
