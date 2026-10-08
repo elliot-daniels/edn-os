@@ -30,3 +30,12 @@ remain intact, failed upgrades preserve the snapshot. No real-store migration or
 production readiness is claimed. Rollback disables the dependent import UI and
 preserves the local store; no destructive downgrade occurs. Full hosted CI and
 exact-head independent source-change, cross-source and corruption QA are required.
+
+
+Operator editing, lifecycle, approval and export actions belong to the canonical
+work request. Linked aliases are retained provenance references: cancelling,
+rejecting or reopening an alias is refused without mutation. Source review on an
+alias remains available while its canonical request is legally active. A terminal
+canonical request is never reopened by source intake or duplicate resolution;
+rejected work requires an explicit audited reopening, and cancelled work remains
+terminal. New linkage must name the actual canonical target, not another alias.

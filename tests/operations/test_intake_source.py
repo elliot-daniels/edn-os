@@ -383,3 +383,97 @@ def test_same_work_resolver_does_not_reopen_terminal_canonical_request(
         )
     assert requests.path.read_bytes() == before
     assert requests.get(canonical.request_id) == terminal_request
+
+
+@pytest.mark.parametrize("parent_state", ["draft", "cancelled", "rejected"])
+def test_alias_target_is_refused_without_chain_corruption_or_terminal_reopen(
+    tmp_path, parent_state
+):
+    requests = store(tmp_path)
+    if requests is None:
+        return
+    canonical = requests.create(fields(), submission_id=str(uuid4()))
+    alias = requests.create(fields(), submission_id=str(uuid4()))
+    requests.resolve_duplicate(
+        alias.request_id,
+        canonical.request_id,
+        1,
+        decision="same_work",
+        reason="Initial direct canonical link",
+    )
+    canonical = requests.get(canonical.request_id)
+    if parent_state != "draft":
+        canonical = requests.transition(
+            canonical.request_id,
+            canonical.revision,
+            parent_state,
+            reason="Operator terminal decision",
+        )
+    newcomer = requests.create(fields(), submission_id=str(uuid4()))
+    before = requests.path.read_bytes()
+    with pytest.raises(IntakeError, match="Select the canonical"):
+        requests.resolve_duplicate(
+            newcomer.request_id,
+            alias.request_id,
+            1,
+            decision="same_work",
+            reason="Alias target must not silently resolve or reopen",
+        )
+    assert requests.path.read_bytes() == before
+    assert requests.get(canonical.request_id) == canonical
+    assert requests.get(newcomer.request_id) == newcomer
+    assert (
+        requests.source_provenance(alias.request_id)["canonical_work_id"]
+        == canonical.request_id
+    )
+    if parent_state == "draft":
+        requests.resolve_duplicate(
+            newcomer.request_id,
+            canonical.request_id,
+            1,
+            decision="same_work",
+            reason="Explicit actual canonical target",
+        )
+        assert (
+            requests.source_provenance(newcomer.request_id)["canonical_work_id"]
+            == canonical.request_id
+        )
+
+
+@pytest.mark.parametrize("target", ["cancelled", "rejected", "draft"])
+def test_linked_alias_lifecycle_actions_refuse_without_mutation(tmp_path, target):
+    requests = store(tmp_path)
+    if requests is None:
+        return
+    canonical = requests.create(fields(), submission_id=str(uuid4()))
+    alias = requests.import_contract(contract(), "1", source_identity=identity())
+    requests.resolve_duplicate(
+        alias.request_id,
+        canonical.request_id,
+        1,
+        decision="same_work",
+        reason="Canonical work owns lifecycle",
+    )
+    alias = requests.get(alias.request_id)
+    canonical = requests.get(canonical.request_id)
+    before = requests.path.read_bytes()
+    with pytest.raises(IntakeError, match="canonical work"):
+        requests.transition(
+            alias.request_id,
+            alias.revision,
+            target,
+            reason="Alias lifecycle action is not permitted",
+        )
+    assert requests.path.read_bytes() == before
+    assert requests.get(alias.request_id) == alias
+    assert requests.get(canonical.request_id) == canonical
+    changed = requests.import_contract(
+        contract(jobDescription="Later source change"), "1", source_identity=identity()
+    )
+    resolved = requests.resolve_source_change(
+        changed.request_id,
+        changed.revision,
+        decision="keep_local",
+        reason="Source resolution remains reachable",
+    )
+    assert not resolved.source_pending and resolved.state == "draft"

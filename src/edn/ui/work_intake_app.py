@@ -284,10 +284,20 @@ def render() -> None:
         return
     if duplicates:
         st.warning("Possible duplicate work requires an explicit decision.")
+        duplicate_by_id = {item.request_id: item for item in duplicates}
+        st.caption(
+            "For the same work, select its canonical request. "
+            "Linked source records cannot be linkage targets."
+        )
         with st.form(f"duplicate-resolution-{request_id}-{request.revision}"):
             other_id = st.selectbox(
                 "Possible duplicate request",
                 tuple(item.request_id for item in duplicates),
+                format_func=lambda value: (
+                    f"{duplicate_by_id[value].fields['contactName']} · "
+                    f"{duplicate_by_id[value].fields['siteLocation']} · "
+                    f"{duplicate_by_id[value].state} · {value[:8]}"
+                ),
             )
             duplicate_choice = st.selectbox(
                 "Duplicate resolution", ("distinct", "same_work")
@@ -384,7 +394,8 @@ def render() -> None:
             target = st.selectbox("Action", ("rejected", "cancelled", "draft"))
             reason = st.text_input("Reason for this decision")
             decide = st.form_submit_button(
-                "Record lifecycle decision", disabled=request.state == "cancelled"
+                "Record lifecycle decision",
+                disabled=request.state == "cancelled" or linked_alias,
             )
         if decide:
             st.session_state.pop("prepared-record", None)

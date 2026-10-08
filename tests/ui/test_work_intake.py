@@ -480,3 +480,50 @@ def test_post_publication_uncertainty_clears_artifact_and_reloads_actual_revisio
         == "PUBLISHED-BUT-UNCERTAIN"
     )
     assert button(app, "Prepare SharePoint record (dry run)").disabled
+
+
+def test_linked_source_record_directs_lifecycle_and_edits_to_canonical_work(
+    tmp_path, monkeypatch
+):
+    if unsupported_app(tmp_path, monkeypatch):
+        return
+    _, store = initialise(tmp_path, monkeypatch)
+    canonical = store.create(FIELDS, submission_id=str(uuid4()))
+    contract = {
+        **FIELDS,
+        "source": "EDN Systems Website",
+        "contractVersion": "1.0",
+        "submittedAt": "2026-10-09T00:00:00Z",
+    }
+    identity = {
+        "source_system": "sharepoint",
+        "source_account": "synthetic-account",
+        "site_id": "synthetic-site",
+        "list_id": "synthetic-list",
+        "native_item_id": "SYNTHETIC-LINKED-1",
+    }
+    alias = store.import_contract(
+        contract, "SYNTHETIC-LINKED-1", source_identity=identity
+    )
+    store.resolve_duplicate(
+        alias.request_id,
+        canonical.request_id,
+        alias.revision,
+        decision="same_work",
+        reason="Same synthetic work confirmed",
+    )
+    app = AppTest.from_string(SCRIPT).run()
+    next(item for item in app.selectbox if item.label == "Select a request").select(
+        alias.request_id
+    )
+    app.run()
+    assert not app.exception
+    for label in (
+        "Record lifecycle decision",
+        "Save corrections",
+        "Save supporting file",
+        "Approve reviewed request (self-approval)",
+        "Prepare SharePoint record (dry run)",
+    ):
+        assert button(app, label).disabled
+    assert any(canonical.request_id in item.value for item in app.warning)
