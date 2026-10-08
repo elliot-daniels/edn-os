@@ -402,12 +402,12 @@ def test_checkpoint_interrupt_keeps_replay_safe_incomplete_evidence(
         )
     checkpoint = ImportOutcomeStore(events.path, read_only=True).latest()[0]
     assert checkpoint.state == "in_progress" and checkpoint.inserted == 0
-    assert len(events.list_events()) == 1
+    assert len(events.list_events()) == 0
     monkeypatch.setattr(outcomes, "update", original)
     replay = ingest_mailbox(
         Pages({"value": [message()]}), events, MAILBOX, START, END, outcomes=outcomes
     )
-    assert replay.inserted == 0 and replay.duplicates == 1
+    assert replay.inserted == 1 and replay.duplicates == 0
 
 
 def test_complete_outcome_cannot_hide_failures(tmp_path):

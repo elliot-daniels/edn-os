@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
+from contextlib import nullcontext
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -110,60 +111,64 @@ class ImportOutcomeStore:
             f"{self.path.resolve().as_uri()}?mode={mode}", uri=True
         )
         try:
-            version = connection.execute("PRAGMA user_version").fetchone()[0]
-            if version not in {0, 1}:
-                raise ValueError("Unsupported Operations Event schema")
-            table = connection.execute(
-                "SELECT sql FROM sqlite_master WHERE type='table' "
-                "AND name='operations_import_outcomes'"
-            ).fetchone()
-            if table is not None:
-                expected = [("run_id", "TEXT", 0, 1)] + [
-                    (name, kind, nullable, 0)
-                    for name, kind, nullable in (
-                        ("source", "TEXT", 1),
-                        ("source_account", "TEXT", 1),
-                        ("window_start", "TEXT", 1),
-                        ("window_end", "TEXT", 1),
-                        ("started_at", "TEXT", 1),
-                        ("finished_at", "TEXT", 0),
-                        ("state", "TEXT", 1),
-                        ("inserted", "INTEGER", 1),
-                        ("duplicates", "INTEGER", 1),
-                        ("failed", "INTEGER", 1),
-                        ("pages", "INTEGER", 1),
-                        ("reason", "TEXT", 0),
-                        ("schema_version", "INTEGER", 1),
-                    )
-                ]
-                columns = connection.execute(
-                    "PRAGMA table_info(operations_import_outcomes)"
-                ).fetchall()
-                observed = [(row[1], row[2], row[3], row[5]) for row in columns]
-                if (
-                    observed != expected
-                    or any(row[4] is not None for row in columns)
-                    or re.search(
-                        r"CHECK\s*\(\s*schema_version\s*=\s*1\s*\)",
-                        table[0],
-                        re.IGNORECASE,
-                    )
-                    is None
-                ):
-                    raise ValueError("Unsupported import outcome table schema")
-            if (
-                table is not None
-                and connection.execute(
-                    "SELECT 1 FROM operations_import_outcomes "
-                    "WHERE schema_version <> 1 LIMIT 1"
-                ).fetchone()
-                is not None
-            ):
-                raise ValueError("Unsupported import outcome schema")
-        except Exception:
+            self._validate_connection(connection)
+        except BaseException:
             connection.close()
             raise
         return connection
+
+    @staticmethod
+    def _validate_connection(connection: sqlite3.Connection) -> None:
+        version = connection.execute("PRAGMA user_version").fetchone()[0]
+        if version not in {0, 1}:
+            raise ValueError("Unsupported Operations Event schema")
+        table = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' "
+            "AND name='operations_import_outcomes'"
+        ).fetchone()
+        if table is not None:
+            expected = [("run_id", "TEXT", 0, 1)] + [
+                (name, kind, nullable, 0)
+                for name, kind, nullable in (
+                    ("source", "TEXT", 1),
+                    ("source_account", "TEXT", 1),
+                    ("window_start", "TEXT", 1),
+                    ("window_end", "TEXT", 1),
+                    ("started_at", "TEXT", 1),
+                    ("finished_at", "TEXT", 0),
+                    ("state", "TEXT", 1),
+                    ("inserted", "INTEGER", 1),
+                    ("duplicates", "INTEGER", 1),
+                    ("failed", "INTEGER", 1),
+                    ("pages", "INTEGER", 1),
+                    ("reason", "TEXT", 0),
+                    ("schema_version", "INTEGER", 1),
+                )
+            ]
+            columns = connection.execute(
+                "PRAGMA table_info(operations_import_outcomes)"
+            ).fetchall()
+            observed = [(row[1], row[2], row[3], row[5]) for row in columns]
+            if (
+                observed != expected
+                or any(row[4] is not None for row in columns)
+                or re.search(
+                    r"CHECK\s*\(\s*schema_version\s*=\s*1\s*\)",
+                    table[0],
+                    re.IGNORECASE,
+                )
+                is None
+            ):
+                raise ValueError("Unsupported import outcome table schema")
+        if (
+            table is not None
+            and connection.execute(
+                "SELECT 1 FROM operations_import_outcomes "
+                "WHERE schema_version <> 1 LIMIT 1"
+            ).fetchone()
+            is not None
+        ):
+            raise ValueError("Unsupported import outcome schema")
 
     def validate(self) -> None:
         """Read-only compatibility preflight for an existing selected database."""
@@ -229,6 +234,7 @@ class ImportOutcomeStore:
         pages: int,
         state: str = "in_progress",
         reason: str | None = None,
+        connection: sqlite3.Connection | None = None,
     ) -> None:
         if self.read_only:
             raise ValueError("Read-only outcome store cannot update imports")
@@ -242,7 +248,16 @@ class ImportOutcomeStore:
         ):
             raise ValueError("Import counts cannot be negative")
         finished = None if state == "in_progress" else datetime.now(UTC).isoformat()
-        with self._connect() as connection:
+        if connection is not None:
+            databases = connection.execute("PRAGMA database_list").fetchall()
+            main = next((row[2] for row in databases if row[1] == "main"), None)
+            if main is None or Path(main).resolve() != self.path.resolve():
+                raise ValueError("Import checkpoint must use the selected database")
+            if not connection.in_transaction:
+                raise ValueError("Import checkpoint requires an active transaction")
+            self._validate_connection(connection)
+        context = self._connect() if connection is None else nullcontext(connection)
+        with context as connection:
             row = connection.execute(
                 "SELECT * FROM operations_import_outcomes WHERE run_id=?", (run_id,)
             ).fetchone()
@@ -266,6 +281,31 @@ class ImportOutcomeStore:
             )
             if cursor.rowcount != 1:
                 raise ValueError("Import outcome is missing or already finalized")
+
+    def fail(self, run_id: str) -> None:
+        """Finalize using committed counts, including a just-committed record."""
+        if self.read_only:
+            raise ValueError("Read-only outcome store cannot finalize imports")
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT * FROM operations_import_outcomes WHERE run_id=?", (run_id,)
+            ).fetchone()
+            if row is None:
+                raise ValueError("Import outcome is missing")
+            run = ImportOutcome(*row)
+            self.update(
+                run_id,
+                inserted=run.inserted,
+                duplicates=run.duplicates,
+                failed=run.failed,
+                pages=run.pages,
+                state="partial"
+                if any((run.inserted, run.duplicates, run.failed, run.pages))
+                else "failed",
+                reason="import_error",
+                connection=connection,
+            )
 
     def latest(
         self, *, account: str | None = None, limit: int = 20
