@@ -198,10 +198,10 @@ def initialise_schema(connection: sqlite3.Connection) -> None:
                 KeyError,
                 AttributeError,
                 RecursionError,
-            ) as error:
+            ):
                 raise UnsupportedEventSchemaError(
                     "Legacy Event payload cannot be migrated"
-                ) from error
+                ) from None
             if (event.id, event.source, event.source_account, event.external_id) != (
                 local_id,
                 source,
