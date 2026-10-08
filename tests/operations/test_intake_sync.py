@@ -50,6 +50,35 @@ def test_identity_binds_exact_payload():
     assert delivery_identity(changed)["payload_hash"] != original["payload_hash"]
 
 
+@pytest.mark.parametrize(
+    "mutation", ["list_status", "extra", "bool_revision", "bad_time"]
+)
+def test_stored_receipt_corruption_has_fixed_error(mutation):
+    identity = delivery_identity(payload())
+    receipt = {
+        "identity": dict(identity),
+        "status": "pending",
+        "mode": "synthetic",
+        "live_synced": False,
+        "attempt": 1,
+        "actor": "local operator, uid=1000",
+        "timestamp": "2026-10-09T00:00:00+00:00",
+        "synthetic_id": None,
+    }
+    if mutation == "list_status":
+        receipt["status"] = []
+    elif mutation == "extra":
+        receipt["private-source"] = "PRIVATE-SECRET"
+    elif mutation == "bool_revision":
+        identity["revision"] = 1
+        receipt["identity"]["revision"] = True
+    else:
+        receipt["timestamp"] = "PRIVATE-SECRET"
+    with pytest.raises(SyntheticSyncError) as error:
+        SyntheticSyncStore._validate(receipt, identity)
+    assert "PRIVATE-SECRET" not in str(error.value)
+
+
 def store_or_refusal(tmp_path):
     root = tmp_path / "synthetic-sync"
     if sys.platform != "linux":
@@ -90,3 +119,34 @@ def test_failed_attempt_can_retry_but_changed_payload_cannot(tmp_path):
     with pytest.raises(SyntheticSyncError, match="does not match"):
         store.deliver(changed)
     assert store.get(payload()) == succeeded
+
+
+def test_tampered_success_receipt_requires_ledger_confirmation(tmp_path):
+    store = store_or_refusal(tmp_path)
+    if store is None:
+        return
+    import json
+
+    original = store.deliver(payload())
+    path = next(store.root.glob("*.receipt.json"))
+    tampered = dict(original)
+    tampered["synthetic_id"] = "SYNTHETIC-d411af59-c600-413b-a916-a462c395f108"
+    path.write_text(json.dumps(tampered), encoding="utf-8")
+    for action in (store.get, store.deliver):
+        with pytest.raises(SyntheticSyncError, match="inconsistent"):
+            action(payload())
+    assert store.reconcile(payload())["synthetic_id"] == original["synthetic_id"]
+
+
+def test_missing_success_ledger_never_claims_confirmation_or_allows_retry(tmp_path):
+    store = store_or_refusal(tmp_path)
+    if store is None:
+        return
+    store.deliver(payload())
+    receipt = next(store.root.glob("*.receipt.json"))
+    before = receipt.read_bytes()
+    next(store.root.glob("*.ledger.json")).unlink()
+    for action in (store.get, store.deliver, store.reconcile):
+        with pytest.raises(SyntheticSyncError):
+            action(payload())
+    assert receipt.read_bytes() == before

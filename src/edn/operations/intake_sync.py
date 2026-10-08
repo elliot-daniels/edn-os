@@ -122,14 +122,27 @@ class SyntheticSyncStore:
             receipt = self._read(anchor, self._name(identity, ".receipt.json"))
             if receipt is not None:
                 self._validate(receipt, identity)
+                self._confirmed(anchor, receipt, identity)
             return receipt
 
     @staticmethod
     def _validate(receipt: dict[str, Any], identity: dict[str, Any]) -> None:
+        SyntheticSyncStore._stored_identity(receipt.get("identity"), identity)
         if (
-            receipt.get("identity") != identity
+            set(receipt)
+            != {
+                "identity",
+                "status",
+                "mode",
+                "live_synced",
+                "attempt",
+                "actor",
+                "timestamp",
+                "synthetic_id",
+            }
             or receipt.get("mode") != "synthetic"
             or receipt.get("live_synced") is not False
+            or not isinstance(receipt.get("status"), str)
             or receipt.get("status") not in {"pending", "failed", "unknown", "synced"}
             or type(receipt.get("attempt")) is not int
             or receipt["attempt"] < 1
@@ -153,6 +166,47 @@ class SyntheticSyncStore:
                 raise ValueError
         except (KeyError, ValueError, TypeError, AttributeError):
             raise SyntheticSyncError("Stored synthetic receipt is invalid") from None
+
+    @staticmethod
+    def _stored_identity(value: Any, expected: dict[str, Any]) -> None:
+        if (
+            not isinstance(value, dict)
+            or set(value) != set(expected)
+            or type(value.get("revision")) is not int
+            or any(
+                not isinstance(value.get(key), str)
+                for key in expected
+                if key != "revision"
+            )
+            or value != expected
+        ):
+            raise SyntheticSyncError(
+                "Stored synthetic identity does not match approved content"
+            )
+
+    @staticmethod
+    def _ledger(value: dict[str, Any], identity: dict[str, Any]) -> None:
+        if set(value) != {"identity", "synthetic_id"}:
+            raise SyntheticSyncError("Stored synthetic ledger is invalid")
+        SyntheticSyncStore._stored_identity(value.get("identity"), identity)
+        SyntheticSyncStore._synthetic_id(value.get("synthetic_id"))
+
+    def _confirmed(
+        self,
+        anchor: AnchoredDirectory,
+        receipt: dict[str, Any],
+        identity: dict[str, Any],
+    ) -> None:
+        if receipt["status"] != "synced":
+            return
+        ledger = self._read(anchor, self._name(identity, ".ledger.json"))
+        if ledger is None:
+            raise SyntheticSyncError("Synthetic confirmation is unavailable; reconcile")
+        self._ledger(ledger, identity)
+        if ledger["synthetic_id"] != receipt["synthetic_id"]:
+            raise SyntheticSyncError(
+                "Synthetic confirmation is inconsistent; reconcile"
+            )
 
     @staticmethod
     def _synthetic_id(value: Any) -> None:
@@ -179,6 +233,7 @@ class SyntheticSyncStore:
             if prior is not None:
                 self._validate(prior, identity)
                 if prior["status"] == "synced":
+                    self._confirmed(anchor, prior, identity)
                     return prior
                 if prior["status"] in {"unknown", "pending"}:
                     raise SyntheticSyncError(
@@ -203,11 +258,7 @@ class SyntheticSyncStore:
                 }
                 existing = self._read(anchor, self._name(identity, ".ledger.json"))
                 if existing is not None:
-                    if existing.get("identity") != identity:
-                        raise SyntheticSyncError(
-                            "Synthetic key conflicts with prior content"
-                        )
-                    self._synthetic_id(existing.get("synthetic_id"))
+                    self._ledger(existing, identity)
                     ledger = existing
                 else:
                     self._write(anchor, self._name(identity, ".ledger.json"), ledger)
@@ -231,15 +282,15 @@ class SyntheticSyncStore:
             self._validate(receipt, identity)
             ledger = self._read(anchor, self._name(identity, ".ledger.json"))
             if ledger is not None:
-                if ledger.get("identity") != identity:
-                    raise SyntheticSyncError(
-                        "Synthetic ledger conflicts with approved content"
-                    )
-                self._synthetic_id(ledger.get("synthetic_id"))
+                self._ledger(ledger, identity)
                 receipt["status"] = "synced"
                 receipt["synthetic_id"] = ledger["synthetic_id"]
             elif receipt["status"] in {"unknown", "pending"}:
                 receipt["status"] = "failed"
+            elif receipt["status"] == "synced":
+                raise SyntheticSyncError(
+                    "Synthetic confirmation ledger is missing; recovery is required"
+                )
             receipt["timestamp"] = datetime.now(UTC).isoformat()
             self._write(anchor, name, receipt)
             return receipt
