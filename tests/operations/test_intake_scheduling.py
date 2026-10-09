@@ -182,3 +182,52 @@ def test_explicit_weekend_date_is_not_replaced_by_monday():
     )
     assert result.start.date() == date(2026, 10, 17)
     assert result.status == "proposal_only"
+
+
+def test_spring_dst_buffer_cannot_miss_real_overlap():
+    now = datetime(2026, 10, 3, 9, tzinfo=ADELAIDE)
+    start = datetime(2026, 10, 4, 3, 15, tzinfo=ADELAIDE)
+    busy = event(start, start + timedelta(minutes=30))
+    result = propose_schedule(
+        request(requested_start=start), snapshot(now, (busy,)), now=now
+    )
+    assert result.status == "conflict"
+
+
+def test_fall_dst_explicit_fold_preserved_and_duration_is_elapsed_time():
+    now = datetime(2027, 4, 3, 9, tzinfo=ADELAIDE)
+    start = datetime(2027, 4, 4, 2, 45, tzinfo=ADELAIDE, fold=1)
+    result = propose_schedule(request(requested_start=start), snapshot(now), now=now)
+    assert result.start.astimezone(UTC) == start.astimezone(UTC)
+    assert result.start.fold == 1
+    assert result.end.astimezone(UTC) - result.start.astimezone(UTC) == timedelta(
+        minutes=60
+    )
+    assert result.start.astimezone(UTC) - result.occupied_start.astimezone(
+        UTC
+    ) == timedelta(minutes=30)
+
+
+def test_nonexistent_explicit_wall_time_is_refused():
+    with pytest.raises(ValueError, match="does not exist"):
+        request(requested_start=datetime(2026, 10, 4, 2, 45, tzinfo=ADELAIDE))
+
+
+def test_future_starting_snapshot_does_not_move_next_five_day_horizon():
+    future = replace(
+        snapshot(), start=NOW + timedelta(days=7), end=NOW + timedelta(days=14)
+    )
+    result = propose_schedule(request(), future, now=NOW)
+    assert result.status == "calendar_unknown" and result.start is None
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_truncated_calendar_is_unknown_not_conflict_or_no_slot(explicit):
+    truncated = replace(snapshot(), end=NOW.replace(hour=15))
+    asked = (
+        request(requested_start=NOW + timedelta(days=1, hours=2))
+        if explicit
+        else request()
+    )
+    result = propose_schedule(asked, truncated, now=NOW)
+    assert result.status == "calendar_unknown"
