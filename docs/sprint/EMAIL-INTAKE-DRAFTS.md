@@ -38,3 +38,12 @@ existing Android demo remains unchanged. Independent exact-head Grok QA/Dot and
 full hosted Linux/Windows gates are required before integration. Synthetic-only
 storage does not establish owner approval for either real email or cloud hosting
 of real email.
+
+N51-01 state-preserving upgrade is addressed with explicit assessment versioning.
+Legacy unversioned receipts remain readable/replayable with original data, answers
+and history intact, but are flagged stale and cannot accept continuation until
+audited reassessment. Explicit synthetic reassessment increments revision and
+retains the previous assessment in history. It never resets/deletes data and
+refuses non-synthetic sources. Current version validation remains strict; changing
+the classifier requires a version decision rather than silently invalidating
+retained drafts. Real-store reassessment remains a separate owner gate.

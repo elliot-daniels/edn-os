@@ -13,9 +13,10 @@ import sqlite3
 import unicodedata
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from edn.operations.intake import IntakeError, IntakeStore
-from edn.operations.intake_email import EmailKind, assess_email
+from edn.operations.intake_email import EmailAssessment, EmailKind, assess_email
 from edn.operations.models import Event
 
 _DDL = """CREATE TABLE email_drafts (
@@ -64,6 +65,38 @@ def _text(value: str, maximum: int) -> str:
     ):
         raise IntakeError("Draft answer or actor text is invalid")
     return value.strip()
+
+
+def _payload(assessment: EmailAssessment) -> dict[str, object]:
+    return {
+        "version": 2,
+        "kind": assessment.kind.value,
+        "facts": [
+            {
+                "field": f.field,
+                "value": f.value,
+                "quote": f.quote,
+                "source_key": f.source_key,
+                "basis": f.basis,
+            }
+            for f in assessment.facts
+        ],
+        "questions": [
+            {"field": q.field, "category": q.category, "question": q.question}
+            for q in assessment.questions
+        ],
+        "reasons": list(assessment.reasons),
+    }
+
+
+def _event(original: dict[str, Any]) -> Event:
+    # Stored JSON types are checked by Event's existing domain contract.
+    values = dict(original)
+    timestamp = values["occurred_at"]
+    if not isinstance(timestamp, str):
+        raise ValueError
+    values["occurred_at"] = datetime.fromisoformat(timestamp)
+    return Event(**values)
 
 
 class _EmailSnapshotStore(IntakeStore):
@@ -134,24 +167,7 @@ class EmailDraftStore:
         if len(encoded.encode("utf-8")) > 1_048_576:
             raise IntakeError("Email source exceeds draft receipt bound")
         digest = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
-        payload = {
-            "kind": assessment.kind.value,
-            "facts": [
-                {
-                    "field": f.field,
-                    "value": f.value,
-                    "quote": f.quote,
-                    "source_key": f.source_key,
-                    "basis": f.basis,
-                }
-                for f in assessment.facts
-            ],
-            "questions": [
-                {"field": q.field, "category": q.category, "question": q.question}
-                for q in assessment.questions
-            ],
-            "reasons": list(assessment.reasons),
-        }
+        payload = _payload(assessment)
         with self._backend._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
@@ -219,35 +235,42 @@ class EmailDraftStore:
                 timestamp = datetime.fromisoformat(entry["at"])
                 if timestamp.tzinfo is None or timestamp.utcoffset() is None:
                     raise ValueError
-            reconstructed = dict(original)
-            reconstructed["occurred_at"] = datetime.fromisoformat(
-                original["occurred_at"]
-            )
-            reconstructed["parties"] = tuple(original["parties"])
-            reconstructed["attachments"] = tuple(original["attachments"])
-            expected = assess_email(Event(**reconstructed))
+            expected = assess_email(_event(original))
+            version = assessment.get("version", 1)
             if (
-                assessment.get("kind") != expected.kind.value
-                or assessment.get("reasons") != list(expected.reasons)
-                or assessment.get("facts")
-                != [
-                    {
-                        "field": f.field,
-                        "value": f.value,
-                        "quote": f.quote,
-                        "source_key": f.source_key,
-                        "basis": f.basis,
-                    }
-                    for f in expected.facts
-                ]
-                or assessment.get("questions")
-                != [
-                    {"field": q.field, "category": q.category, "question": q.question}
-                    for q in expected.questions
-                ]
+                type(version) is not int
+                or version not in {1, 2}
                 or expected.source_key != source_key
             ):
                 raise ValueError
+            stale = version == 1
+            if not stale and assessment != _payload(expected):
+                raise ValueError
+            if stale:
+                EmailKind(assessment["kind"])
+                for name in ("facts", "questions", "reasons"):
+                    if not isinstance(assessment[name], list):
+                        raise ValueError
+                for fact in assessment["facts"]:
+                    if (
+                        fact["field"] not in _ANSWER_FIELDS
+                        or fact["basis"] != "email_reported"
+                        or fact["source_key"] != source_key
+                        or fact["quote"] not in original["body"]
+                    ):
+                        raise ValueError
+                    _text(fact["value"], 2000)
+                for question in assessment["questions"]:
+                    if question["field"] not in _ANSWER_FIELDS or question[
+                        "category"
+                    ] not in {
+                        "before_scheduling",
+                        "before_attending",
+                        "before_invoicing",
+                        "optional",
+                    }:
+                        raise ValueError
+                    _text(question["question"], 2000)
             for field, answer in answers.items():
                 if field not in _ANSWER_FIELDS or not isinstance(answer, dict):
                     raise ValueError
@@ -263,6 +286,7 @@ class EmailDraftStore:
             "original": original,
             "revision": row[2],
             "assessment": assessment,
+            "assessment_stale": stale,
             "answers": answers,
             "history": history,
             "state": "unapproved_email_draft",
@@ -313,6 +337,8 @@ class EmailDraftStore:
         with self._backend._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             current = self._get(connection, source_key)
+            if current["assessment_stale"]:
+                raise IntakeError("Assessment upgrade requires audited reassessment")
             assessment = current["assessment"]
             assert isinstance(assessment, dict)
             if assessment["kind"] != EmailKind.NEW_JOB.value:
@@ -344,6 +370,45 @@ class EmailDraftStore:
                 "UPDATE email_drafts SET revision=?,answers=?,history=? "
                 "WHERE source_key=?",
                 (revision + 1, _json(answers), _json(history), source_key),
+            )
+            connection.commit()
+            return self._get(connection, source_key)
+
+    def reassess_synthetic(
+        self, source_key: str, revision: int, *, actor: str
+    ) -> dict[str, object]:
+        """Audit synthetic assessment upgrades while retaining source and answers."""
+        self._backend._write()
+        actor = _text(actor, 100)
+        with self._backend._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            current = self._get(connection, source_key)
+            if type(revision) is not int or current["revision"] != revision:
+                raise IntakeError("Email draft changed; refresh before reassessing")
+            original = current["original"]
+            history = current["history"]
+            assert isinstance(original, dict) and isinstance(history, list)
+            if not original["source"].startswith("synthetic_"):
+                raise IntakeError(
+                    "Real-store reassessment requires separate owner authority"
+                )
+            if not current["assessment_stale"]:
+                return current
+            assessment = _payload(assess_email(_event(original)))
+            history.append(
+                {
+                    "revision": revision + 1,
+                    "actor": actor,
+                    "at": datetime.now(UTC).isoformat(),
+                    "action": "reassessed",
+                    "previous_assessment": current["assessment"],
+                    "source_hash": current["source_hash"],
+                }
+            )
+            connection.execute(
+                "UPDATE email_drafts SET revision=?,assessment=?,history=? "
+                "WHERE source_key=?",
+                (revision + 1, _json(assessment), _json(history), source_key),
             )
             connection.commit()
             return self._get(connection, source_key)
