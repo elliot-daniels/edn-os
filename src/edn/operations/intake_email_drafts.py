@@ -265,7 +265,17 @@ class EmailDraftStore:
                         or fact["quote"] not in original["body"]
                     ):
                         raise ValueError
-                    _text(fact["value"], 2000)
+                    value = fact["value"]
+                    # Legacy source facts use the extraction contract, not the
+                    # stricter operator-input contract. They remain unapproved
+                    # source evidence and are rendered as inert text.
+                    if (
+                        not isinstance(value, str)
+                        or not value.strip()
+                        or len(value) > 2000
+                        or any(ord(c) < 32 for c in value)
+                    ):
+                        raise ValueError
                 for question in assessment["questions"]:
                     if question["field"] not in _ANSWER_FIELDS or question[
                         "category"
