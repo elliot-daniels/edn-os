@@ -101,6 +101,29 @@ _INTENTS = (
         r"\b(?:for your information|fyi|newsletter|general information)\b",
     ),
 )
+_HISTORY = re.compile(
+    r"^(?:On .+ wrote:|[- ]*(?:Original Message|Forwarded message)[- ]*|"
+    r"Begin forwarded message:)",
+    re.I,
+)
+_NEGATED = re.compile(
+    r"\b(?:not a (?:new )?(?:work|job) request|"
+    r"no (?:action|further work) (?:is )?(?:needed|required)|"
+    r"(?:do not|don't|never|not to) (?:\w+\s+){0,3}"
+    r"(?:cancel|install|repair|attend|replace|book|schedule))\b",
+    re.I,
+)
+_UNKNOWN = frozenset({"tbc", "tbd", "unknown", "not known", "not provided", "n/a", "?"})
+
+
+def _current_body(body: str) -> str:
+    lines = []
+    for line in body.splitlines():
+        if _HISTORY.match(line.strip()):
+            break
+        if not line.lstrip().startswith(">"):
+            lines.append(line)
+    return "\n".join(lines)
 
 
 def assess_email(event: Event) -> EmailAssessment:
@@ -115,18 +138,29 @@ def assess_email(event: Event) -> EmailAssessment:
         raise ValueError("Assessment requires an inbound Operations email")
     if len(event.subject) + len(event.body) > 100_000:
         raise ValueError("Email assessment exceeds bounded text limit")
-    text = event.subject + "\n" + event.body
+    current_body = _current_body(event.body)
+    # Reply/forward subjects can describe an old job, not a current instruction.
+    subject = (
+        ""
+        if re.match(r"^(?:re|fw|fwd):", event.subject.strip(), re.I)
+        else event.subject
+    )
+    text = subject + "\n" + current_body
     matches = {kind for kind, pattern in _INTENTS if re.search(pattern, text, re.I)}
     # Quoted thread history is not reliable current intent. Any competing intent
     # requires review rather than guessing which sentence is authoritative.
     kind = next(iter(matches)) if len(matches) == 1 else EmailKind.UNCERTAIN
+    if _NEGATED.search(text):
+        kind = EmailKind.UNCERTAIN
     facts: list[EmailFact] = []
     conflicting: set[str] = set()
-    for line in event.body.splitlines():
+    for line in current_body.splitlines():
         label, separator, value = line.partition(":")
         field = _LABELS.get(label.strip().lower())
         value = value.strip()
         if not separator or field is None or not value:
+            continue
+        if value.casefold().strip(" .") in _UNKNOWN:
             continue
         if len(value) > 2000 or any(ord(char) < 32 for char in value):
             conflicting.add(field)

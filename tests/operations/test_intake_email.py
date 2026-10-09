@@ -130,3 +130,55 @@ def test_forwarded_identity_and_embedded_commands_cannot_supply_trusted_links():
 def test_invalid_input_is_rejected(changes):
     with pytest.raises(ValueError):
         assess_email(email(**changes))
+
+
+@pytest.mark.parametrize(
+    "subject,body",
+    [
+        ("Not a new work request", "No action is needed."),
+        ("Please do not cancel the job", ""),
+        (
+            "Thanks, all resolved",
+            "No further work is needed.\nOn Tuesday Pat wrote:\n"
+            "> Please repair the network",
+        ),
+        ("Re: New work request", "Thanks, all resolved."),
+    ],
+)
+def test_negated_or_historical_intent_is_uncertain(subject, body):
+    result = assess_email(email(subject, body))
+    assert result.kind == EmailKind.UNCERTAIN and not result.prepares_new_job
+
+
+@pytest.mark.parametrize(
+    "marker",
+    ["-----Original Message-----", "On Tuesday Pat wrote:", "Begin forwarded message:"],
+)
+def test_old_history_cannot_supply_current_scheduling_facts(marker):
+    result = assess_email(
+        email(
+            body="Please replace the switch.\n"
+            + marker
+            + "\nSite: Old depot\nScope: Previous switch\nDuration: 90 minutes"
+        )
+    )
+    assert result.kind == EmailKind.NEW_JOB
+    assert not result.facts
+    assert {q.field for q in result.questions if q.category == "before_scheduling"} == {
+        "siteLocation",
+        "jobDescription",
+        "duration",
+    }
+
+
+@pytest.mark.parametrize(
+    "placeholder", ["TBC", "TBD", "unknown", "not provided", "n/a", "?"]
+)
+def test_explicit_unknown_does_not_satisfy_missing_job_fields(placeholder):
+    result = assess_email(
+        email(
+            body=f"Site: {placeholder}\nScope: {placeholder}\nDuration: {placeholder}"
+        )
+    )
+    assert not result.facts
+    assert len([q for q in result.questions if q.category == "before_scheduling"]) == 3
