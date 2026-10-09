@@ -8,8 +8,8 @@ import os
 import re
 import sqlite3
 import unicodedata
-from collections.abc import Mapping, Sequence
-from contextlib import AbstractContextManager
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -1140,83 +1140,132 @@ class IntakeStore:
     def export(self, request_id: str, expected_revision: int) -> dict[str, object]:
         self._write()
         with self._connect() as connection:
-            connection.execute("BEGIN IMMEDIATE")
-            request = self._get(connection, request_id)
-            self._expected(request, expected_revision)
-            self._review_gate(connection, request)
-            self._verify_evidence(request)
-            if request.state != "approved":
-                raise IntakeError("Approve the current revision before export")
-            provenance = self._group_provenance(connection, request_id)
-            fields = {
-                target: request.fields[source]
-                for source, target in FIELD_MAPPING.items()
-                if source != "preferredDate" or request.fields[source]
-            }
-            fields.update(
-                {
-                    "Title": "Pending",
-                    "Source": "EDN Systems Website"
-                    if provenance["source_type"] == "synthetic_import"
-                    else "EDN OS Manual",
-                    "SubmittedAt": str(provenance["submitted_at"])
-                    if provenance["source_type"] == "synthetic_import"
-                    else request.created_at,
-                    "ContractVersion": "1.0",
-                    "Status": "New",
-                }
+            return self._export_locked(connection, request_id, expected_revision)
+
+    @contextmanager
+    def authorise_delivery(self, payload: Mapping[str, object]) -> Iterator[None]:
+        """Hold the intake lock through delivery of the exact current approval."""
+        request_id = payload.get("request_id")
+        revision = payload.get("revision")
+        if not isinstance(request_id, str) or type(revision) is not int:
+            raise IntakeError("Delivery does not match the current approval")
+        with self._connect() as connection:
+            current = self._export_locked(
+                connection, request_id, revision, mark_dry_run=False
             )
+            for key in (
+                "request_id",
+                "revision",
+                "content_hash",
+                "idempotency_key",
+                "submission_id",
+                "approval",
+                "fields",
+                "source_provenance",
+                "target",
+            ):
+                if payload.get(key) != current.get(key):
+                    raise IntakeError("Delivery does not match the current approval")
+            manifest = payload.get("attachment_manifest")
+            if isinstance(manifest, dict):
+                manifest = manifest.get("files")
+            if (
+                not isinstance(manifest, (list, tuple))
+                or tuple(manifest) != current["attachment_manifest"]
+            ):
+                raise IntakeError(
+                    "Delivery evidence does not match the current approval"
+                )
+            if current.get("operation", "create_proposal") != "create_proposal":
+                raise IntakeError("Existing source work cannot create a synthetic item")
+            yield
+
+    def _export_locked(
+        self,
+        connection: sqlite3.Connection,
+        request_id: str,
+        expected_revision: int,
+        *,
+        mark_dry_run: bool = True,
+    ) -> dict[str, object]:
+        connection.execute("BEGIN IMMEDIATE")
+        request = self._get(connection, request_id)
+        self._expected(request, expected_revision)
+        self._review_gate(connection, request)
+        self._verify_evidence(request)
+        if request.state != "approved":
+            raise IntakeError("Approve the current revision before export")
+        provenance = self._group_provenance(connection, request_id)
+        fields = {
+            target: request.fields[source]
+            for source, target in FIELD_MAPPING.items()
+            if source != "preferredDate" or request.fields[source]
+        }
+        fields.update(
+            {
+                "Title": "Pending",
+                "Source": "EDN Systems Website"
+                if provenance["source_type"] == "synthetic_import"
+                else "EDN OS Manual",
+                "SubmittedAt": str(provenance["submitted_at"])
+                if provenance["source_type"] == "synthetic_import"
+                else request.created_at,
+                "ContractVersion": "1.0",
+                "Status": "New",
+            }
+        )
+        if mark_dry_run:
             connection.execute(
                 "UPDATE intake_requests SET sync_status='dry_run',updated_at=? "
                 "WHERE request_id=?",
                 (datetime.now(UTC).isoformat(), request_id),
             )
-            return {
-                "fields": fields,
-                "dry_run": True,
-                "sync_status": "dry_run",
-                "request_id": request_id,
+        return {
+            "fields": fields,
+            "dry_run": True,
+            "sync_status": "dry_run",
+            "request_id": request_id,
+            "revision": request.revision,
+            "operation": (
+                "reference_existing"
+                if provenance["source_type"] == "synthetic_import"
+                else "create_proposal"
+            ),
+            "content_hash": _digest(request.fields, request.attachments),
+            "attachment_manifest": request.attachments,
+            "target": {
+                "integration": "sharepoint",
+                "list_contract": "Job Requests",
+                "live_status": "unverified",
+                **{
+                    name: value
+                    for name, value in provenance.items()
+                    if name
+                    in {
+                        "source_system",
+                        "source_account",
+                        "site_id",
+                        "list_id",
+                        "native_item_id",
+                    }
+                },
+            },
+            "not_ready": [
+                "Live target identifiers are not configured",
+                "Current source permissions are unverified",
+                "Live list schema compatibility is unverified",
+                "Dry run performs no remote write",
+            ],
+            "approval": {
                 "revision": request.revision,
-                "operation": (
-                    "reference_existing"
-                    if provenance["source_type"] == "synthetic_import"
-                    else "create_proposal"
-                ),
                 "content_hash": _digest(request.fields, request.attachments),
-                "attachment_manifest": request.attachments,
-                "target": {
-                    "integration": "sharepoint",
-                    "list_contract": "Job Requests",
-                    "live_status": "unverified",
-                    **{
-                        name: value
-                        for name, value in provenance.items()
-                        if name
-                        in {
-                            "source_system",
-                            "source_account",
-                            "site_id",
-                            "list_id",
-                            "native_item_id",
-                        }
-                    },
-                },
-                "not_ready": [
-                    "Live target identifiers are not configured",
-                    "Current source permissions are unverified",
-                    "Live list schema compatibility is unverified",
-                    "Dry run performs no remote write",
-                ],
-                "approval": {
-                    "revision": request.revision,
-                    "content_hash": _digest(request.fields, request.attachments),
-                    "actor": request.approval_actor,
-                    "timestamp": request.approval_timestamp,
-                },
-                "submission_id": self._submission_id(connection, request_id),
-                "idempotency_key": self._submission_id(connection, request_id),
-                "source_provenance": provenance,
-            }
+                "actor": request.approval_actor,
+                "timestamp": request.approval_timestamp,
+            },
+            "submission_id": self._submission_id(connection, request_id),
+            "idempotency_key": self._submission_id(connection, request_id),
+            "source_provenance": provenance,
+        }
 
     @staticmethod
     def _submission_id(connection: sqlite3.Connection, request_id: str) -> str:

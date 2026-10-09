@@ -1,0 +1,92 @@
+{
+  "fixture_version": 1,
+  "source_repository": "elliot-daniels/edn-systems-website",
+  "source_commit": "90c789479874ce4202e35bd9b4bf010952d3e2f4",
+  "source_file": "scripts/verify-sharepoint.ts",
+  "request_contract_commit": "f2f91d415e57d8ec017bf6ddad481d30c2a3c50d",
+  "live_schema_status": "unverified",
+  "columns": {
+    "Title": {
+      "type": "text",
+      "capacity": 40,
+      "multiline": false
+    },
+    "ContactName": {
+      "type": "text",
+      "capacity": 100,
+      "multiline": false
+    },
+    "Company": {
+      "type": "text",
+      "capacity": 120,
+      "multiline": false
+    },
+    "Email": {
+      "type": "text",
+      "capacity": 254,
+      "multiline": false
+    },
+    "Phone": {
+      "type": "text",
+      "capacity": 30,
+      "multiline": false
+    },
+    "Site_x002f_Location": {
+      "type": "text",
+      "capacity": 240,
+      "multiline": false
+    },
+    "JobDescription": {
+      "type": "text",
+      "capacity": 4000,
+      "multiline": true
+    },
+    "CustomerReference": {
+      "type": "text",
+      "capacity": 100,
+      "multiline": false
+    },
+    "Source": {
+      "type": "text",
+      "capacity": 40,
+      "multiline": false
+    },
+    "ContractVersion": {
+      "type": "text",
+      "capacity": 10,
+      "multiline": false
+    },
+    "ServiceRequired": {
+      "type": "choice",
+      "choices": [
+        "Network infrastructure",
+        "Field engineering",
+        "Site assessment",
+        "Fault response",
+        "Other / not sure"
+      ]
+    },
+    "Urgency": {
+      "type": "choice",
+      "choices": [
+        "Routine",
+        "Time-sensitive",
+        "Urgent"
+      ]
+    },
+    "Status": {
+      "type": "choice",
+      "choices": [
+        "New"
+      ]
+    },
+    "PreferredDate": {
+      "type": "date",
+      "format": "dateOnly"
+    },
+    "SubmittedAt": {
+      "type": "datetime",
+      "format": "dateTime"
+    }
+  }
+}

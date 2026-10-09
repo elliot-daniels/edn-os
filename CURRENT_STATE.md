@@ -1,5 +1,24 @@
 # Current state — 1 October 2026
 
+## Work Intake MVP sprint exception — 8 October 2026
+
+Owner expressly authorised a bounded Work Intake MVP, superseding the earlier
+`docs/NOW.md` restriction for this workflow only. Current authoritative main is
+`26eb5466e15dfccc6280d9aa8296b05d57928928` after approved PRs #35 and #36.
+PR #37 is checkpointed and unmerged; overnight authority excludes main changes.
+The snapshots below remain historical evidence, not current integration status.
+
+Development uses isolated feature branches, independent exact-head QA and full
+hosted CI. The demo reuses website Job Requests contract
+`f2f91d415e57d8ec017bf6ddad481d30c2a3c50d`, Python/SQLite/Streamlit, with
+manual entry, uploads, local queue, corrections, self-approval audit and synthetic
+intake. Export is a dry run; no transport, credentials, live records or fake
+confirmed SharePoint ID are introduced. Linux/WSL protected storage is required;
+native Windows fails closed. Local WSL availability has not been established
+because inventory returned `Wsl/E_ACCESSDENIED`; Linux launch validation and
+exact instructions remain required. OCT-05/OCT-06 and production recovery gates
+remain open. See the Work Intake PRs and morning handover for current test heads.
+
 > October pre-promotion correction: UWC no-flow/submission statements below describe the recorded August stage. Later excluded branch 839e75c records a blocked Developer flow/binding attempt. No working capture path or current production state is verified. See [authority reconciliation](docs/sprint/AUTHORITY-RECONCILIATION.md).
 
 ## October repair candidate
