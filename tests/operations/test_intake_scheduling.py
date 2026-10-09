@@ -151,3 +151,34 @@ def test_naive_time_and_contradictory_explicit_constraints_refused():
         propose_schedule(request(), snapshot(), now=datetime(2026, 10, 12, 9))
     with pytest.raises(ValueError):
         request(requested_date=date(2026, 10, 13), requested_start=NOW)
+
+
+def test_customer_night_work_is_preserved_as_exception_proposal():
+    night = NOW.replace(hour=22)
+    result = propose_schedule(request(requested_start=night), snapshot(), now=NOW)
+    assert result.start == night
+    assert result.end == night + timedelta(hours=1)
+    assert result.status == "proposal_only"
+    assert "outside default" in result.reasons[0]
+    busy = event(night, night + timedelta(minutes=10))
+    assert (
+        propose_schedule(
+            request(requested_start=night), snapshot(events=(busy,)), now=NOW
+        ).status
+        == "conflict"
+    )
+
+
+def test_default_search_never_escapes_five_working_days():
+    coverage = replace(snapshot(), end=NOW + timedelta(days=21))
+    busy = event(NOW.replace(hour=0), NOW.replace(hour=0) + timedelta(days=5))
+    coverage = replace(coverage, events=(busy,))
+    assert propose_schedule(request(), coverage, now=NOW).status == "no_slot"
+
+
+def test_explicit_weekend_date_is_not_replaced_by_monday():
+    result = propose_schedule(
+        request(requested_date=date(2026, 10, 17)), snapshot(), now=NOW
+    )
+    assert result.start.date() == date(2026, 10, 17)
+    assert result.status == "proposal_only"

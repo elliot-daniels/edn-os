@@ -128,7 +128,9 @@ def propose_schedule(
     before = timedelta(minutes=request.before_minutes)
     after = timedelta(minutes=request.after_minutes)
     duration = timedelta(minutes=request.duration.minutes)
-    if before + duration + after > timedelta(hours=5):
+    if request.requested_start is None and before + duration + after > timedelta(
+        hours=5
+    ):
         return ScheduleProposal("no_fit", reasons=("Unsplit job exceeds work window",))
     local_now = now.astimezone(ADELAIDE)
     first = max(local_now.date(), snapshot.start.astimezone(ADELAIDE).date())
@@ -143,15 +145,26 @@ def propose_schedule(
             for offset in range(32)
             if first + timedelta(days=offset)
             <= snapshot.end.astimezone(ADELAIDE).date()
-        ]
+            and (first + timedelta(days=offset)).weekday() < 5
+            and datetime.combine(first + timedelta(days=offset), time(15), ADELAIDE)
+            > local_now
+        ][:5]
     )
     for day in days:
         window_start = datetime.combine(day, time(10), ADELAIDE)
         window_end = datetime.combine(day, time(15), ADELAIDE)
-        if day.weekday() >= 5:
+        if day.weekday() >= 5 and explicit_day is None:
             continue
+        outside_default = day.weekday() >= 5
         if request.requested_start is not None:
             candidate = request.requested_start.astimezone(ADELAIDE) - before
+            requested_finish = candidate + before + duration + after
+            outside_default = (
+                outside_default
+                or candidate < window_start
+                or requested_finish > window_end
+            )
+            window_start, window_end = candidate, requested_finish
         else:
             candidate = max(
                 window_start, local_now, snapshot.start.astimezone(ADELAIDE)
@@ -177,6 +190,10 @@ def propose_schedule(
                 reasons = tuple(
                     reason
                     for condition, reason in (
+                        (
+                            outside_default,
+                            "Customer requirement outside default work window",
+                        ),
                         (not request.site_ready, "Site/access requires clarification"),
                         (
                             not request.duration.reliable,

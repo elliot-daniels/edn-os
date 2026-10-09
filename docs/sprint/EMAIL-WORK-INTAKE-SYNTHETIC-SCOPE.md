@@ -18,7 +18,9 @@ First bounded component: pure provisional scheduling, no transport. Adelaide
 local window is 10:00–15:00, weekdays, with all travel/preparation occupancy inside
 that window. Conservative default buffers are 30 minutes before and after, stated
 as planning defaults rather than verified travel facts. Jobs are never split.
-Explicit date/time remains a constraint, conflicts do not silently move it.
+Default search is restricted to the next five Monday-Friday working days.
+Explicit date/time remains a constraint, including night/weekend work; those
+exceptions are preserved as proposal-only and conflicts never silently move them.
 Unknown duration/site may yield a proposal but cannot qualify for reservation.
 Calendar coverage must be complete and checked within five minutes. Filtered EDN
 events alone do not prove full availability: excluded commitments, unavailable
