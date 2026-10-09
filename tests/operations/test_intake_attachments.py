@@ -737,6 +737,78 @@ def test_metadata_publish_failure_quarantines_on_restart_and_releases_committed_
     assert reopened.read(REQUEST, successful.attachment_id) == PDF
 
 
+@pytest.mark.parametrize("interruptions", [1, 3])
+@linux_storage_test
+def test_interrupted_recovery_finishes_cleanup_on_first_reopen(
+    tmp_path, monkeypatch, interruptions
+):
+    import subprocess
+
+    attachments = store(tmp_path)
+    good = attachments.attach(REQUEST, "complete.pdf", PDF)
+    incomplete = PDF.replace(b"1 0 obj", b"2 0 obj")
+    ledger = attachments.root / REQUEST / "attachments.json"
+    complete_entries = json.loads(ledger.read_text())["entries"]
+    publish = module._publish_file
+
+    def fail_metadata(directory, name, payload):
+        if name == "metadata.json":
+            raise OSError("synthetic metadata failure")
+        return publish(directory, name, payload)
+
+    monkeypatch.setattr(module, "_publish_file", fail_metadata)
+    with pytest.raises(IntakeAttachmentError):
+        attachments.attach(REQUEST, "incomplete.pdf", incomplete)
+    monkeypatch.setattr(module, "_publish_file", publish)
+    code = """
+import os, sys
+from pathlib import Path
+from edn.operations.intake_attachments import IntakeAttachmentStore
+from edn.operations.intake_security import AnchoredDirectory
+original = AnchoredDirectory.replace
+def interrupted(directory, source, target):
+    if target == 'attachments.json' and directory.exists('.recovery.json'):
+        assert source.startswith('.quota-') and directory.exists(source)
+        os._exit(77)
+    return original(directory, source, target)
+AnchoredDirectory.replace = interrupted
+IntakeAttachmentStore(Path(sys.argv[1]))
+"""
+    repo = Path(__file__).resolve().parents[2]
+    environment = dict(
+        os.environ, PYTHONPATH=os.pathsep.join((str(repo / "src"), str(repo)))
+    )
+    for _ in range(interruptions):
+        result = subprocess.run(
+            [sys.executable, "-c", code, str(attachments.root)],
+            cwd=repo,
+            env=environment,
+            capture_output=True,
+            timeout=30,
+        )
+        assert result.returncode == 77, result.stderr.decode()
+    assert len(list((attachments.root / REQUEST).glob(".quota-*"))) == interruptions
+    reopened = IntakeAttachmentStore(attachments.root)
+    assert reopened.get(REQUEST, good.attachment_id) == good
+    assert reopened.read(REQUEST, good.attachment_id) == PDF
+    assert not list((attachments.root / REQUEST).glob(".quota-*"))
+    assert not (attachments.root / REQUEST / ".recovery.json").exists()
+    assert json.loads(ledger.read_text())["entries"] == complete_entries
+    originals = list((attachments.root / ".quarantine").rglob("original.bin"))
+    assert len(originals) == 1 and originals[0].read_bytes() == incomplete
+    snapshot = {
+        str(path.relative_to(attachments.root)): path.read_bytes()
+        for path in attachments.root.rglob("*")
+        if path.is_file()
+    }
+    IntakeAttachmentStore(attachments.root)
+    assert snapshot == {
+        str(path.relative_to(attachments.root)): path.read_bytes()
+        for path in attachments.root.rglob("*")
+        if path.is_file()
+    }
+
+
 @linux_storage_test
 def test_recovery_failure_never_frees_quota_before_committed_sweep(
     tmp_path, monkeypatch
