@@ -64,3 +64,12 @@ representations of the owner's unread emails. No claim of real-email accuracy or
 complete unattended intake is made. Existing approval/export validation remains
 unchanged. Independent Grok QA and Dot exact-head acceptance plus full hosted CI
 are required before accepted development integration.
+
+Dot D50-01/D50-02/D50-03 repair: denied/negated instructions remain uncertain;
+reply/forward subjects are not current intent by themselves. Recognised history
+boundaries and quoted lines are retained in the original Event but excluded from
+current intent/facts. Explicit unknown placeholders leave questions unresolved.
+This conservative fallback may need operator clarification for an entire forward;
+it does not claim general forwarded-email extraction. Thirteen regression cases
+independently fail on the original assessment tree; 32 assessment cases pass after
+repair. Dependency is refreshed to the repaired scheduler with normal ancestry.
