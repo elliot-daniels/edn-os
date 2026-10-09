@@ -746,6 +746,7 @@ def test_interrupted_recovery_finishes_cleanup_on_first_reopen(
 
     attachments = store(tmp_path)
     good = attachments.attach(REQUEST, "complete.pdf", PDF)
+    incomplete = PDF.replace(b"1 0 obj", b"2 0 obj")
     ledger = attachments.root / REQUEST / "attachments.json"
     complete_entries = json.loads(ledger.read_text())["entries"]
     publish = module._publish_file
@@ -757,7 +758,7 @@ def test_interrupted_recovery_finishes_cleanup_on_first_reopen(
 
     monkeypatch.setattr(module, "_publish_file", fail_metadata)
     with pytest.raises(IntakeAttachmentError):
-        attachments.attach(REQUEST, "incomplete.pdf", PDF)
+        attachments.attach(REQUEST, "incomplete.pdf", incomplete)
     monkeypatch.setattr(module, "_publish_file", publish)
     code = """
 import os, sys
@@ -794,7 +795,7 @@ IntakeAttachmentStore(Path(sys.argv[1]))
     assert not (attachments.root / REQUEST / ".recovery.json").exists()
     assert json.loads(ledger.read_text())["entries"] == complete_entries
     originals = list((attachments.root / ".quarantine").rglob("original.bin"))
-    assert len(originals) == 1 and originals[0].read_bytes() == PDF
+    assert len(originals) == 1 and originals[0].read_bytes() == incomplete
     snapshot = {
         str(path.relative_to(attachments.root)): path.read_bytes()
         for path in attachments.root.rglob("*")
