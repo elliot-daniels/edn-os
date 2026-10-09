@@ -60,10 +60,8 @@ refused by the service, including forged create operations. F45-03: documented
 normalised current/original identifying-fact candidates require explicit reasoned
 duplicate decisions. F45-04: approved queue labels show `(self-approved)`.
 
-F45-05 remains an owner scope decision: no authoritative customer/project
-association catalogue exists in this MVP. Company/reference are free text and
-must not be described as an association authority. Existing NOW scope excludes a
-new CRM relationship catalogue. Neither catalogue creation nor exclusion from
-the frozen association criteria is inferred from QA; an explicit owner decision
-is pending. Product acceptance remains HOLD until that decision and exact-head
-independent acceptance are recorded. The frozen specifications are unchanged.
+Owner resolved F45-05 on 9 October 2026: validated customer/project linking is
+outside MVP v1. See [dated scope decision](WORK-INTAKE-MVP-V1-SCOPE-DECISION.md).
+Company/reference remain free text, not validated associations. No CRM catalogue
+or live Microsoft lookup is introduced. Final exact-head independent acceptance
+remains required; the frozen QA specifications and security gates are unchanged.
