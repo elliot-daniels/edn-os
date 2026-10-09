@@ -16,7 +16,12 @@ from pathlib import Path
 from typing import Any
 
 from edn.operations.intake import IntakeError, IntakeStore
-from edn.operations.intake_email import EmailAssessment, EmailKind, assess_email
+from edn.operations.intake_email import (
+    _UNKNOWN,
+    EmailAssessment,
+    EmailKind,
+    assess_email,
+)
 from edn.operations.models import Event
 
 _DDL = """CREATE TABLE email_drafts (
@@ -294,6 +299,8 @@ class EmailDraftStore:
                 question
                 for question in assessment.get("questions", [])
                 if question["field"] not in answers
+                or answers[question["field"]]["value"].casefold().strip(" .")
+                in _UNKNOWN
             ],
         }
 
@@ -334,6 +341,8 @@ class EmailDraftStore:
         if field not in _ANSWER_FIELDS or type(revision) is not int:
             raise IntakeError("Invalid continuation field or revision")
         actor, value = _text(actor, 100), _text(value, 2000)
+        if value.casefold().strip(" .") in _UNKNOWN:
+            raise IntakeError("Answer is still unknown; leave the question unresolved")
         with self._backend._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             current = self._get(connection, source_key)

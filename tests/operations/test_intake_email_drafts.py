@@ -181,3 +181,15 @@ def test_non_synthetic_assessment_upgrade_refuses_before_modification(tmp_path):
     with pytest.raises(IntakeError, match="owner authority"):
         drafts.reassess_synthetic(event.identity_key, 1, actor="operator")
     assert drafts.get(event.identity_key) == current
+
+
+@pytest.mark.parametrize("value", ["TBC", "TBD", "unknown", "n/a"])
+def test_unknown_operator_answer_cannot_close_a_required_question(tmp_path, value):
+    drafts = store(tmp_path)
+    if drafts is None:
+        return
+    event = email()
+    original = drafts.ingest(event)
+    with pytest.raises(IntakeError, match="unknown"):
+        drafts.answer(event.identity_key, 1, "siteLocation", value, actor="operator")
+    assert drafts.get(event.identity_key) == original
