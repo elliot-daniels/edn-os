@@ -231,6 +231,16 @@ class IntakeAttachmentStore:
     def _recover_request(
         self, root: AnchoredDirectory, request: AnchoredDirectory, request_id: str
     ) -> None:
+        resumed = request.exists(".recovery.json")
+        self._recover_request_once(root, request, request_id)
+        if resumed:
+            # Process death can leave quota stages created after the saved plan.
+            # Finish that plan first, then perform one fresh bounded sweep.
+            self._recover_request_once(root, request, request_id)
+
+    def _recover_request_once(
+        self, root: AnchoredDirectory, request: AnchoredDirectory, request_id: str
+    ) -> None:
         if request.exists(".recovery.json"):
             plan = json.loads(
                 _read_regular(request, ".recovery.json", MAX_METADATA_BYTES)
