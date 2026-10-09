@@ -182,3 +182,39 @@ def test_explicit_unknown_does_not_satisfy_missing_job_fields(placeholder):
     )
     assert not result.facts
     assert len([q for q in result.questions if q.category == "before_scheduling"]) == 3
+
+
+@pytest.mark.parametrize(
+    "subject,body",
+    [
+        ("Please don\u2019t cancel the job", ""),
+        ("New work request", "Please don\u2019t attend. No attendance is required."),
+        ("No new work request", ""),
+    ],
+)
+def test_unicode_and_explicit_negative_intent_is_non_actionable(subject, body):
+    result = assess_email(email(subject, body))
+    assert result.kind == EmailKind.UNCERTAIN and not result.prepares_new_job
+
+
+@pytest.mark.parametrize(
+    "field,label,known,unknown",
+    [
+        ("siteLocation", "Site", "Depot A", "unknown"),
+        ("duration", "Duration", "90 minutes", "TBD"),
+    ],
+)
+@pytest.mark.parametrize("reverse", [False, True])
+def test_known_and_unknown_labels_remain_unresolved_in_either_order(
+    field, label, known, unknown, reverse
+):
+    values = [known, unknown]
+    if reverse:
+        values.reverse()
+    result = assess_email(
+        email(body="\n".join(f"{label}: {value}" for value in values))
+    )
+    assert all(fact.field != field for fact in result.facts)
+    assert any(
+        q.field == field and q.category == "before_scheduling" for q in result.questions
+    )
