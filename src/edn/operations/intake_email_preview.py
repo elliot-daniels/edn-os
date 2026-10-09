@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from datetime import UTC, date, datetime, time
 from typing import Any
 
@@ -91,7 +92,7 @@ def preview_email_schedule(
             )
         reliable = True
         basis = "Duration explicitly reported in source or operator answer"
-    return propose_schedule(
+    proposal = propose_schedule(
         SchedulingRequest(
             draft["source_key"],
             DurationEstimate(minutes, basis, reliable),
@@ -102,3 +103,10 @@ def preview_email_schedule(
         calendar,
         now=now,
     )
+    if proposal.start is not None and not values.get("jobDescription"):
+        return replace(
+            proposal,
+            status="proposal_only",
+            reasons=(*proposal.reasons, "Scope requires clarification"),
+        )
+    return proposal

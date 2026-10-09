@@ -108,12 +108,15 @@ _HISTORY = re.compile(
 )
 _NEGATED = re.compile(
     r"\b(?:not a (?:new )?(?:work|job) request|"
-    r"no (?:action|further work) (?:is )?(?:needed|required)|"
+    r"no (?:new )?(?:work|job) request|"
+    r"no (?:attendance|booking|scheduling|action|further work) "
+    r"(?:is )?(?:needed|required)|"
     r"(?:do not|don't|never|not to) (?:\w+\s+){0,3}"
     r"(?:cancel|install|repair|attend|replace|book|schedule))\b",
     re.I,
 )
 _UNKNOWN = frozenset({"tbc", "tbd", "unknown", "not known", "not provided", "n/a", "?"})
+ASSESSMENT_VERSION = 3
 
 
 def _current_body(body: str) -> str:
@@ -146,11 +149,12 @@ def assess_email(event: Event) -> EmailAssessment:
         else event.subject
     )
     text = subject + "\n" + current_body
+    intent_text = text.replace("\u2019", "'").replace("\u2018", "'")
     matches = {kind for kind, pattern in _INTENTS if re.search(pattern, text, re.I)}
     # Quoted thread history is not reliable current intent. Any competing intent
     # requires review rather than guessing which sentence is authoritative.
     kind = next(iter(matches)) if len(matches) == 1 else EmailKind.UNCERTAIN
-    if _NEGATED.search(text):
+    if _NEGATED.search(intent_text):
         kind = EmailKind.UNCERTAIN
     facts: list[EmailFact] = []
     conflicting: set[str] = set()
@@ -161,6 +165,7 @@ def assess_email(event: Event) -> EmailAssessment:
         if not separator or field is None or not value:
             continue
         if value.casefold().strip(" .") in _UNKNOWN:
+            conflicting.add(field)
             continue
         if len(value) > 2000 or any(ord(char) < 32 for char in value):
             conflicting.add(field)

@@ -51,3 +51,11 @@ Python asyncio's loopback `socketpair` fallback stalled in `socket.accept` while
 constructing Streamlit LocalScriptRunner. A diagnostic faulthandler trace located
 that boundary. No timeout was increased or assertion skipped. Full hosted Linux
 and Windows CI must validate this exact head in a fresh environment.
+
+Dot D52-01/02/03 repairs bind each editor to its displayed revision; a different
+session's save requires explicit refresh and discards stale input. Previews show
+service range, travel/preparation occupancy, elapsed duration, unverified estimate
+status and all qualification reasons. Missing scope blocks eligibility even if
+site and duration are present. Acceptance adds a two-session stale-input journey,
+proposal explanation assertions and the actual opt-in Work Intake navigation path.
+No timeout was increased; these require fresh hosted and independent review.

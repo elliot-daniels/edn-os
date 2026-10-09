@@ -99,3 +99,13 @@ def test_retained_unknown_site_answer_is_not_verified_readiness():
     partial["answers"]["siteLocation"] = {"value": "TBC"}
     result = preview_email_schedule(partial, snapshot(now), now=now)
     assert result.status == "proposal_only"
+
+
+def test_missing_scope_blocks_eligibility_even_with_site_and_duration():
+    now = datetime(2026, 10, 12, 9, tzinfo=ADELAIDE)
+    partial = draft("Site: Depot\nDuration: 90 minutes")
+    result = preview_email_schedule(partial, snapshot(now), now=now)
+    assert (
+        result.status == "proposal_only"
+        and "Scope requires clarification" in result.reasons
+    )

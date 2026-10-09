@@ -126,7 +126,42 @@ def _render_draft(
             st.info("No schedule proposed for this correspondence.")
         elif proposal.start is not None:
             st.write("Provisional — Awaiting Confirmation")
-            st.write(proposal.start.strftime("%a %d %b %Y, %H:%M") + " Adelaide")
+            assert proposal.end is not None
+            assert (
+                proposal.occupied_start is not None
+                and proposal.occupied_end is not None
+            )
+            st.write(
+                "Service: "
+                + proposal.start.strftime("%a %d %b %Y %H:%M %z")
+                + " → "
+                + proposal.end.strftime("%a %d %b %Y %H:%M %z")
+                + " Adelaide"
+            )
+            st.write(
+                "Travel/preparation occupancy: "
+                + proposal.occupied_start.strftime("%a %d %b %Y %H:%M %z")
+                + " → "
+                + proposal.occupied_end.strftime("%a %d %b %Y %H:%M %z")
+                + " Adelaide"
+            )
+            minutes = int(
+                (
+                    proposal.end.astimezone(UTC) - proposal.start.astimezone(UTC)
+                ).total_seconds()
+                / 60
+            )
+            if "Duration is an uncertain estimate" in proposal.reasons:
+                st.warning(
+                    f"Unverified {minutes}-minute planning estimate; confirm duration."
+                )
+            else:
+                st.caption(
+                    f"{minutes}-minute duration explicitly reported "
+                    "in email or operator answer."
+                )
+            for reason in proposal.reasons:
+                st.write("Qualification: " + reason)
             st.caption(
                 "Planning preview only · no reservation or customer appointment exists"
             )
@@ -138,6 +173,20 @@ def _render_draft(
         for question in questions:
             st.write(f"{question['category']}: {question['question']}")
         if assessment["kind"] == "new_job":
+            editor_key = key + "-editor-revision"
+            if editor_key not in st.session_state:
+                st.session_state[editor_key] = record["revision"]
+            expected_revision = st.session_state[editor_key]
+            if expected_revision != record["revision"]:
+                st.warning(
+                    "This draft changed in another session. Refresh before saving."
+                )
+                if st.button("Refresh email editor", key=key + "-refresh"):
+                    st.session_state[editor_key] = record["revision"]
+                    st.session_state.pop(key + "-field", None)
+                    st.session_state.pop(key + "-answer", None)
+                    st.rerun()
+                return
             fields = tuple(
                 dict.fromkeys(
                     [
@@ -159,9 +208,10 @@ def _render_draft(
             )
             if st.button("Save answer", key=key + "-save"):
                 try:
-                    EmailDraftStore(path).answer(
-                        key, record["revision"], field, value, actor="local-operator"
+                    updated = EmailDraftStore(path).answer(
+                        key, expected_revision, field, value, actor="local-operator"
                     )
+                    st.session_state[editor_key] = updated["revision"]
                     st.rerun()
                 except (ValueError, sqlite3.Error, OSError):
                     st.error("Answer was not confirmed. Refresh and check your value.")
