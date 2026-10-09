@@ -40,3 +40,13 @@ classification/extraction, durable partial drafts, answer-resume/update/cancel,
 synthetic reservation transactions and mobile presentation. Independent Grok QA
 and Dot exact-head technical acceptance precede accepted development integration.
 The existing private Android demo remains on its accepted application tree.
+
+Dot findings D49-01/D49-02 were independently reproduced: six added regression
+cases fail against the original scheduling tree. Duration/buffer and conflict
+arithmetic now uses UTC instants; Adelaide conversion is limited to day/window
+selection and presentation. Explicit fall-back folds survive unchanged and
+nonexistent local times are refused. The five-day horizon starts from now,
+independently of supplied coverage. Missing horizon or requested occupancy
+coverage returns calendar_unknown rather than false availability/conflict.
+All 23 scheduler cases pass locally. Fresh hosted CI and exact-head independent
+review are required; the previous green run does not accept this repair.

@@ -23,6 +23,10 @@ def _aware(value: datetime) -> None:
         or value.utcoffset() is None
     ):
         raise ValueError("Scheduling timestamps must be timezone-aware")
+    if value.astimezone(UTC).astimezone(value.tzinfo).replace(
+        tzinfo=None
+    ) != value.replace(tzinfo=None):
+        raise ValueError("Scheduling local timestamp does not exist")
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,7 +137,8 @@ def propose_schedule(
     ):
         return ScheduleProposal("no_fit", reasons=("Unsplit job exceeds work window",))
     local_now = now.astimezone(ADELAIDE)
-    first = max(local_now.date(), snapshot.start.astimezone(ADELAIDE).date())
+    now_utc = now.astimezone(UTC)
+    first = local_now.date()
     explicit_day = request.requested_date
     if request.requested_start is not None:
         explicit_day = request.requested_start.astimezone(ADELAIDE).date()
@@ -143,21 +148,33 @@ def propose_schedule(
         else [
             first + timedelta(days=offset)
             for offset in range(32)
-            if first + timedelta(days=offset)
-            <= snapshot.end.astimezone(ADELAIDE).date()
-            and (first + timedelta(days=offset)).weekday() < 5
+            if (first + timedelta(days=offset)).weekday() < 5
             and datetime.combine(first + timedelta(days=offset), time(15), ADELAIDE)
             > local_now
         ][:5]
     )
+    # Availability needs coverage of the real horizon, not a horizon shifted to
+    # whatever future range the caller happened to retrieve.
+    if explicit_day is None and days:
+        required_start = max(
+            now_utc, datetime.combine(days[0], time(10), ADELAIDE).astimezone(UTC)
+        )
+        required_end = datetime.combine(days[-1], time(15), ADELAIDE).astimezone(UTC)
+        if (
+            snapshot.start.astimezone(UTC) > required_start
+            or snapshot.end.astimezone(UTC) < required_end
+        ):
+            return ScheduleProposal(
+                "calendar_unknown", reasons=("Five-workday horizon is not covered",)
+            )
     for day in days:
-        window_start = datetime.combine(day, time(10), ADELAIDE)
-        window_end = datetime.combine(day, time(15), ADELAIDE)
+        window_start = datetime.combine(day, time(10), ADELAIDE).astimezone(UTC)
+        window_end = datetime.combine(day, time(15), ADELAIDE).astimezone(UTC)
         if day.weekday() >= 5 and explicit_day is None:
             continue
         outside_default = day.weekday() >= 5
         if request.requested_start is not None:
-            candidate = request.requested_start.astimezone(ADELAIDE) - before
+            candidate = request.requested_start.astimezone(UTC) - before
             requested_finish = candidate + before + duration + after
             outside_default = (
                 outside_default
@@ -166,17 +183,23 @@ def propose_schedule(
             )
             window_start, window_end = candidate, requested_finish
         else:
-            candidate = max(
-                window_start, local_now, snapshot.start.astimezone(ADELAIDE)
-            )
+            candidate = max(window_start, now_utc)
             # Minute boundary avoids pretending a mid-minute arrival is exact.
             if candidate.second or candidate.microsecond:
                 candidate = candidate.replace(second=0, microsecond=0) + timedelta(
                     minutes=1
                 )
+        if window_end <= now_utc or candidate < now_utc:
+            continue
+        if candidate < snapshot.start.astimezone(
+            UTC
+        ) or window_end > snapshot.end.astimezone(UTC):
+            return ScheduleProposal(
+                "calendar_unknown", reasons=("Requested occupancy is not covered",)
+            )
         while candidate + before + duration + after <= window_end:
             finish = candidate + before + duration + after
-            if candidate < window_start or candidate < local_now:
+            if candidate < window_start or candidate < now_utc:
                 break
             if candidate < snapshot.start or finish > snapshot.end:
                 break
@@ -204,10 +227,10 @@ def propose_schedule(
                 )
                 return ScheduleProposal(
                     "proposal_only" if reasons else "provisional_eligible",
-                    candidate + before,
-                    candidate + before + duration,
-                    candidate,
-                    finish,
+                    (candidate + before).astimezone(ADELAIDE),
+                    (candidate + before + duration).astimezone(ADELAIDE),
+                    candidate.astimezone(ADELAIDE),
+                    finish.astimezone(ADELAIDE),
                     hashlib.sha256(
                         ("edn-provisional-v1:" + request.job_id).encode()
                     ).hexdigest(),
@@ -215,7 +238,7 @@ def propose_schedule(
                 )
             if request.requested_start is not None:
                 break
-            candidate = max(event.end.astimezone(ADELAIDE) for event in conflicts)
+            candidate = max(event.end.astimezone(UTC) for event in conflicts)
     reason = (
         "Requested date/time unavailable"
         if explicit_day
