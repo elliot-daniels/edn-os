@@ -1,0 +1,16 @@
+{
+  "purpose": "Frozen old-public-API upgrade test only; no product imports",
+  "remote_head": "34499e3eba3bb6fc691b4d7f657577f4ee358ebf",
+  "files": [
+    {
+      "name": "drafts.py.txt",
+      "source": "src/edn/operations/intake_email_drafts.py",
+      "sha256": "7de998b55d88ed839376dae9526ce780a5beb551344675cc1a9d85bc5d1b83d6"
+    },
+    {
+      "name": "classifier.py.txt",
+      "source": "src/edn/operations/intake_email.py",
+      "sha256": "18f1a1216081e0c9a977ecd9fce1fd5479fc1c8093eccd603ee0052a0f7a85dc"
+    }
+  ]
+}
