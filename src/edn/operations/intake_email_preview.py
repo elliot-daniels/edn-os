@@ -6,6 +6,7 @@ import re
 from datetime import UTC, date, datetime, time
 from typing import Any
 
+from edn.operations.intake_email import _UNKNOWN
 from edn.operations.intake_scheduling import (
     ADELAIDE,
     CalendarSnapshot,
@@ -31,6 +32,11 @@ def preview_email_schedule(
         )
     values = {fact["field"]: fact["value"] for fact in assessment["facts"]}
     values.update({key: answer["value"] for key, answer in draft["answers"].items()})
+    values = {
+        key: value
+        for key, value in values.items()
+        if value.casefold().strip(" .") not in _UNKNOWN
+    }
     requested_date = None
     requested_start = None
     if values.get("requested_date"):

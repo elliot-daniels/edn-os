@@ -91,3 +91,11 @@ def test_legacy_assessment_cannot_supply_a_scheduling_proposal():
     old["assessment_stale"] = True
     result = preview_email_schedule(old, snapshot(now), now=now)
     assert result.status == "needs_reassessment" and result.start is None
+
+
+def test_retained_unknown_site_answer_is_not_verified_readiness():
+    now = datetime(2026, 10, 12, 9, tzinfo=ADELAIDE)
+    partial = draft("Site: Depot\nDuration: 90 minutes")
+    partial["answers"]["siteLocation"] = {"value": "TBC"}
+    result = preview_email_schedule(partial, snapshot(now), now=now)
+    assert result.status == "proposal_only"
