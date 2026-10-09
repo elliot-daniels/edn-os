@@ -7,6 +7,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+from edn.operations.intake import IntakeError
 from edn.operations.intake_email_drafts import EmailDraftStore
 from tests.operations.test_intake_email_drafts import store
 
@@ -35,14 +38,15 @@ drafts.initialise()
 event=Event(source='synthetic_outlook',source_account='synthetic@example.test',
     external_id='legacy-positive',occurred_at=datetime(2026,10,10,tzinfo=UTC),
     direction='inbound',event_type='email',subject='New work request',
-    body='Scope: Repair synthetic switch\\nSite: TBC')
+    body='Scope: Repair synthetic switch\\nSite: '+sys.argv[3])
 drafts.ingest(event)
 old=drafts.answer(event.identity_key,1,'duration','60 minutes',actor='operator')
 print(json.dumps(old))
 """
 
 
-def test_old_head_public_api_create_answer_then_new_head_reopen(tmp_path):
+@pytest.mark.parametrize("site", ["TBC", "Synthetic Depot\u200bA"])
+def test_old_head_public_api_create_answer_then_new_head_reopen(tmp_path, site):
     supported = store(tmp_path)
     if supported is None:
         return
@@ -56,7 +60,7 @@ def test_old_head_public_api_create_answer_then_new_head_reopen(tmp_path):
         )
     path = tmp_path / "legacy-public-api.db"
     child = subprocess.run(
-        [sys.executable, "-c", CHILD, str(fixtures), str(path)],
+        [sys.executable, "-c", CHILD, str(fixtures), str(path), site],
         check=True,
         capture_output=True,
         text=True,
@@ -65,7 +69,7 @@ def test_old_head_public_api_create_answer_then_new_head_reopen(tmp_path):
     old = json.loads(child.stdout)
     assert old["revision"] == 2
     assert any(
-        f["field"] == "siteLocation" and f["value"] == "TBC"
+        f["field"] == "siteLocation" and f["value"] == site
         for f in old["assessment"]["facts"]
     )
     before = path.read_bytes()
@@ -79,5 +83,15 @@ def test_old_head_public_api_create_answer_then_new_head_reopen(tmp_path):
     assert upgraded["revision"] == 3 and not upgraded["assessment_stale"]
     assert upgraded["answers"] == old["answers"]
     assert upgraded["original"] == old["original"]
-    assert any(q["field"] == "siteLocation" for q in upgraded["outstanding_questions"])
+    if site == "TBC":
+        assert any(
+            q["field"] == "siteLocation" for q in upgraded["outstanding_questions"]
+        )
+    else:
+        assert any(
+            f["field"] == "siteLocation" and f["value"] == site
+            for f in upgraded["assessment"]["facts"]
+        )
+        with pytest.raises(IntakeError, match="invalid"):
+            current.answer(old["source_key"], 3, "siteLocation", site, actor="operator")
     assert current.get(old["source_key"]) == upgraded
