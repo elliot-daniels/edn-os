@@ -193,3 +193,56 @@ def test_unknown_operator_answer_cannot_close_a_required_question(tmp_path, valu
     with pytest.raises(IntakeError, match="unknown"):
         drafts.answer(event.identity_key, 1, "siteLocation", value, actor="operator")
     assert drafts.get(event.identity_key) == original
+
+
+@pytest.mark.parametrize("version", [1, 2])
+def test_previous_assessment_generations_reopen_with_source_and_answers_retained(
+    tmp_path, version
+):
+    drafts = store(tmp_path)
+    if drafts is None:
+        return
+    event = email(body="Scope: Repair synthetic switch\nSite: TBC")
+    drafts.ingest(event)
+    answered = drafts.answer(
+        event.identity_key, 1, "duration", "60 minutes", actor="operator"
+    )
+    legacy = dict(answered["assessment"])
+    legacy["reasons"] = ["Local conservative rules; no external AI processing"]
+    if version == 1:
+        legacy.pop("version")
+        legacy["facts"].append(
+            {
+                "field": "siteLocation",
+                "value": "TBC",
+                "quote": "Site: TBC",
+                "source_key": event.identity_key,
+                "basis": "email_reported",
+            }
+        )
+        legacy["questions"] = [
+            q for q in legacy["questions"] if q["field"] != "siteLocation"
+        ]
+    else:
+        legacy["version"] = version
+    # Frozen logical receipt shapes from the old public API. Only derived
+    # assessment JSON is replaced; source hash, answers and revisions are intact.
+    with drafts._backend._connect() as connection:
+        connection.execute(
+            "UPDATE email_drafts SET assessment=? WHERE source_key=?",
+            (json.dumps(legacy), event.identity_key),
+        )
+        connection.commit()
+    reopened = EmailDraftStore(tmp_path / "email-drafts.db")
+    old = reopened.get(event.identity_key)
+    assert old["assessment_stale"] and old["revision"] == 2
+    assert reopened.ingest(event) == old
+    revised = reopened.reassess_synthetic(event.identity_key, 2, actor="operator")
+    assert revised["revision"] == 3 and not revised["assessment_stale"]
+    assert (
+        revised["original"] == old["original"]
+        and revised["source_hash"] == old["source_hash"]
+    )
+    assert revised["answers"] == old["answers"]
+    assert revised["history"][:-1] == old["history"]
+    assert any(q["field"] == "siteLocation" for q in revised["outstanding_questions"])

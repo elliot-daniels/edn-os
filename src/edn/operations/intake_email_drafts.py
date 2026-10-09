@@ -18,6 +18,7 @@ from typing import Any
 from edn.operations.intake import IntakeError, IntakeStore
 from edn.operations.intake_email import (
     _UNKNOWN,
+    ASSESSMENT_VERSION,
     EmailAssessment,
     EmailKind,
     assess_email,
@@ -74,7 +75,7 @@ def _text(value: str, maximum: int) -> str:
 
 def _payload(assessment: EmailAssessment) -> dict[str, object]:
     return {
-        "version": 2,
+        "version": ASSESSMENT_VERSION,
         "kind": assessment.kind.value,
         "facts": [
             {
@@ -244,11 +245,11 @@ class EmailDraftStore:
             version = assessment.get("version", 1)
             if (
                 type(version) is not int
-                or version not in {1, 2}
+                or not 1 <= version <= ASSESSMENT_VERSION
                 or expected.source_key != source_key
             ):
                 raise ValueError
-            stale = version == 1
+            stale = version != ASSESSMENT_VERSION
             if not stale and assessment != _payload(expected):
                 raise ValueError
             if stale:
