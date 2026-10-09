@@ -94,7 +94,10 @@ def _render_draft(
     original = record["original"]
     assessment = record["assessment"]
     key = record["source_key"]
-    with st.expander(f"{original['subject']} · {assessment['kind']}", expanded=True):
+    # Source text must not become Markdown images/links or fetch remote resources.
+    label = "Email " + key.rsplit(":", 1)[-1][:8] + " · " + assessment["kind"]
+    with st.expander(label, expanded=True):
+        st.text(original["subject"])
         st.caption(
             f"Revision {record['revision']} · unapproved draft · no SharePoint delivery"
         )
@@ -118,9 +121,9 @@ def _render_draft(
             st.text(original["body"])
             return
         for fact in assessment["facts"]:
-            st.write(f"{fact['field']}: {fact['value']} (reported in email)")
+            st.text(f"{fact['field']}: {fact['value']} (reported in email)")
         for field, answer in record["answers"].items():
-            st.write(f"{field}: {answer['value']} (operator confirmed)")
+            st.text(f"{field}: {answer['value']} (operator confirmed)")
         proposal = preview_email_schedule(record, calendar, now=now)
         if proposal.status == "not_applicable":
             st.info("No schedule proposed for this correspondence.")
