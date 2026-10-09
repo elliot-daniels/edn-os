@@ -46,7 +46,7 @@ def test_synthetic_email_queue_answer_replay_and_fresh_application(tmp_path):
     reopened = AppTest.from_string(script).run()
     assert not reopened.exception
     assert any(
-        "90 minutes (operator confirmed)" in item.value for item in reopened.markdown
+        "90 minutes (operator confirmed)" in item.value for item in reopened.text
     )
     reopened.button(key="email-pilot-load").click().run()
     assert not reopened.exception
@@ -100,3 +100,25 @@ def test_opt_in_composed_work_intake_app_path(tmp_path, monkeypatch):
     assert not app.exception
     assert any(item.value == "Intake queue" for item in app.subheader)
     assert len(EmailDraftStore(tmp_path / "email-drafts.db").list_drafts()[0]) == 6
+
+
+def test_source_markdown_is_plain_text_not_remote_resource_markup(tmp_path):
+    from tests.operations.test_intake_email import email
+    from tests.operations.test_intake_email_drafts import store
+
+    drafts = store(tmp_path)
+    if drafts is None:
+        return
+    marker = "![tracking](https://example.invalid/pixel)"
+    event = email("New work request " + marker, "Scope: " + marker)
+    drafts.ingest(event)
+    script = (
+        "from pathlib import Path\n"
+        "from edn.ui.intake_email_pilot import render_email_pilot\n"
+        f"render_email_pilot(Path({str(tmp_path)!r}))\n"
+    )
+    app = AppTest.from_string(script).run()
+    assert not app.exception
+    assert any(marker in element.value for element in app.text)
+    assert all(marker not in element.value for element in app.markdown)
+    assert all(marker not in element.label for element in app.expander)
