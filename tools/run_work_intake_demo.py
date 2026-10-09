@@ -14,6 +14,11 @@ def main() -> int:
     parser.add_argument("--data-dir", type=Path, required=True)
     parser.add_argument("--port", type=int, default=8502)
     parser.add_argument("--initialise", action="store_true")
+    parser.add_argument(
+        "--email-pilot",
+        action="store_true",
+        help="Enable fictional email and calendar preview fixtures",
+    )
     args = parser.parse_args()
     repo = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(repo / "src"))
@@ -57,6 +62,8 @@ def main() -> int:
     env = os.environ.copy()
     env["EDN_INTAKE_ROOT"] = str(root)
     env["PYTHONPATH"] = str(repo / "src")
+    if args.email_pilot:
+        env["EDN_SYNTHETIC_EMAIL_PILOT"] = "1"
     print(f"Synthetic Work Intake: http://127.0.0.1:{args.port}", flush=True)
     return subprocess.call(
         [

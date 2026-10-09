@@ -1,0 +1,434 @@
+"""Protected incomplete email drafts; complete-request approval gates stay intact.
+
+The tiny internal backend reuses IntakeStore's Linux snapshot/locking protection.
+It owns a separate schema, so incomplete facts cannot masquerade as an approved
+manual request. Public workflow composition does not inherit request operations.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import sqlite3
+import unicodedata
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+from edn.operations.intake import IntakeError, IntakeStore
+from edn.operations.intake_email import (
+    _UNKNOWN,
+    ASSESSMENT_VERSION,
+    EmailAssessment,
+    EmailKind,
+    assess_email,
+)
+from edn.operations.models import Event
+
+_DDL = """CREATE TABLE email_drafts (
+source_key TEXT PRIMARY KEY,
+source_hash TEXT NOT NULL,
+original TEXT NOT NULL,
+revision INTEGER NOT NULL CHECK(revision > 0),
+assessment TEXT NOT NULL,
+answers TEXT NOT NULL,
+history TEXT NOT NULL
+)"""
+_ANSWER_FIELDS = frozenset(
+    {
+        "company",
+        "contactName",
+        "email",
+        "phone",
+        "siteLocation",
+        "jobDescription",
+        "reference",
+        "equipment",
+        "requested_date",
+        "requested_time",
+        "duration",
+        "access_requirements",
+    }
+)
+
+
+def _json(value: object) -> str:
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        allow_nan=False,
+        separators=(",", ":"),
+    )
+
+
+def _text(value: str, maximum: int) -> str:
+    if (
+        not isinstance(value, str)
+        or not value.strip()
+        or len(value) > maximum
+        or any(unicodedata.category(c).startswith("C") for c in value)
+    ):
+        raise IntakeError("Draft answer or actor text is invalid")
+    return value.strip()
+
+
+def _payload(assessment: EmailAssessment) -> dict[str, object]:
+    return {
+        "version": ASSESSMENT_VERSION,
+        "kind": assessment.kind.value,
+        "facts": [
+            {
+                "field": f.field,
+                "value": f.value,
+                "quote": f.quote,
+                "source_key": f.source_key,
+                "basis": f.basis,
+            }
+            for f in assessment.facts
+        ],
+        "questions": [
+            {"field": q.field, "category": q.category, "question": q.question}
+            for q in assessment.questions
+        ],
+        "reasons": list(assessment.reasons),
+    }
+
+
+def _event(original: dict[str, Any]) -> Event:
+    # Stored JSON types are checked by Event's existing domain contract.
+    values = dict(original)
+    timestamp = values["occurred_at"]
+    if not isinstance(timestamp, str):
+        raise ValueError
+    values["occurred_at"] = datetime.fromisoformat(timestamp)
+    return Event(**values)
+
+
+class _EmailSnapshotStore(IntakeStore):
+    """Storage-only adapter; shares snapshot publication, never manual validation."""
+
+    @staticmethod
+    def _validate(connection: sqlite3.Connection) -> None:
+        tables = connection.execute(
+            "SELECT name,sql FROM sqlite_master WHERE type='table' "
+            "AND name NOT LIKE 'sqlite_%' ORDER BY name"
+        ).fetchall()
+        if (
+            tables != [("email_drafts", _DDL)]
+            or connection.execute("PRAGMA user_version").fetchone()[0] != 1
+        ):
+            raise IntakeError("Unsupported email draft schema")
+
+    def initialise(self) -> None:
+        self._write()
+        with self._connect(initialise=True) as connection:
+            if connection.execute("PRAGMA user_version").fetchone()[0] == 1:
+                return
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(_DDL)
+            connection.execute("PRAGMA user_version=1")
+            connection.commit()
+
+
+class EmailDraftStore:
+    """Durable partial records, immutable source receipts and audited continuation.
+
+    There is no approval, export, calendar or source-mutation method. Forwarded
+    identity headers never grant linkage. Cross-source reconciliation remains a
+    separate requirement before unattended scheduling is possible.
+    """
+
+    def __init__(self, path: Path, *, read_only: bool = False) -> None:
+        self._backend = _EmailSnapshotStore(path, read_only=read_only)
+
+    def initialise(self) -> None:
+        self._backend.initialise()
+
+    def ingest(
+        self, event: Event, *, actor: str = "synthetic-email-intake"
+    ) -> dict[str, object]:
+        self._backend._write()
+        actor = _text(actor, 100)
+        assessment = assess_email(event)
+        original = event.to_dict()
+        # Local UUID/import timestamp and AI overlay are not source identity.
+        source = {
+            key: original[key]
+            for key in (
+                "source",
+                "source_account",
+                "external_id",
+                "occurred_at",
+                "direction",
+                "event_type",
+                "parties",
+                "subject",
+                "body",
+                "attachments",
+                "raw_payload",
+            )
+        }
+        encoded = _json(source)
+        if len(encoded.encode("utf-8")) > 1_048_576:
+            raise IntakeError("Email source exceeds draft receipt bound")
+        digest = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+        payload = _payload(assessment)
+        with self._backend._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT source_hash FROM email_drafts WHERE source_key=?",
+                (event.identity_key,),
+            ).fetchone()
+            if row is not None:
+                if row[0] != digest:
+                    raise IntakeError("Source replay conflicts with immutable receipt")
+                return self._get(connection, event.identity_key)
+            if (
+                connection.execute("SELECT count(*) FROM email_drafts").fetchone()[0]
+                >= 1000
+            ):
+                raise IntakeError("Synthetic pilot draft bound reached")
+            history = [
+                {
+                    "revision": 1,
+                    "actor": actor,
+                    "at": datetime.now(UTC).isoformat(),
+                    "action": "ingested",
+                    "source_hash": digest,
+                }
+            ]
+            connection.execute(
+                "INSERT INTO email_drafts VALUES (?,?,?,1,?,'{}',?)",
+                (event.identity_key, digest, encoded, _json(payload), _json(history)),
+            )
+            connection.commit()
+            return self._get(connection, event.identity_key)
+
+    @staticmethod
+    def _get(connection: sqlite3.Connection, source_key: str) -> dict[str, object]:
+        row = connection.execute(
+            "SELECT source_hash,original,revision,assessment,answers,history "
+            "FROM email_drafts WHERE source_key=?",
+            (source_key,),
+        ).fetchone()
+        if row is None:
+            raise IntakeError("Email draft is unavailable")
+        try:
+            original = json.loads(row[1])
+            assessment = json.loads(row[3])
+            answers = json.loads(row[4])
+            history = json.loads(row[5])
+            if (
+                not isinstance(original, dict)
+                or not isinstance(assessment, dict)
+                or not isinstance(answers, dict)
+                or not isinstance(history, list)
+                or type(row[2]) is not int
+                or row[2] < 1
+                or len(history) != row[2]
+                or hashlib.sha256(row[1].encode("utf-8")).hexdigest() != row[0]
+            ):
+                raise ValueError
+            for revision, entry in enumerate(history, 1):
+                if (
+                    not isinstance(entry, dict)
+                    or entry.get("revision") != revision
+                    or entry.get("source_hash") != row[0]
+                ):
+                    raise ValueError
+                _text(entry["actor"], 100)
+                timestamp = datetime.fromisoformat(entry["at"])
+                if timestamp.tzinfo is None or timestamp.utcoffset() is None:
+                    raise ValueError
+            expected = assess_email(_event(original))
+            version = assessment.get("version", 1)
+            if (
+                type(version) is not int
+                or not 1 <= version <= ASSESSMENT_VERSION
+                or expected.source_key != source_key
+            ):
+                raise ValueError
+            stale = version != ASSESSMENT_VERSION
+            if not stale and assessment != _payload(expected):
+                raise ValueError
+            if stale:
+                EmailKind(assessment["kind"])
+                for name in ("facts", "questions", "reasons"):
+                    if not isinstance(assessment[name], list):
+                        raise ValueError
+                for fact in assessment["facts"]:
+                    if (
+                        fact["field"] not in _ANSWER_FIELDS
+                        or fact["basis"] != "email_reported"
+                        or fact["source_key"] != source_key
+                        or fact["quote"] not in original["body"]
+                    ):
+                        raise ValueError
+                    value = fact["value"]
+                    # Legacy source facts use the extraction contract, not the
+                    # stricter operator-input contract. They remain unapproved
+                    # source evidence and are rendered as inert text.
+                    if (
+                        not isinstance(value, str)
+                        or not value.strip()
+                        or len(value) > 2000
+                        or any(ord(c) < 32 for c in value)
+                    ):
+                        raise ValueError
+                for question in assessment["questions"]:
+                    if question["field"] not in _ANSWER_FIELDS or question[
+                        "category"
+                    ] not in {
+                        "before_scheduling",
+                        "before_attending",
+                        "before_invoicing",
+                        "optional",
+                    }:
+                        raise ValueError
+                    _text(question["question"], 2000)
+            for field, answer in answers.items():
+                if field not in _ANSWER_FIELDS or not isinstance(answer, dict):
+                    raise ValueError
+                _text(answer["value"], 2000)
+                _text(answer["actor"], 100)
+                if answer.get("basis") != "operator_confirmed":
+                    raise ValueError
+        except (ValueError, TypeError, AttributeError, KeyError, RecursionError):
+            raise IntakeError("Stored email draft is malformed") from None
+        return {
+            "source_key": source_key,
+            "source_hash": row[0],
+            "original": original,
+            "revision": row[2],
+            "assessment": assessment,
+            "assessment_stale": stale,
+            "answers": answers,
+            "history": history,
+            "state": "unapproved_email_draft",
+            "outstanding_questions": [
+                question
+                for question in assessment.get("questions", [])
+                if question["field"] not in answers
+                or answers[question["field"]]["value"].casefold().strip(" .")
+                in _UNKNOWN
+            ],
+        }
+
+    def get(self, source_key: str) -> dict[str, object]:
+        with self._backend._connect() as connection:
+            return self._get(connection, source_key)
+
+    def list_drafts(
+        self, *, limit: int = 50, offset: int = 0
+    ) -> tuple[tuple[dict[str, object], ...], int]:
+        """Bounded queue with corrupt-row isolation and explicit failure count."""
+        if (
+            type(limit) is not int
+            or not 1 <= limit <= 100
+            or type(offset) is not int
+            or offset < 0
+        ):
+            raise IntakeError("Invalid email draft page bounds")
+        valid: list[dict[str, object]] = []
+        malformed = 0
+        with self._backend._connect() as connection:
+            keys = connection.execute(
+                "SELECT source_key FROM email_drafts ORDER BY rowid DESC "
+                "LIMIT ? OFFSET ?",
+                (limit, offset),
+            ).fetchall()
+            for (key,) in keys:
+                try:
+                    valid.append(self._get(connection, key))
+                except IntakeError:
+                    malformed += 1
+        return tuple(valid), malformed
+
+    def answer(
+        self, source_key: str, revision: int, field: str, value: str, *, actor: str
+    ) -> dict[str, object]:
+        self._backend._write()
+        if field not in _ANSWER_FIELDS or type(revision) is not int:
+            raise IntakeError("Invalid continuation field or revision")
+        actor, value = _text(actor, 100), _text(value, 2000)
+        if value.casefold().strip(" .") in _UNKNOWN:
+            raise IntakeError("Answer is still unknown; leave the question unresolved")
+        with self._backend._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            current = self._get(connection, source_key)
+            if current["assessment_stale"]:
+                raise IntakeError("Assessment upgrade requires audited reassessment")
+            assessment = current["assessment"]
+            assert isinstance(assessment, dict)
+            if assessment["kind"] != EmailKind.NEW_JOB.value:
+                raise IntakeError("Only a new-job draft can receive job answers")
+            if current["revision"] != revision:
+                raise IntakeError("Email draft changed; refresh before answering")
+            answers = current["answers"]
+            history = current["history"]
+            assert isinstance(answers, dict) and isinstance(history, list)
+            previous = answers.get(field)
+            answers[field] = {
+                "value": value,
+                "basis": "operator_confirmed",
+                "actor": actor,
+            }
+            history.append(
+                {
+                    "revision": revision + 1,
+                    "actor": actor,
+                    "at": datetime.now(UTC).isoformat(),
+                    "action": "answered",
+                    "field": field,
+                    "previous": previous,
+                    "value": value,
+                    "source_hash": current["source_hash"],
+                }
+            )
+            connection.execute(
+                "UPDATE email_drafts SET revision=?,answers=?,history=? "
+                "WHERE source_key=?",
+                (revision + 1, _json(answers), _json(history), source_key),
+            )
+            connection.commit()
+            return self._get(connection, source_key)
+
+    def reassess_synthetic(
+        self, source_key: str, revision: int, *, actor: str
+    ) -> dict[str, object]:
+        """Audit synthetic assessment upgrades while retaining source and answers."""
+        self._backend._write()
+        actor = _text(actor, 100)
+        with self._backend._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            current = self._get(connection, source_key)
+            if type(revision) is not int or current["revision"] != revision:
+                raise IntakeError("Email draft changed; refresh before reassessing")
+            original = current["original"]
+            history = current["history"]
+            assert isinstance(original, dict) and isinstance(history, list)
+            if not original["source"].startswith("synthetic_"):
+                raise IntakeError(
+                    "Real-store reassessment requires separate owner authority"
+                )
+            if not current["assessment_stale"]:
+                return current
+            assessment = _payload(assess_email(_event(original)))
+            history.append(
+                {
+                    "revision": revision + 1,
+                    "actor": actor,
+                    "at": datetime.now(UTC).isoformat(),
+                    "action": "reassessed",
+                    "previous_assessment": current["assessment"],
+                    "source_hash": current["source_hash"],
+                }
+            )
+            connection.execute(
+                "UPDATE email_drafts SET revision=?,assessment=?,history=? "
+                "WHERE source_key=?",
+                (revision + 1, _json(assessment), _json(history), source_key),
+            )
+            connection.commit()
+            return self._get(connection, source_key)

@@ -191,6 +191,10 @@ def render() -> None:
                 )
     render_manual_creation(store, reader)
     st.subheader("Intake queue")
+    if os.environ.get("EDN_SYNTHETIC_EMAIL_PILOT") == "1":
+        from edn.ui.intake_email_pilot import render_email_pilot
+
+        render_email_pilot(root)
     offset = st.session_state.get("queue-offset", 0)
     try:
         page = reader.list_requests_with_diagnostics(limit=50, offset=offset)
