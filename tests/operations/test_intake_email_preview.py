@@ -83,3 +83,11 @@ def test_night_requirement_preserved_as_proposal_only():
     )
     assert result.status == "proposal_only"
     assert result.start == datetime(2026, 10, 13, 22, tzinfo=ADELAIDE)
+
+
+def test_legacy_assessment_cannot_supply_a_scheduling_proposal():
+    now = datetime(2026, 10, 12, 9, tzinfo=ADELAIDE)
+    old = draft("Site: Depot\nDuration: 90 minutes")
+    old["assessment_stale"] = True
+    result = preview_email_schedule(old, snapshot(now), now=now)
+    assert result.status == "needs_reassessment" and result.start is None

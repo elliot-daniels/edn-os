@@ -20,6 +20,10 @@ def preview_email_schedule(
     draft: dict[str, Any], calendar: CalendarSnapshot, *, now: datetime
 ) -> ScheduleProposal:
     """Only new jobs qualify; preserve explicit constraints and their uncertainty."""
+    if draft.get("assessment_stale"):
+        return ScheduleProposal(
+            "needs_reassessment", reasons=("Older assessment requires audited review",)
+        )
     assessment = draft["assessment"]
     if assessment["kind"] != "new_job":
         return ScheduleProposal(

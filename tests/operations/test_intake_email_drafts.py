@@ -134,3 +134,50 @@ def test_malformed_assessment_is_isolated_and_no_financial_job_answers(tmp_path)
     valid, malformed = drafts.list_drafts()
     assert len(valid) == 1 and malformed == 1
     assert valid[0]["source_key"] == positive.identity_key
+
+
+def test_old_assessment_survives_read_replay_and_audited_synthetic_upgrade(tmp_path):
+    drafts = store(tmp_path)
+    if drafts is None:
+        return
+    event = email(body="Site: TBC\nScope: Replace switch")
+    drafts.ingest(event)
+    answered = drafts.answer(
+        event.identity_key, 1, "duration", "90 minutes", actor="operator"
+    )
+    legacy = dict(answered["assessment"])
+    legacy.pop("version")
+    legacy["reasons"] = ["Earlier classifier reason"]
+    with drafts._backend._connect() as connection:
+        connection.execute(
+            "UPDATE email_drafts SET assessment=? WHERE source_key=?",
+            (json.dumps(legacy), event.identity_key),
+        )
+        connection.commit()
+    old = EmailDraftStore(tmp_path / "email-drafts.db").get(event.identity_key)
+    assert old["assessment_stale"] is True
+    assert (
+        old["answers"] == answered["answers"]
+        and old["original"] == answered["original"]
+    )
+    assert drafts.ingest(event) == old
+    with pytest.raises(IntakeError, match="reassessment"):
+        drafts.answer(event.identity_key, 2, "siteLocation", "Depot", actor="operator")
+    updated = drafts.reassess_synthetic(event.identity_key, 2, actor="operator")
+    assert updated["revision"] == 3 and updated["assessment_stale"] is False
+    assert (
+        updated["answers"] == old["answers"] and updated["original"] == old["original"]
+    )
+    assert updated["history"][-1]["previous_assessment"] == legacy
+    assert drafts.reassess_synthetic(event.identity_key, 3, actor="operator") == updated
+
+
+def test_non_synthetic_assessment_upgrade_refuses_before_modification(tmp_path):
+    drafts = store(tmp_path)
+    if drafts is None:
+        return
+    event = email(source="outlook")
+    current = drafts.ingest(event)
+    with pytest.raises(IntakeError, match="owner authority"):
+        drafts.reassess_synthetic(event.identity_key, 1, actor="operator")
+    assert drafts.get(event.identity_key) == current

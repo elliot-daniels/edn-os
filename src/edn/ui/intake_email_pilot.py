@@ -99,6 +99,24 @@ def _render_draft(
             f"Revision {record['revision']} · unapproved draft · no SharePoint delivery"
         )
         st.write("Classification: " + assessment["kind"])
+        if record.get("assessment_stale"):
+            st.warning(
+                "Older assessment preserved. "
+                "Scheduling and answers are blocked until review."
+            )
+            if st.button("Reassess synthetic example", key=key + "-reassess"):
+                try:
+                    EmailDraftStore(path).reassess_synthetic(
+                        key, record["revision"], actor="local-operator"
+                    )
+                    st.rerun()
+                except (ValueError, sqlite3.Error, OSError):
+                    st.error(
+                        "Reassessment was not confirmed. "
+                        "Original evidence remains retained."
+                    )
+            st.text(original["body"])
+            return
         for fact in assessment["facts"]:
             st.write(f"{fact['field']}: {fact['value']} (reported in email)")
         for field, answer in record["answers"].items():
