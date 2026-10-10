@@ -22,6 +22,7 @@ from edn.operations.intake_security import (
     require_supported_platform,
     verify_evidence,
 )
+from edn.operations.models import event_identity_key
 
 SERVICES = (
     "Network infrastructure",
@@ -452,6 +453,121 @@ def _source_contract(payload: Mapping[str, object]) -> tuple[dict[str, str], str
 
 
 MAX_DATABASE_BYTES = 100_000_000
+
+
+def _record_identity(value: Mapping[str, str], external_id: str) -> dict[str, str]:
+    """Keep website identities strict; email uses its own source namespace."""
+    if not isinstance(value, Mapping) or value.get("source_system") != "email":
+        return _source_identity(value, external_id)
+    if set(value) != {
+        "source_system",
+        "event_source",
+        "source_account",
+        "native_item_id",
+    }:
+        raise IntakeError("Invalid synthetic email source identity")
+    if (
+        any(
+            not isinstance(v, str)
+            or not v.strip()
+            or v != v.strip()
+            or len(v) > 200
+            or any(unicodedata.category(c) in {"Cc", "Cf", "Zl", "Zp"} for c in v)
+            for v in value.values()
+        )
+        or not value["event_source"].startswith("synthetic_")
+        or value["native_item_id"] != external_id
+    ):
+        raise IntakeError("Invalid synthetic email source identity")
+    return dict(value)
+
+
+def _record_contract(payload: Mapping[str, object]) -> tuple[dict[str, str], str]:
+    if not isinstance(payload, Mapping) or payload.get("source") != "EDN OS Email":
+        return _source_contract(payload)
+    try:
+        if (
+            set(payload)
+            != INPUT_FIELDS
+            | {"source", "submittedAt", "contractVersion", "email_receipt"}
+            or payload["contractVersion"] != "1.0"
+        ):
+            raise ValueError
+        receipt = payload["email_receipt"]
+        if not isinstance(receipt, dict) or set(receipt) != {
+            "identity",
+            "event_source_key",
+            "source_hash",
+            "draft_revision",
+            "assessment_version",
+            "facts",
+            "answers",
+            "defaults",
+        }:
+            raise ValueError
+        identity = _record_identity(
+            receipt["identity"], receipt["identity"]["native_item_id"]
+        )
+        if identity["source_system"] != "email" or receipt[
+            "event_source_key"
+        ] != event_identity_key(
+            identity["event_source"],
+            identity["source_account"],
+            identity["native_item_id"],
+        ):
+            raise ValueError
+        if (
+            type(receipt["draft_revision"]) is not int
+            or receipt["draft_revision"] < 1
+            or type(receipt["assessment_version"]) is not int
+            or receipt["assessment_version"] < 1
+            or re.fullmatch(r"[0-9a-f]{64}", receipt["source_hash"]) is None
+            or not isinstance(receipt["facts"], list)
+            or not isinstance(receipt["answers"], dict)
+            or receipt["defaults"]
+            != {"serviceRequired": "Other / not sure", "urgency": "Routine"}
+        ):
+            raise ValueError
+        for fact in receipt["facts"]:
+            if not isinstance(fact, dict) or set(fact) != {
+                "field",
+                "value",
+                "quote",
+                "source_key",
+                "basis",
+            }:
+                raise ValueError
+            if (
+                fact["source_key"] != receipt["event_source_key"]
+                or fact["basis"] != "email_reported"
+            ):
+                raise ValueError
+            if any(not isinstance(fact[n], str) for n in ("field", "value", "quote")):
+                raise ValueError
+        for answer in receipt["answers"].values():
+            if not isinstance(answer, dict) or set(answer) != {
+                "value",
+                "basis",
+                "actor",
+            }:
+                raise ValueError
+            if answer["basis"] != "operator_confirmed" or any(
+                not isinstance(answer[n], str) for n in ("value", "actor")
+            ):
+                raise ValueError
+        submitted = payload["submittedAt"]
+        if not isinstance(submitted, str):
+            raise ValueError
+        timestamp = datetime.fromisoformat(submitted)
+        if timestamp.utcoffset() != UTC.utcoffset(timestamp):
+            raise ValueError
+        fields = validate_fields({name: payload[name] for name in INPUT_FIELDS})
+        encoded = _json(dict(payload)).encode()
+        if len(encoded) > 32768:
+            raise ValueError
+        return fields, hashlib.sha256(encoded).hexdigest()
+    except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
+        raise IntakeError("Invalid synthetic email contract") from None
 
 
 class _ProtectedConnection(sqlite3.Connection):
@@ -1204,11 +1320,9 @@ class IntakeStore:
         fields.update(
             {
                 "Title": "Pending",
-                "Source": "EDN Systems Website"
-                if provenance["source_type"] == "synthetic_import"
-                else "EDN OS Manual",
+                "Source": str(provenance["source"]),
                 "SubmittedAt": str(provenance["submitted_at"])
-                if provenance["source_type"] == "synthetic_import"
+                if "submitted_at" in provenance
                 else request.created_at,
                 "ContractVersion": "1.0",
                 "Status": "New",
@@ -1240,7 +1354,8 @@ class IntakeStore:
                 **{
                     name: value
                     for name, value in provenance.items()
-                    if name
+                    if provenance["source_type"] == "synthetic_import"
+                    and name
                     in {
                         "source_system",
                         "source_account",
@@ -1298,7 +1413,23 @@ class IntakeStore:
     ) -> IntakeRequest:
         self._write()
         identity = _source_identity(source_identity, external_id)
-        fields, source_hash = _source_contract(payload)
+        _source_contract(payload)
+        return self._import_source(payload, identity)
+
+    def _import_source(
+        self, payload: Mapping[str, object], identity: Mapping[str, str]
+    ) -> IntakeRequest:
+        self._write()
+        identity = _record_identity(identity, identity["native_item_id"])
+        fields, source_hash = _record_contract(payload)
+        if (identity["source_system"] == "email") != (
+            payload["source"] == "EDN OS Email"
+        ):
+            raise IntakeError("Source contract and identity disagree")
+        if payload["source"] == "EDN OS Email":
+            receipt = payload["email_receipt"]
+            if not isinstance(receipt, dict) or receipt["identity"] != identity:
+                raise IntakeError("Source contract and identity disagree")
         source_key = hashlib.sha256(_json(identity).encode()).hexdigest()
         with self._connect() as connection:
             self._source_schema(connection)
@@ -1452,7 +1583,7 @@ class IntakeStore:
                     (row[0], row[1]),
                 ).fetchone()[0]
             )
-            source_fields, _ = _source_contract(payload)
+            source_fields, _ = _record_contract(payload)
             canonical = self._canonical(connection, request_id)
             if canonical != request_id:
                 parent = self._get(connection, canonical)
@@ -1751,7 +1882,7 @@ class IntakeStore:
             return {"source_type": "manual", "source": "EDN OS Manual"}
         try:
             raw_identity = json.loads(row[1])
-            identity = _source_identity(raw_identity, raw_identity["native_item_id"])
+            identity = _record_identity(raw_identity, raw_identity["native_item_id"])
             if (
                 hashlib.sha256(_json(identity).encode()).hexdigest() != row[0]
                 or type(row[2]) is not int
@@ -1767,16 +1898,33 @@ class IntakeStore:
             ).fetchone()
             if history is None:
                 raise ValueError
-            _, digest = _source_contract(json.loads(history[0]))
+            payload = json.loads(history[0])
+            _, digest = _record_contract(payload)
             if digest != history[1] or digest != row[3]:
+                raise ValueError
+            if (identity["source_system"] == "email") != (
+                payload["source"] == "EDN OS Email"
+            ):
+                raise ValueError
+            if (
+                identity["source_system"] == "email"
+                and payload["email_receipt"]["identity"] != identity
+            ):
                 raise ValueError
         except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
             raise IntakeError("Stored source provenance is invalid") from None
         return {
-            "source_type": "synthetic_import",
-            "source": "EDN Systems Website",
+            "source_type": "synthetic_email"
+            if identity["source_system"] == "email"
+            else "synthetic_import",
+            "source": payload["source"],
             "synthetic_only": True,
             **identity,
+            **(
+                {"email_receipt": payload["email_receipt"]}
+                if identity["source_system"] == "email"
+                else {}
+            ),
             "source_revision": row[2],
             "source_pending": bool(row[4]),
         }
@@ -1807,11 +1955,11 @@ class IntakeStore:
                 raise IntakeError("Manual request has no source snapshot")
             try:
                 payload = json.loads(row[0])
-                fields, _ = _source_contract(payload)
+                fields, _ = _record_contract(payload)
                 return {
                     **fields,
                     "contractVersion": "1.0",
-                    "source": "EDN Systems Website",
+                    "source": payload["source"],
                     "submittedAt": datetime.fromisoformat(
                         payload["submittedAt"].replace("Z", "+00:00")
                     ).isoformat(),
@@ -1830,7 +1978,7 @@ class IntakeStore:
             (request.request_id,),
         ).fetchone()
         payload = json.loads(row[0])
-        _source_contract(payload)
+        _record_contract(payload)
         return datetime.fromisoformat(
             payload["submittedAt"].replace("Z", "+00:00")
         ).isoformat()
@@ -1850,6 +1998,14 @@ class IntakeStore:
             if self._canonical(connection, row[0]) == canonical
         ]
         if source_ids:
+            # A linked website record already exists remotely. Never let an email
+            # alias turn that group into a second create proposal.
+            source_ids.sort(
+                key=lambda identifier: (
+                    self._provenance(connection, identifier)["source_type"]
+                    != "synthetic_import"
+                )
+            )
             provenance = self._provenance(connection, source_ids[0])
             source_request = self._get(connection, source_ids[0])
             provenance["submitted_at"] = self._source_submitted(
