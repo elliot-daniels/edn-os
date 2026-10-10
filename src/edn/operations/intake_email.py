@@ -8,6 +8,7 @@ in the immutable Event for a separately governed extraction adapter.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -116,7 +117,16 @@ _NEGATED = re.compile(
     re.I,
 )
 _UNKNOWN = frozenset({"tbc", "tbd", "unknown", "not known", "not provided", "n/a", "?"})
-ASSESSMENT_VERSION = 4
+ASSESSMENT_VERSION = 5
+
+_LITERAL_WORK = re.compile(
+    r"Please (?P<scope>(?:install|repair|replace) [^\r\n]{1,500}?) "
+    r"at (?P<site>[^.\r\n]{1,200})\.?",
+    re.I,
+)
+_CONDITIONAL_WORK = re.compile(
+    r"\b(?:if|maybe|perhaps|possibly|either|or|unless|not)\b", re.I
+)
 
 _PREPARE_FORWARD = re.compile(
     r"Please (?:prepare|process) (?:the |this )?forwarded (?:work|job) request[.!]?",
@@ -236,6 +246,32 @@ def assess_email(event: Event) -> EmailAssessment:
                 conflicting.add(field)
             continue
         facts.append(EmailFact(field, value, line, event.identity_key))
+    if kind == EmailKind.NEW_JOB:
+        for line in current_body.splitlines():
+            candidate = _LITERAL_WORK.fullmatch(line.strip())
+            if candidate is None:
+                continue
+            if (
+                len(re.findall(r"\bat\b", line, re.I)) != 1
+                or _CONDITIONAL_WORK.search(line)
+                or re.search(r"\band\b", candidate["site"], re.I)
+                or any(unicodedata.category(c).startswith("C") for c in line)
+            ):
+                conflicting.update({"jobDescription", "siteLocation"})
+                continue
+            for field, value in (
+                ("jobDescription", candidate["scope"].strip()),
+                ("siteLocation", candidate["site"].strip()),
+            ):
+                if value.casefold().strip(" .") in _UNKNOWN:
+                    conflicting.add(field)
+                    continue
+                previous = next((fact for fact in facts if fact.field == field), None)
+                if previous is not None:
+                    if previous.value != value:
+                        conflicting.add(field)
+                else:
+                    facts.append(EmailFact(field, value, line, event.identity_key))
     facts = [fact for fact in facts if fact.field not in conflicting]
     known = {fact.field for fact in facts}
     questions = tuple(
