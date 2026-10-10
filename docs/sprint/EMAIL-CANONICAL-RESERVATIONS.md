@@ -1,0 +1,11 @@
+# Canonical guard for synthetic provisional holds
+
+`SyntheticReservationStore.reserve_for_job` is a bounded API that verifies current canonical job identity, revision, content/attachment hash, nonterminal state and absence of pending source review. It holds the request lock through ledger conflict checking and durable reservation publication, using job-then-ledger ordering. A stored requested date cannot be dropped or changed by the scheduling caller. The existing ledger enforces fresh complete synthetic availability, reliable duration, site readiness, buffers and replay/conflict rules.
+
+A successful return verifies a local synthetic hold was published against that locked version. It is not customer confirmation or live Outlook execution. Caller-supplied duration/readiness are explicit scheduling inputs, not AI-verified facts; no email-extraction attestation is added. Existing lower-level reserve remains available for isolated ledger tests and does not attest canonical jobs. New composed callers must use the guarded API.
+
+Later edits/cancellation can make a retained hold stale; read-only projection fails closed until reconciliation. This does not automatically release or reschedule holds, coordinate multiple store mutations, or add mobile booking controls. Job approval is separate. Synthetic data only, no schema/security/CI/authority changes.
+
+Ten new regression cases cover replay/reopen and job-byte preservation, six stale/terminal/alias/pending/hash refusals, explicit-date preservation, concurrent canonical jobs without overlapping occupancy, and failed ledger publication with unchanged job/ledger and idempotent retry. Native Windows proves refusal only; hosted Linux is required.
+
+Linux/WSL synthetic trial: install development dependencies in a virtual environment, use an actual private Linux0700 directory outside Git (not Windows/DrvFs), set umask077, and run `python tools/run_work_intake_demo.py --data-dir <private-parent>/demo --initialise --email-pilot`. Open http://127.0.0.1:8502; restarts omit --initialise. API behaviour is demonstrated by `python -m pytest -q tests/operations/test_intake_canonical_reservations.py`, not a new booking button. Review-only candidate; accepted Android demo remains unchanged.
