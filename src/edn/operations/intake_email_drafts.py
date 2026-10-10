@@ -15,7 +15,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from edn.operations.intake import INPUT_FIELDS, IntakeError, IntakeRequest, IntakeStore
+from edn.operations.intake import (
+    INPUT_FIELDS,
+    IntakeError,
+    IntakeRequest,
+    IntakeStore,
+    validate_fields,
+)
 from edn.operations.intake_email import (
     _UNKNOWN,
     ASSESSMENT_VERSION,
@@ -357,6 +363,9 @@ class EmailDraftStore:
             fields = {name: values.get(name, "") for name in INPUT_FIELDS}
             fields.update(defaults)
             fields["preferredDate"] = values.get("requested_date", "")
+            # Surface the existing actionable field diagnostic before the source
+            # contract's deliberately generic corrupt-record error boundary.
+            fields = validate_fields(fields)
             identity = {
                 "source_system": "email",
                 "event_source": original["source"],

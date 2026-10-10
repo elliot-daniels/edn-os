@@ -106,7 +106,7 @@ def test_changed_answer_invalidates_approval_preserving_corrections_and_history(
         requests.approve(job.request_id, 2)
     with (
         pytest.raises(IntakeError),
-        requests.authorise_delivery(job.request_id, 1, old_export),
+        requests.authorise_delivery(old_export),
     ):
         pass
     resolved = requests.resolve_source_change(
