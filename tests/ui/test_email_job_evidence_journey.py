@@ -132,6 +132,9 @@ def test_email_job_upload_approval_export_correction_and_fresh_application(
     assert updated["attachment_manifest"] == manifest
     assert updated["idempotency_key"] == exported["idempotency_key"]
     assert updated["content_hash"] != exported["content_hash"]
+    # The explicit export above records dry-run preparation and updated_at.
+    # Compare restart against the state after the final intentional mutation.
+    current = requests.get(current.request_id)
     reopened = AppTest.from_file(str(script)).run()
     assert not reopened.exception
     persisted = IntakeStore(requests.path, evidence_root=tmp_path / "attachments").get(
