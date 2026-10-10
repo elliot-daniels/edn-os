@@ -41,6 +41,9 @@ def test_mobile_synthetic_actions_preserve_source_and_replay(
         assert changed.revision == job.revision + 1
         assert changed.state == ("cancelled" if cancel else "draft")
         assert changed.approved_revision is None
+        assert not any(
+            "Provisional — Awaiting Confirmation" in item.value for item in app.markdown
+        )
         assert any("Local job action verified" in item.value for item in app.success)
         assert any(
             "No calendar reservation was changed" in item.value for item in app.warning

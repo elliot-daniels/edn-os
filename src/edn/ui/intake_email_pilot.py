@@ -132,6 +132,16 @@ def _render_draft(
     # Source text must not become Markdown images/links or fetch remote resources.
     label = "Email " + key.rsplit(":", 1)[-1][:8] + " · " + assessment["kind"]
     with st.expander(label, expanded=True):
+        result = st.session_state.pop(key + "-action-result", None)
+        if result is not None:
+            st.success(
+                f"Local job action verified: revision {result[0]}, "
+                f"state {result[1]}. Review the Intake queue."
+            )
+            st.warning(
+                "No calendar reservation was changed. Review scheduling "
+                "separately before relying on an appointment."
+            )
         st.text(original["subject"])
         st.caption(
             f"Revision {record['revision']} · unapproved draft · no SharePoint delivery"
@@ -281,14 +291,8 @@ def _render_draft(
                     requests = IntakeStore(path.parent / "requests.db")
                     action = store.cancel_job if cancellation else store.update_job
                     job = action(key, record["revision"], requests)
-                    st.success(
-                        f"Local job action verified: revision {job.revision}, "
-                        f"state {job.state}. Review the Intake queue."
-                    )
-                    st.warning(
-                        "No calendar reservation was changed. Review scheduling "
-                        "separately before relying on an appointment."
-                    )
+                    st.session_state[key + "-action-result"] = (job.revision, job.state)
+                    st.rerun()
                 except (ValueError, sqlite3.Error, OSError):
                     st.error(
                         "Job action was not confirmed. Check source details and "
