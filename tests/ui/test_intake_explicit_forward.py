@@ -18,7 +18,7 @@ def test_forward_load_preparation_replay_and_reopen(tmp_path, monkeypatch):
     app.button(key="email-pilot-load-forward").click().run()
     assert not app.exception
     source = synthetic_forwarded_example()
-    stored = EmailDraftStore(drafts.path).get(source.identity_key)
+    stored = EmailDraftStore(tmp_path / "email-drafts.db").get(source.identity_key)
     assert stored["assessment"]["kind"] == "new_job"
     app.button(key=source.identity_key + "-materialise").click().run()
     assert not app.exception
