@@ -144,7 +144,9 @@ def test_forged_assessment_live_source_and_malformed_snapshot_refuse():
     with pytest.raises(IntakeError, match="stale"):
         match_email_job(source, replace(assessment, facts=()), [job()])
     with pytest.raises(IntakeError, match="stale"):
-        match_email_job(source, replace(assessment, kind=EmailKind.INFORMATION), [job()])
+        match_email_job(
+            source, replace(assessment, kind=EmailKind.INFORMATION), [job()]
+        )
     with pytest.raises(IntakeError, match="another source"):
         match_email_job(replace(source, external_id="other"), assessment, [job()])
     with pytest.raises(IntakeError, match="synthetic"):
