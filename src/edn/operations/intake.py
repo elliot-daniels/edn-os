@@ -453,6 +453,16 @@ def _source_contract(payload: Mapping[str, object]) -> tuple[dict[str, str], str
 
 
 MAX_DATABASE_BYTES = 100_000_000
+_EMAIL_ANSWER_BARRIER = "Synthetic email answer edit started; source review is required"
+
+
+def _email_answer_staged(connection: sqlite3.Connection, request_id: str) -> bool:
+    row = connection.execute(
+        "SELECT reason FROM intake_approvals WHERE request_id=? "
+        "AND decision='source_changed' ORDER BY rowid DESC LIMIT 1",
+        (request_id,),
+    ).fetchone()
+    return bool(row == (_EMAIL_ANSWER_BARRIER,))
 
 
 def _record_identity(value: Mapping[str, str], external_id: str) -> dict[str, str]:
@@ -1442,6 +1452,19 @@ class IntakeStore:
             if existing:
                 request = self._get(connection, existing[0])
                 if existing[2] == source_hash:
+                    if request.source_pending and _email_answer_staged(
+                        connection, request.request_id
+                    ):
+                        # Current draft was reread under its lock. An interrupted
+                        # answer left it unchanged; source review can now resume.
+                        self._record_revision(
+                            connection,
+                            request,
+                            request.fields,
+                            "source_changed",
+                            "Synthetic email answer recovery verified unchanged source",
+                        )
+                        return self._get(connection, request.request_id)
                     return request
                 revision = existing[1] + 1
                 connection.execute(
@@ -1513,6 +1536,76 @@ class IntakeStore:
             )
             return self._get(connection, request_id)
 
+    def stage_email_answer(
+        self,
+        identity: Mapping[str, str],
+        source_hash: str,
+        draft_revision: int,
+        field: str,
+        value: str,
+    ) -> bool:
+        """Publish a durable approval barrier before a linked draft answer changes.
+
+        Caller holds the email draft lock. Pending source review survives an
+        interrupted second-store write; no stale approval can deliver meanwhile.
+        """
+        self._write()
+        identity = _record_identity(identity, identity.get("native_item_id", ""))
+        if identity["source_system"] != "email":
+            raise IntakeError("Only synthetic email answers use this guard")
+        if type(draft_revision) is not int or draft_revision < 1:
+            raise IntakeError("Invalid email draft revision")
+        source_key = hashlib.sha256(_json(identity).encode()).hexdigest()
+        with self._connect() as connection:
+            self._source_schema(connection)
+            row = connection.execute(
+                "SELECT request_id FROM intake_sources WHERE source_key=?",
+                (source_key,),
+            ).fetchone()
+            if row is None:
+                return False
+            request = self._get(connection, row[0])
+            provenance = self._provenance(connection, row[0])
+            receipt = provenance["email_receipt"]
+            if (
+                not isinstance(receipt, dict)
+                or receipt["source_hash"] != source_hash
+                or receipt["draft_revision"] > draft_revision
+            ):
+                raise IntakeError(
+                    "Refresh and resolve canonical source before answering"
+                )
+            if request.state not in {"draft", "approved"}:
+                raise IntakeError("Reopen canonical work before editing source answers")
+            canonical_id = self._canonical(connection, request.request_id)
+            affected = [request]
+            if canonical_id != request.request_id:
+                affected.append(self._get(connection, canonical_id))
+            if any(item.state not in {"draft", "approved"} for item in affected):
+                raise IntakeError("Reopen canonical work before editing source answers")
+            canonical_field = "preferredDate" if field == "requested_date" else field
+            if canonical_field in INPUT_FIELDS:
+                validate_fields({**request.fields, canonical_field: value})
+            if request.source_pending:
+                if not _email_answer_staged(connection, request.request_id):
+                    raise IntakeError("Resolve canonical source before answering")
+                return True
+            if receipt["draft_revision"] != draft_revision:
+                raise IntakeError("Refresh canonical source before answering")
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                "UPDATE intake_sources SET pending=1 WHERE source_key=?", (source_key,)
+            )
+            for item in affected:
+                self._record_revision(
+                    connection,
+                    item,
+                    item.fields,
+                    "source_changed",
+                    _EMAIL_ANSWER_BARRIER,
+                )
+            return True
+
     @staticmethod
     def _record_revision(
         connection: sqlite3.Connection,
@@ -1576,6 +1669,8 @@ class IntakeStore:
             ).fetchone()
             if row is None or row[2] != 1:
                 raise IntakeError("No unresolved source update exists")
+            if _email_answer_staged(connection, request_id):
+                raise IntakeError("Refresh the email draft before source resolution")
             payload = json.loads(
                 connection.execute(
                     "SELECT payload FROM intake_source_history WHERE source_key=? AND "

@@ -9,6 +9,7 @@ from typing import Any
 
 import streamlit as st
 
+from edn.operations.intake import IntakeStore
 from edn.operations.intake_email_drafts import EmailDraftStore
 from edn.operations.intake_email_preview import preview_email_schedule
 from edn.operations.intake_scheduling import ADELAIDE, CalendarSnapshot
@@ -198,6 +199,8 @@ def _render_draft(
                         *record["answers"],
                         "requested_date",
                         "requested_time",
+                        "email",
+                        "phone",
                     ]
                 )
             )
@@ -212,12 +215,50 @@ def _render_draft(
             if st.button("Save answer", key=key + "-save"):
                 try:
                     updated = EmailDraftStore(path).answer(
-                        key, expected_revision, field, value, actor="local-operator"
+                        key,
+                        expected_revision,
+                        field,
+                        value,
+                        actor="local-operator",
+                        requests=(
+                            IntakeStore(path.parent / "requests.db")
+                            if (path.parent / "requests.db").is_file()
+                            else None
+                        ),
                     )
                     st.session_state[editor_key] = updated["revision"]
                     st.rerun()
                 except (ValueError, sqlite3.Error, OSError):
                     st.error("Answer was not confirmed. Refresh and check your value.")
+            values = {fact["field"]: fact["value"] for fact in assessment["facts"]}
+            values.update(
+                {name: answer["value"] for name, answer in record["answers"].items()}
+            )
+            for name in ("email", "phone"):
+                if not values.get(name):
+                    st.write(
+                        f"before_attending: Supply contact {name} for job preparation."
+                    )
+            if (path.parent / "requests.db").is_file() and st.button(
+                "Prepare or refresh job", key=key + "-materialise"
+            ):
+                try:
+                    job = EmailDraftStore(path).materialise(
+                        key, expected_revision, IntakeStore(path.parent / "requests.db")
+                    )
+                    st.success(
+                        "Canonical job prepared. Review it in Intake queue; "
+                        "approval and SharePoint delivery are separate."
+                    )
+                    if job.source_pending:
+                        st.warning(
+                            "Updated source requires review before approval or export."
+                        )
+                except (ValueError, sqlite3.Error, OSError):
+                    st.error(
+                        "Job preparation was not confirmed. Check required fields and "
+                        "evidence; no approval or delivery is confirmed."
+                    )
         with st.expander("Original evidence and provenance"):
             st.caption("Source identity: " + key)
             st.text(original["body"])
