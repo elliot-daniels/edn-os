@@ -419,7 +419,14 @@ class EmailDraftStore:
         return tuple(valid), malformed
 
     def answer(
-        self, source_key: str, revision: int, field: str, value: str, *, actor: str
+        self,
+        source_key: str,
+        revision: int,
+        field: str,
+        value: str,
+        *,
+        actor: str,
+        requests: IntakeStore | None = None,
     ) -> dict[str, object]:
         self._backend._write()
         if field not in _ANSWER_FIELDS or type(revision) is not int:
@@ -427,6 +434,7 @@ class EmailDraftStore:
         actor, value = _text(actor, 100), _text(value, 2000)
         if value.casefold().strip(" .") in _UNKNOWN:
             raise IntakeError("Answer is still unknown; leave the question unresolved")
+        linked = False
         with self._backend._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             current = self._get(connection, source_key)
@@ -438,6 +446,21 @@ class EmailDraftStore:
                 raise IntakeError("Only a new-job draft can receive job answers")
             if current["revision"] != revision:
                 raise IntakeError("Email draft changed; refresh before answering")
+            if requests is not None:
+                original = current["original"]
+                assert isinstance(original, dict)
+                linked = requests.stage_email_answer(
+                    {
+                        "source_system": "email",
+                        "event_source": original["source"],
+                        "source_account": original["source_account"],
+                        "native_item_id": original["external_id"],
+                    },
+                    str(current["source_hash"]),
+                    revision,
+                    field,
+                    value,
+                )
             answers = current["answers"]
             history = current["history"]
             assert isinstance(answers, dict) and isinstance(history, list)
@@ -465,7 +488,10 @@ class EmailDraftStore:
                 (revision + 1, _json(answers), _json(history), source_key),
             )
             connection.commit()
-            return self._get(connection, source_key)
+            updated = self._get(connection, source_key)
+        if linked and requests is not None:
+            self.materialise(source_key, revision + 1, requests)
+        return updated
 
     def reassess_synthetic(
         self, source_key: str, revision: int, *, actor: str
