@@ -12,7 +12,11 @@ import streamlit as st
 from edn.operations.intake import IntakeStore
 from edn.operations.intake_email_drafts import EmailDraftStore
 from edn.operations.intake_email_preview import preview_email_schedule
-from edn.operations.intake_scheduling import ADELAIDE, CalendarSnapshot
+from edn.operations.intake_scheduling import (
+    ADELAIDE,
+    CalendarSnapshot,
+    ScheduleProposal,
+)
 from edn.operations.models import Event
 
 
@@ -185,7 +189,23 @@ def _render_draft(
             st.text(f"{fact['field']}: {fact['value']} (reported in email)")
         for field, answer in record["answers"].items():
             st.text(f"{field}: {answer['value']} (operator confirmed)")
-        proposal = preview_email_schedule(record, calendar, now=now)
+        try:
+            requests_path = path.parent / "requests.db"
+            current_job = (
+                EmailDraftStore(path, read_only=True).linked_job(
+                    key, IntakeStore(requests_path, read_only=True)
+                )
+                if requests_path.is_file()
+                else None
+            )
+            proposal = preview_email_schedule(
+                record, calendar, now=now, current_job=current_job
+            )
+        except (ValueError, sqlite3.Error, OSError):
+            proposal = ScheduleProposal(
+                "job_unknown",
+                reasons=("Current job could not be verified; review before planning",),
+            )
         if proposal.status == "not_applicable":
             st.info("No schedule proposed for this correspondence.")
         elif proposal.start is not None:

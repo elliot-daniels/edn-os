@@ -7,6 +7,7 @@ from dataclasses import replace
 from datetime import UTC, date, datetime, time
 from typing import Any
 
+from edn.operations.intake import IntakeRequest, validate_fields
 from edn.operations.intake_email import _UNKNOWN
 from edn.operations.intake_scheduling import (
     ADELAIDE,
@@ -19,7 +20,11 @@ from edn.operations.intake_scheduling import (
 
 
 def preview_email_schedule(
-    draft: dict[str, Any], calendar: CalendarSnapshot, *, now: datetime
+    draft: dict[str, Any],
+    calendar: CalendarSnapshot,
+    *,
+    now: datetime,
+    current_job: IntakeRequest | None = None,
 ) -> ScheduleProposal:
     """Only new jobs qualify; preserve explicit constraints and their uncertainty."""
     if draft.get("assessment_stale"):
@@ -38,6 +43,30 @@ def preview_email_schedule(
         for key, value in values.items()
         if value.casefold().strip(" .") not in _UNKNOWN
     }
+    if current_job is not None:
+        if current_job.state in {"cancelled", "rejected"}:
+            return ScheduleProposal(
+                "job_terminal", reasons=("Current job is cancelled or rejected",)
+            )
+        if current_job.source_pending:
+            return ScheduleProposal(
+                "job_review_required",
+                reasons=("Current job has unresolved source changes",),
+            )
+        fields = validate_fields(current_job.fields)
+        expected = {
+            "siteLocation": values.get("siteLocation", ""),
+            "jobDescription": values.get("jobDescription", ""),
+            "preferredDate": values.get("requested_date", ""),
+        }
+        if any(fields[name] != value for name, value in expected.items()):
+            return ScheduleProposal(
+                "job_review_required",
+                reasons=(
+                    "Current job scheduling details differ from this email; "
+                    "reconcile before planning",
+                ),
+            )
     requested_date = None
     requested_start = None
     if values.get("requested_date"):
