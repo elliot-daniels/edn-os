@@ -13,6 +13,7 @@ from streamlit.testing.v1 import AppTest
 
 from edn.operations.intake import IntakeError, IntakeStore
 from edn.operations.intake_attachments import IntakeAttachmentStore
+from edn.operations.intake_security import AnchoredDirectory
 from tests.operations.test_intake_email import email
 from tests.operations.test_intake_email_materialisation import BODY, stores
 
@@ -38,6 +39,12 @@ def setup(tmp_path, monkeypatch, payload):
     drafts, requests = stores(tmp_path)
     if drafts is None:
         return None
+    # Match the launcher's explicit private bootstrap, not just its DB fixture.
+    with AnchoredDirectory(tmp_path) as root:
+        with root.child("attachments", create=True):
+            pass
+        with root.child("synthetic-sync", create=True):
+            pass
     source = email(body=BODY)
     drafts.ingest(source)
     monkeypatch.setenv("EDN_INTAKE_ROOT", str(tmp_path))
