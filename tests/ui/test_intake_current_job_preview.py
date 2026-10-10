@@ -42,6 +42,13 @@ def test_mobile_preview_refuses_retained_email_after_job_action(
                     (job.request_id,),
                 )
             elif kind == "missing_binding":
+                # Remove the dependent source history in this synthetic corruption
+                # fixture, while retaining the original submission receipt.
+                connection.execute(
+                    "DELETE FROM intake_source_history WHERE source_key IN "
+                    "(SELECT source_key FROM intake_sources WHERE request_id=?)",
+                    (job.request_id,),
+                )
                 connection.execute(
                     "DELETE FROM intake_sources WHERE request_id=?", (job.request_id,)
                 )
