@@ -6,6 +6,7 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from edn.operations.intake import IntakeError
+from edn.operations.intake_email_preview import preview_email_schedule
 from edn.operations.intake_reservations import SyntheticReservationStore
 from tests.operations.test_intake_email import email
 from tests.operations.test_intake_email_materialisation import BODY, stores
@@ -117,8 +118,16 @@ def test_source_explicit_night_work_is_preserved(tmp_path):
     )
     if data is None:
         return
-    receipt = reserve(data)
-    assert receipt["history"][-1]["plan"]["start"] == "2026-10-12T21:00:00+10:30"
+    drafts, source, _, job, ledger = data
+    proposal = preview_email_schedule(
+        drafts.get(source.identity_key), snapshot(), now=NOW, current_job=job
+    )
+    assert proposal.start.isoformat() == "2026-10-12T21:00:00+10:30"
+    assert proposal.status == "proposal_only"
+    assert "Customer requirement outside default work window" in proposal.reasons
+    with pytest.raises(IntakeError, match="Reliable current source"):
+        reserve(data)
+    assert ledger.list_reservations() == ()
 
 
 def test_mobile_source_booking_reopens_without_duplicate_or_confirmation(
