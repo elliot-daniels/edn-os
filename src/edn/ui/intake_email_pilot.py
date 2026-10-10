@@ -139,7 +139,7 @@ def _render_draft(
                 f"Source: {original['source']}\n"
                 f"Account: {original['source_account']}\n"
                 f"Message: {original['external_id']}\n"
-                f"Received: {original['occurred_at']}\n"
+                f"Source event time: {original['occurred_at']}\n"
                 f"Source hash: {record['source_hash']}"
             )
             st.write("Extraction evidence · exact quotes from original email")
