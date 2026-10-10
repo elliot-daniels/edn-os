@@ -49,9 +49,15 @@ def setup(tmp_path, monkeypatch, payload):
     drafts.ingest(source)
     monkeypatch.setenv("EDN_INTAKE_ROOT", str(tmp_path))
     monkeypatch.setenv("EDN_SYNTHETIC_EMAIL_PILOT", "1")
-    monkeypatch.setattr(
-        st, "file_uploader", lambda *args, **kwargs: SyntheticUpload(payload)
-    )
+    original_widget = st.file_uploader
+
+    def synthetic_widget(label, *args, **kwargs):
+        actual = original_widget(label, *args, **kwargs)
+        if label == "Supporting document or photo":
+            return SyntheticUpload(payload)
+        return actual
+
+    monkeypatch.setattr(st, "file_uploader", synthetic_widget)
     script = Path(__file__).resolve().parents[2] / "src/edn/ui/work_intake_app.py"
     app = AppTest.from_file(str(script)).run()
     assert not app.exception
