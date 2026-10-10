@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from edn.operations.intake import IntakeError, IntakeStore
+from edn.operations.intake import INPUT_FIELDS, IntakeError, IntakeRequest, IntakeStore
 from edn.operations.intake_email import (
     _UNKNOWN,
     ASSESSMENT_VERSION,
@@ -318,6 +318,70 @@ class EmailDraftStore:
     def get(self, source_key: str) -> dict[str, object]:
         with self._backend._connect() as connection:
             return self._get(connection, source_key)
+
+    def materialise(
+        self, source_key: str, expected_revision: int, requests: IntakeStore
+    ) -> IntakeRequest:
+        """Promote a complete synthetic draft with source-bound replay receipts.
+
+        Lock ordering is draft then request. No request operation takes a draft
+        lock. A restart after request publication safely replays the same source;
+        there is no second cross-store write or receipt to reconcile.
+        """
+        self._backend._write()
+        if type(expected_revision) is not int or expected_revision < 1:
+            raise IntakeError("Invalid email draft revision")
+        with self._backend._connect() as connection:
+            draft = self._get(connection, source_key)
+            if draft["revision"] != expected_revision or draft["assessment_stale"]:
+                raise IntakeError("Email draft changed; refresh before job creation")
+            original, assessment, answers = (
+                draft["original"],
+                draft["assessment"],
+                draft["answers"],
+            )
+            assert isinstance(original, dict) and isinstance(assessment, dict)
+            assert isinstance(answers, dict)
+            if (
+                not original["source"].startswith("synthetic_")
+                or assessment["kind"] != EmailKind.NEW_JOB.value
+            ):
+                raise IntakeError("Only synthetic new-job drafts can create jobs")
+            if original["attachments"]:
+                raise IntakeError(
+                    "Protect and associate source attachments before job creation"
+                )
+            values = {f["field"]: f["value"] for f in assessment["facts"]}
+            values.update({name: answer["value"] for name, answer in answers.items()})
+            defaults = {"serviceRequired": "Other / not sure", "urgency": "Routine"}
+            fields = {name: values.get(name, "") for name in INPUT_FIELDS}
+            fields.update(defaults)
+            fields["preferredDate"] = values.get("requested_date", "")
+            identity = {
+                "source_system": "email",
+                "event_source": original["source"],
+                "source_account": original["source_account"],
+                "native_item_id": original["external_id"],
+            }
+            payload = {
+                **fields,
+                "source": "EDN OS Email",
+                "contractVersion": "1.0",
+                "submittedAt": datetime.fromisoformat(original["occurred_at"])
+                .astimezone(UTC)
+                .isoformat(),
+                "email_receipt": {
+                    "identity": identity,
+                    "event_source_key": draft["source_key"],
+                    "source_hash": draft["source_hash"],
+                    "draft_revision": draft["revision"],
+                    "assessment_version": assessment["version"],
+                    "facts": assessment["facts"],
+                    "answers": answers,
+                    "defaults": defaults,
+                },
+            }
+            return requests._import_source(payload, identity)
 
     def list_drafts(
         self, *, limit: int = 50, offset: int = 0
