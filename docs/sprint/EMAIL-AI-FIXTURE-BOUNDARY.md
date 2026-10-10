@@ -2,7 +2,7 @@
 
 Three regressions reuse Intelligence Core ModelResponse/ModelStatement contracts with fictional estimates and proposed actions. Source-reported email facts remain separate from model uncertainty. A typed proposed action must remain proposal-only; action text never grants execution authority.
 
-Derived Event ai_summary/ai_actions/raw model fixture overlays must not change deterministic source assessment, classify financial correspondence as a job, alter original source hash/receipt/job, or make an unreported duration reliable enough to reserve. The protected-store regression proves byte-preserving overlay replay, uncertain scheduling and guarded hold refusal. No product changes or provider invocation.
+Dedicated Event ai_summary/ai_actions overlays must not change deterministic source assessment, classify financial correspondence as a job, alter original source hash/receipt/job, or make an unreported duration reliable enough to reserve. Raw provider payload remains immutable source evidence: adding model output there correctly conflicts with replay and is explicitly tested as refused. The protected-store regression proves byte-preserving overlay replay, raw-source mutation refusal, uncertain scheduling and guarded hold refusal. No product changes or provider invocation.
 
 These are synthetic AI-contract fixtures, not a real model extraction adapter, verified-history estimator or external disclosure approval. Native Windows store cases prove refusal only; full hosted Linux validates real stores. No frozen QA, CI/security/schema/authority changes, live data or external model call.
 

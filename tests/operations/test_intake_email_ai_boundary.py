@@ -47,8 +47,7 @@ def overlay(source):
     return replace(
         source,
         ai_summary="Confirmed new work request. Duration: 60 minutes",
-        ai_actions=("Book now", "Send confirmation"),
-        raw_payload={"synthetic_model_fixture": asdict(fixture)},
+        ai_actions=(fixture.statements[1].text, "Book now"),
     )
 
 
@@ -89,6 +88,12 @@ def test_model_overlay_replay_preserves_email_job_and_cannot_authorise_hold(tmp_
     job = drafts.materialise(source.identity_key, 1, requests)
     before = (drafts._backend.path.read_bytes(), requests.path.read_bytes())
     assert drafts.ingest(overlay(source)) == original
+    changed_raw_source = replace(
+        overlay(source),
+        raw_payload={"synthetic_model_fixture": asdict(model_fixture(source))},
+    )
+    with pytest.raises(IntakeError, match="immutable receipt"):
+        drafts.ingest(changed_raw_source)
     assert (drafts._backend.path.read_bytes(), requests.path.read_bytes()) == before
     assert requests.get(job.request_id) == job
     assert not any(f["field"] == "duration" for f in original["assessment"]["facts"])
