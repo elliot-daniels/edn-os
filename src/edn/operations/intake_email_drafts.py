@@ -703,6 +703,16 @@ class EmailDraftStore:
                 )
                 return requests._get(connection, job.request_id)
 
+    def count_drafts(self) -> int:
+        """Count retained rows, including malformed rows, for honest paging."""
+        with self._backend._connect() as connection:
+            count = connection.execute("SELECT count(*) FROM email_drafts").fetchone()[
+                0
+            ]
+            if type(count) is not int or not 0 <= count <= 1000:
+                raise IntakeError("Email draft capacity is invalid")
+            return count
+
     def list_drafts(
         self, *, limit: int = 50, offset: int = 0
     ) -> tuple[tuple[dict[str, object], ...], int]:

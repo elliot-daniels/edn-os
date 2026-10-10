@@ -1,0 +1,9 @@
+# Reachable bounded email draft pages
+
+The synthetic pilot now navigates retained source rows in pages of25, using existing bounded list_drafts offsets and a protected count_drafts read. Counts include malformed rows, so an invalid record cannot hide the next page. Corrupt drafts remain isolated with the existing warning. Newer/older controls are bounded; loading fictional fixtures returns to the newest page. Empty/invalid offsets reset safely. No source/job mutation occurs on navigation.
+
+This closes the prior first-page-only visibility gap. Offset pages can shift when concurrent new sources arrive; this is not a stable cursor snapshot. Existing per-source version/hash checks continue to protect edits and booking; navigation grants no new authority.
+
+Regression seeds26 fictional sources including a malformed newest row, reaches the oldest source, records a versioned answer, navigates away/back and verifies retained answer plus byte-preserving reads. Native Windows protected-store case proves refusal only. A mixed local run of existing AppTest cases encountered the documented Windows environment stall and was stopped, without timeout change; focused new case, Ruff/mypy153/integrity/whitespace pass. Full fresh hosted Linux required.
+
+No schema, frozen tests, CI/security/authority changes. Linux/WSL actual private0700 Linux storage outside Git only, never Windows/DrvFs/real stores. Virtual environment, `python -m pip install -e ".[dev]"`, umask077, then `python tools/run_work_intake_demo.py --data-dir <private-parent>/demo --initialise --email-pilot`; browser http://127.0.0.1:8502, restart omitting --initialise. Regression: `python -m pytest -q tests/ui/test_intake_email_pagination.py`. Review-only candidate; accepted Android demo unchanged, autonomous workflow still incomplete.

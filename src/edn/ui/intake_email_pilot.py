@@ -114,6 +114,7 @@ def render_email_pilot(root: Path) -> None:
             store.initialise()
             for event in synthetic_examples():
                 store.ingest(event)
+            st.session_state["email-pilot-offset"] = 0
             st.success(
                 "Synthetic examples saved. Loading again preserves existing answers."
             )
@@ -123,6 +124,7 @@ def render_email_pilot(root: Path) -> None:
             store = EmailDraftStore(path)
             store.initialise()
             store.ingest(synthetic_forwarded_example())
+            st.session_state["email-pilot-offset"] = 0
             st.success("Fictional forward saved; embedded sender remains unverified.")
         if st.button(
             "Load fictional literal work request", key="email-pilot-load-literal"
@@ -130,12 +132,35 @@ def render_email_pilot(root: Path) -> None:
             store = EmailDraftStore(path)
             store.initialise()
             store.ingest(synthetic_literal_example())
+            st.session_state["email-pilot-offset"] = 0
             st.success("Fictional prose request saved; no real mailbox was read.")
         if not path.is_file():
             st.info("Load examples to try job preparation. No real email is accessed.")
             return
         reader = EmailDraftStore(path, read_only=True)
-        records, malformed = reader.list_drafts(limit=100)
+        total = reader.count_drafts()
+        page_size = 25
+        offset = st.session_state.get("email-pilot-offset", 0)
+        if type(offset) is not int or offset < 0 or offset >= max(1, total):
+            offset = 0
+            st.session_state["email-pilot-offset"] = 0
+        records, malformed = reader.list_drafts(limit=page_size, offset=offset)
+        st.caption(
+            f"Email drafts {offset + 1 if total else 0} to "
+            f"{min(offset + page_size, total)} of {total}"
+        )
+        if st.button(
+            "Newer email drafts", key="email-pilot-newer", disabled=offset == 0
+        ):
+            st.session_state["email-pilot-offset"] = max(0, offset - page_size)
+            st.rerun()
+        if st.button(
+            "Older email drafts",
+            key="email-pilot-older",
+            disabled=offset + page_size >= total,
+        ):
+            st.session_state["email-pilot-offset"] = offset + page_size
+            st.rerun()
         if malformed:
             st.warning(
                 f"{malformed} malformed email drafts isolated; "
