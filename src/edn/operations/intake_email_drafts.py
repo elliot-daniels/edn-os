@@ -22,6 +22,7 @@ from edn.operations.intake import (
     IntakeStore,
     _audit_row,
     _digest,
+    _record_identity,
     validate_fields,
 )
 from edn.operations.intake_email import (
@@ -394,6 +395,44 @@ class EmailDraftStore:
                 },
             }
             return requests._import_source(payload, identity)
+
+    def linked_job(
+        self, source_key: str, requests: IntakeStore
+    ) -> IntakeRequest | None:
+        """Read the protected source binding without materialising or editing it.
+
+        Follow the existing draft-first lock order. Linked aliases require
+        explicit canonical review rather than assuming their original proposal
+        describes the currently selected work.
+        """
+        with self._backend._connect() as source_connection:
+            draft = self._get(source_connection, source_key)
+            original = draft["original"]
+            assert isinstance(original, dict)
+            if not original["source"].startswith("synthetic_"):
+                raise IntakeError("Only synthetic job associations are permitted")
+            identity = _record_identity(
+                {
+                    "source_system": "email",
+                    "event_source": original["source"],
+                    "source_account": original["source_account"],
+                    "native_item_id": original["external_id"],
+                },
+                original["external_id"],
+            )
+            bound_key = hashlib.sha256(_json(identity).encode()).hexdigest()
+            with requests._connect() as connection:
+                requests._source_schema(connection)
+                row = connection.execute(
+                    "SELECT request_id FROM intake_sources WHERE source_key=?",
+                    (bound_key,),
+                ).fetchone()
+                if row is None:
+                    return None
+                job = requests._get(connection, row[0])
+                if requests._canonical(connection, job.request_id) != job.request_id:
+                    raise IntakeError("Linked work requires current canonical review")
+                return job
 
     def cancel_job(
         self, source_key: str, expected_revision: int, requests: IntakeStore
