@@ -195,7 +195,7 @@ def test_unknown_operator_answer_cannot_close_a_required_question(tmp_path, valu
     assert drafts.get(event.identity_key) == original
 
 
-@pytest.mark.parametrize("version", [1, 2])
+@pytest.mark.parametrize("version", [1, 2, 3])
 def test_previous_assessment_generations_reopen_with_source_and_answers_retained(
     tmp_path, version
 ):

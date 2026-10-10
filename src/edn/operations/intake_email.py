@@ -116,7 +116,58 @@ _NEGATED = re.compile(
     re.I,
 )
 _UNKNOWN = frozenset({"tbc", "tbd", "unknown", "not known", "not provided", "n/a", "?"})
-ASSESSMENT_VERSION = 3
+ASSESSMENT_VERSION = 4
+
+_PREPARE_FORWARD = re.compile(
+    r"Please (?:prepare|process) (?:the |this )?forwarded (?:work|job) request[.!]?",
+    re.I,
+)
+_FORWARD_MARKER = re.compile(
+    r"^(?:[- ]*Forwarded message[- ]*|Begin forwarded message:)$", re.I
+)
+
+
+def _requested_forward(body: str) -> tuple[str, str] | None:
+    """Admit one explicitly requested forward, never arbitrary quoted history.
+
+    Embedded From/To/Date are untrusted text, not identity or authorisation.
+    Exactly one Subject and a blank header/body separator are required. Reply
+    history, nested forwards and malformed headers leave the input uncertain.
+    """
+    lines = body.splitlines()
+    markers = [i for i, line in enumerate(lines) if _HISTORY.match(line.strip())]
+    if len(markers) != 1:
+        return None
+    index = markers[0]
+    if not _FORWARD_MARKER.fullmatch(lines[index].strip()):
+        return None
+    if not _PREPARE_FORWARD.fullmatch("\n".join(lines[:index]).strip()):
+        return None
+    headers: dict[str, str] = {}
+    tail = lines[index + 1 :]
+    while tail and not tail[0].strip():
+        tail = tail[1:]
+    for offset, line in enumerate(tail):
+        if not line.strip():
+            if "subject" not in headers:
+                return None
+            content = "\n".join(tail[offset + 1 :])
+            if not content.strip() or any(
+                item.lstrip().startswith(">") for item in content.splitlines()
+            ):
+                return None
+            return headers["subject"], content
+        label, separator, value = line.partition(":")
+        label = label.strip().lower()
+        if (
+            not separator
+            or label not in {"from", "to", "date", "sent", "subject", "cc"}
+            or label in headers
+            or not value.strip()
+        ):
+            return None
+        headers[label] = value.strip()
+    return None
 
 
 def _current_body(body: str) -> str:
@@ -148,6 +199,11 @@ def assess_email(event: Event) -> EmailAssessment:
         if re.match(r"^(?:re|fw|fwd):", event.subject.strip(), re.I)
         else event.subject
     )
+    forwarded = _requested_forward(event.body)
+    if forwarded is not None:
+        # The strict outer instruction requests preparation, but is not proof
+        # that the embedded sender, message IDs or contents are authentic.
+        subject, current_body = forwarded
     text = subject + "\n" + current_body
     intent_text = text.replace("\u2019", "'").replace("\u2018", "'")
     matches = {kind for kind, pattern in _INTENTS if re.search(pattern, text, re.I)}
@@ -155,6 +211,8 @@ def assess_email(event: Event) -> EmailAssessment:
     # requires review rather than guessing which sentence is authoritative.
     kind = next(iter(matches)) if len(matches) == 1 else EmailKind.UNCERTAIN
     if _NEGATED.search(intent_text):
+        kind = EmailKind.UNCERTAIN
+    if forwarded is not None and kind != EmailKind.NEW_JOB:
         kind = EmailKind.UNCERTAIN
     facts: list[EmailFact] = []
     conflicting: set[str] = set()
@@ -184,6 +242,10 @@ def assess_email(event: Event) -> EmailAssessment:
         if field not in known and kind == EmailKind.NEW_JOB
     )
     reasons = ["Local conservative rules; no external AI processing"]
+    if forwarded is not None:
+        reasons.append(
+            "Explicitly requested single forward; embedded sender is unverified"
+        )
     if kind == EmailKind.UNCERTAIN:
         reasons.append("Missing or competing intent; no automatic job or booking")
     if conflicting:
