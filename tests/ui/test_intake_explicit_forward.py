@@ -28,7 +28,7 @@ def test_forward_load_preparation_replay_and_reopen(tmp_path, monkeypatch):
     app.button(key="email-pilot-load-forward").click().run()
     app.button(key=source.identity_key + "-materialise").click().run()
     assert not app.exception
-    assert requests.list_requests() == [request]
+    assert requests.list_requests() == (request,)
     reopened = AppTest.from_file(str(script)).run()
     assert not reopened.exception
     assert requests.get(request.request_id) == request
