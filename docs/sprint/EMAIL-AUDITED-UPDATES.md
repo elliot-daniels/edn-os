@@ -12,11 +12,13 @@ or original attachments require review; they are not silently dropped or booked.
 Customer/site/reference changes cannot be inferred into another job.
 
 Each distinct accepted update records a new revision and normal local-operator
-audit with source key/hash, actor/time and historical content hash, invalidating
+source-change audit with source key/hash, actor/time and historical content hash, invalidating
 approval. This is conservative even when a reported value equals current content.
 Exact source replay validates that historical audit and returns current job state;
 it never overwrites a subsequent correction, approval or cancellation. No new
-schema/table, source mutation, transport or authority is introduced. Fields not
+schema/table, source mutation, transport or authority is introduced. The existing
+strict audit validator is unchanged: ordinary edits still forbid a reason, while
+source-change audits require one. Fields not
 reported in the update and supporting attachments remain unchanged.
 
 This is a bounded synthetic API prerequisite, not automatic mobile update handling

@@ -529,7 +529,7 @@ class EmailDraftStore:
                 receipts = connection.execute(
                     "SELECT request_id,decision_id,revision,content_hash,actor,"
                     "decided_at,decision,reason FROM intake_approvals "
-                    "WHERE decision IN ('edited','edited_approval_invalidated') "
+                    "WHERE decision='source_changed' "
                     "AND reason=? LIMIT 2",
                     (reason,),
                 ).fetchall()
@@ -568,9 +568,7 @@ class EmailDraftStore:
                     connection,
                     job,
                     fields,
-                    "edited_approval_invalidated"
-                    if job.state == "approved"
-                    else "edited",
+                    "source_changed",
                     reason,
                 )
                 return requests._get(connection, job.request_id)

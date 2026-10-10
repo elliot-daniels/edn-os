@@ -44,7 +44,7 @@ def test_update_invalidates_approval_preserves_original_and_replays_without_roll
     assert changed.approved_revision is None and changed.attachments == job.attachments
     assert drafts.get(message.identity_key) == source
     history = requests.audit_history(job.request_id)
-    assert history[-1]["decision"] == "edited_approval_invalidated"
+    assert history[-1]["decision"] == "source_changed"
     assert (
         message.identity_key in history[-1]["reason"]
         and source["source_hash"] in history[-1]["reason"]
