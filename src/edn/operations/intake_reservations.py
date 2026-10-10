@@ -12,14 +12,14 @@ import re
 import sqlite3
 import unicodedata
 from dataclasses import asdict, replace
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID
 
 from edn.connectors.microsoft_calendar.models import CalendarEvent
 from edn.core import Classification, SecurityDomain
-from edn.operations.intake import IntakeError, IntakeStore
+from edn.operations.intake import IntakeError, IntakeStore, _digest
 from edn.operations.intake_scheduling import (
     PROVISIONAL,
     CalendarSnapshot,
@@ -313,6 +313,51 @@ class SyntheticReservationStore:
                 (request.job_id, _json(item)),
             )
             return item
+
+    def reserve_for_job(
+        self,
+        request: SchedulingRequest,
+        snapshot: CalendarSnapshot,
+        requests: IntakeStore,
+        *,
+        job_revision: int,
+        job_hash: str,
+        expected_revision: int,
+        now: datetime,
+        actor: str,
+    ) -> dict[str, Any]:
+        """Publish a synthetic hold while the verified canonical job is locked.
+
+        Job-then-ledger ordering matches read-only projection. Explicit caller
+        duration/readiness remain scheduling evidence, not inferred authority.
+        Later job changes need reconciliation; this does not couple mutations.
+        """
+        _identity(request.job_id, job_revision, job_hash)
+        with requests._connect() as connection:
+            job = requests._get(connection, request.job_id)
+            if (
+                requests._canonical(connection, job.request_id) != job.request_id
+                or job.state not in {"draft", "approved"}
+                or job.source_pending
+                or job.revision != job_revision
+                or _digest(job.fields, job.attachments) != job_hash
+            ):
+                raise IntakeError("Canonical job changed or requires review")
+            if job.fields[
+                "preferredDate"
+            ] and request.requested_date != date.fromisoformat(
+                job.fields["preferredDate"]
+            ):
+                raise IntakeError("Preserve the canonical requested date")
+            return self.reserve(
+                request,
+                snapshot,
+                job_revision=job_revision,
+                job_hash=job_hash,
+                expected_revision=expected_revision,
+                now=now,
+                actor=actor,
+            )
 
     def cancel(
         self,
