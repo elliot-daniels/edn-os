@@ -133,6 +133,36 @@ def _render_draft(
             f"Revision {record['revision']} · unapproved draft · no SharePoint delivery"
         )
         st.write("Classification: " + assessment["kind"])
+        if st.checkbox("Show source details and change history", key=key + "-evidence"):
+            st.write("Retained source · reported content, not verified sender identity")
+            st.text(
+                f"Source: {original['source']}\n"
+                f"Account: {original['source_account']}\n"
+                f"Message: {original['external_id']}\n"
+                f"Source event time: {original['occurred_at']}\n"
+                f"Source hash: {record['source_hash']}"
+            )
+            st.write("Extraction evidence · exact quotes from original email")
+            for fact in assessment["facts"]:
+                st.text(f"{fact['field']}: {fact['quote']}")
+            history = record["history"]
+            st.caption(
+                f"Most recent {min(20, len(history))} of {len(history)} changes. "
+                "Full history remains stored."
+            )
+            for entry in history[-20:]:
+                st.text(
+                    f"Revision {entry['revision']} · {entry.get('action', 'recorded')}"
+                    f" · {entry['actor']} · {entry['at']}"
+                )
+                if entry.get("action") == "answered":
+                    previous = entry.get("previous")
+                    before = (
+                        previous.get("value", "Not previously answered")
+                        if isinstance(previous, dict)
+                        else "Not previously answered"
+                    )
+                    st.text(f"{entry.get('field')}: {before} → {entry.get('value')}")
         if record.get("assessment_stale"):
             st.warning(
                 "Older assessment preserved. "
