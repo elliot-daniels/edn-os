@@ -22,13 +22,17 @@ def test_source_evidence_is_inert_and_answer_history_preserves_original(
     app = AppTest.from_file(str(script)).run()
     assert not app.exception
     key = source.identity_key
-    assert not any(source.body == item.value for item in app.text)
+    # Original body was already displayed by the existing app. This additive
+    # toggle controls source details/quotes/history, not original visibility.
+    assert any(source.body == item.value for item in app.text)
+    assert not any(original["source_hash"] in item.value for item in app.text)
     app.checkbox(key=key + "-evidence").check().run()
     assert not app.exception
     assert any(source.body == item.value for item in app.text)
     assert any(original["source_hash"] in item.value for item in app.text)
     assert any("Scope: Replace failed switch" in item.value for item in app.text)
     assert not any("outside.example.test" in item.value for item in app.markdown)
+    assert drafts.get(key) == original
     app.selectbox(key=key + "-field").select("siteLocation")
     app.text_input(key=key + "-answer").input("Corrected synthetic depot")
     app.button(key=key + "-save").click().run()

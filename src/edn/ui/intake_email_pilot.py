@@ -133,7 +133,7 @@ def _render_draft(
             f"Revision {record['revision']} · unapproved draft · no SharePoint delivery"
         )
         st.write("Classification: " + assessment["kind"])
-        if st.checkbox("Show original email and change history", key=key + "-evidence"):
+        if st.checkbox("Show source details and change history", key=key + "-evidence"):
             st.write("Retained source · reported content, not verified sender identity")
             st.text(
                 f"Source: {original['source']}\n"
@@ -142,8 +142,6 @@ def _render_draft(
                 f"Received: {original['occurred_at']}\n"
                 f"Source hash: {record['source_hash']}"
             )
-            st.write("Original email")
-            st.text(original["body"])
             st.write("Extraction evidence · exact quotes from original email")
             for fact in assessment["facts"]:
                 st.text(f"{fact['field']}: {fact['quote']}")
