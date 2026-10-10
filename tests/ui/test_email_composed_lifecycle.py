@@ -1,5 +1,7 @@
 """One composed synthetic lifecycle; upload uses the real handler, not a picker."""
 
+from copy import deepcopy
+
 import pytest
 from streamlit.testing.v1 import AppTest
 
@@ -24,7 +26,7 @@ def test_composed_email_evidence_sync_hold_cancel_release_and_reopen(
     button(view, "Save supporting file")
     button(view, "Approve reviewed request (self-approval)")
     button(view, "Prepare SharePoint record (dry run)")
-    payload = requests.export(initial.request_id, 2)
+    payload = deepcopy(view.session_state["prepared-record"])
     button(view, "Run synthetic sync")
     sync = SyntheticSyncStore(tmp_path / "synthetic-sync", intake_store=requests)
     delivered = sync.get(payload)
