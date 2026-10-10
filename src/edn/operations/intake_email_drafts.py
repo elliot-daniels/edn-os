@@ -20,6 +20,7 @@ from edn.operations.intake import (
     IntakeError,
     IntakeRequest,
     IntakeStore,
+    _digest,
     validate_fields,
 )
 from edn.operations.intake_email import (
@@ -29,6 +30,7 @@ from edn.operations.intake_email import (
     EmailKind,
     assess_email,
 )
+from edn.operations.intake_email_reconciliation import match_email_job
 from edn.operations.models import Event
 
 _DDL = """CREATE TABLE email_drafts (
@@ -391,6 +393,87 @@ class EmailDraftStore:
                 },
             }
             return requests._import_source(payload, identity)
+
+    def cancel_job(
+        self, source_key: str, expected_revision: int, requests: IntakeStore
+    ) -> IntakeRequest:
+        """Reconcile and audit one synthetic cancellation under the request lock.
+
+        Draft then request is the existing lock order. No calendar transport or
+        reservation coupling is implied. Source identity/hash bind replay to the
+        immutable retained email, not to an embedded sender or forwarded header.
+        """
+        self._backend._write()
+        requests._write()
+        if type(expected_revision) is not int or expected_revision < 1:
+            raise IntakeError("Invalid cancellation draft revision")
+        with self._backend._connect() as source_connection:
+            draft = self._get(source_connection, source_key)
+            if draft["revision"] != expected_revision or draft["assessment_stale"]:
+                raise IntakeError("Email draft changed; refresh before cancellation")
+            original = draft["original"]
+            assert isinstance(original, dict)
+            event = _event(original)
+            assessment = assess_email(event)
+            if (
+                not event.source.startswith("synthetic_")
+                or assessment.kind != EmailKind.CANCELLATION
+            ):
+                raise IntakeError("Only synthetic cancellation drafts can cancel jobs")
+            reason = (
+                f"Synthetic email cancellation: {source_key} {draft['source_hash']}"
+            )
+            with requests._connect() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                requests._source_schema(connection)
+                receipts = connection.execute(
+                    "SELECT request_id,revision,content_hash FROM intake_approvals "
+                    "WHERE decision='cancelled' AND reason=?",
+                    (reason,),
+                ).fetchall()
+                if receipts:
+                    if len(receipts) != 1:
+                        raise IntakeError("Cancellation replay audit is inconsistent")
+                    identifier, revision, digest = receipts[0]
+                    replay = requests._get(connection, identifier)
+                    if (
+                        replay.state != "cancelled"
+                        or replay.revision != revision
+                        or _digest(replay.fields, replay.attachments) != digest
+                        or requests._canonical(connection, identifier) != identifier
+                    ):
+                        raise IntakeError("Cancellation replay audit is inconsistent")
+                    return replay
+                rows = connection.execute(
+                    "SELECT request_id FROM intake_requests LIMIT 1001"
+                ).fetchall()
+                if len(rows) > 1000:
+                    raise IntakeError("Cancellation snapshot exceeds its bound")
+                jobs = []
+                for (identifier,) in rows:
+                    job = requests._get(connection, identifier)
+                    if requests._canonical(connection, identifier) == identifier:
+                        jobs.append(job)
+                proposal = match_email_job(event, assessment, jobs, complete=True)
+                if proposal.status != "matched_proposal":
+                    raise IntakeError(
+                        "Cancellation requires review: " + proposal.status
+                    )
+                assert proposal.target_id is not None
+                job = requests._get(connection, proposal.target_id)
+                if (
+                    job.revision != proposal.target_revision
+                    or _digest(job.fields, job.attachments) != proposal.target_hash
+                ):
+                    raise IntakeError("Cancellation target changed")
+                requests._record_revision(
+                    connection, job, job.fields, "cancelled", reason
+                )
+                connection.execute(
+                    "UPDATE intake_requests SET state='cancelled' WHERE request_id=?",
+                    (job.request_id,),
+                )
+                return requests._get(connection, job.request_id)
 
     def list_drafts(
         self, *, limit: int = 50, offset: int = 0
