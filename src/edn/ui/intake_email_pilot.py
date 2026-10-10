@@ -256,6 +256,44 @@ def _render_draft(
         questions = record["outstanding_questions"]
         for question in questions:
             st.write(f"{question['category']}: {question['question']}")
+        if (
+            assessment["kind"] in {"job_update", "cancellation"}
+            and (path.parent / "requests.db").is_file()
+        ):
+            cancellation = assessment["kind"] == "cancellation"
+            st.caption(
+                "Synthetic local job action only. Calendar reservations are separate; "
+                "no customer message or Microsoft write will occur."
+            )
+            confirmed = not cancellation or st.checkbox(
+                "Confirm cancellation of the matching synthetic job",
+                key=key + "-confirm-cancel",
+            )
+            if st.button(
+                "Apply synthetic cancellation"
+                if cancellation
+                else "Apply synthetic update",
+                key=key + "-apply-action",
+                disabled=not confirmed,
+            ):
+                try:
+                    store = EmailDraftStore(path)
+                    requests = IntakeStore(path.parent / "requests.db")
+                    action = store.cancel_job if cancellation else store.update_job
+                    job = action(key, record["revision"], requests)
+                    st.success(
+                        f"Local job action verified: revision {job.revision}, "
+                        f"state {job.state}. Review the Intake queue."
+                    )
+                    st.warning(
+                        "No calendar reservation was changed. Review scheduling "
+                        "separately before relying on an appointment."
+                    )
+                except (ValueError, sqlite3.Error, OSError):
+                    st.error(
+                        "Job action was not confirmed. Check source details and "
+                        "canonical matching; no scheduling or delivery is confirmed."
+                    )
         if assessment["kind"] == "new_job":
             editor_key = key + "-editor-revision"
             if editor_key not in st.session_state:
