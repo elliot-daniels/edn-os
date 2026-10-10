@@ -1,0 +1,9 @@
+# Synthetic model-output boundary for email intake
+
+Three regressions reuse Intelligence Core ModelResponse/ModelStatement contracts with fictional estimates and proposed actions. Source-reported email facts remain separate from model uncertainty. A typed proposed action must remain proposal-only; action text never grants execution authority.
+
+Derived Event ai_summary/ai_actions/raw model fixture overlays must not change deterministic source assessment, classify financial correspondence as a job, alter original source hash/receipt/job, or make an unreported duration reliable enough to reserve. The protected-store regression proves byte-preserving overlay replay, uncertain scheduling and guarded hold refusal. No product changes or provider invocation.
+
+These are synthetic AI-contract fixtures, not a real model extraction adapter, verified-history estimator or external disclosure approval. Native Windows store cases prove refusal only; full hosted Linux validates real stores. No frozen QA, CI/security/schema/authority changes, live data or external model call.
+
+Linux/WSL actual private0700 Linux filesystem outside Git only, never Windows/DrvFs/real stores. Virtual environment plus `python -m pip install -e ".[dev]"`, umask077 and `python -m pytest -q tests/operations/test_intake_email_ai_boundary.py`. Existing pilot launch: `python tools/run_work_intake_demo.py --data-dir <private-parent>/demo --initialise --email-pilot`, browser http://127.0.0.1:8502, restart omitting --initialise. Review-only candidate; accepted Android demo unchanged. Broader extraction/history reuse, source attachment promotion, cross-thread replay and autonomous coordination remain open.
