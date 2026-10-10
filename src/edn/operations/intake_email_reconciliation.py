@@ -67,6 +67,10 @@ def match_email_job(
         raise IntakeError("Assessment belongs to another source")
     if not isinstance(jobs, (list, tuple)) or len(jobs) > 1000:
         raise IntakeError("Job reconciliation snapshot exceeds its bound")
+    # Reject forged/stale assessments, including injected matches from quoted
+    # history. Recompute with the current deterministic classifier.
+    if assessment != assess_email(event):
+        raise IntakeError("Assessment is stale or does not match source evidence")
     action = {
         EmailKind.NEW_JOB: "create_or_duplicate",
         EmailKind.JOB_UPDATE: "update",
@@ -79,10 +83,6 @@ def match_email_job(
             event.identity_key,
             reasons=("Correspondence cannot mutate or schedule work",),
         )
-    # Reject forged/stale assessments, including injected matches from quoted
-    # history. Recompute with the current deterministic classifier.
-    if assessment != assess_email(event):
-        raise IntakeError("Assessment is stale or does not match source evidence")
     if type(complete) is not bool or not complete:
         return JobMatchProposal(
             "snapshot_unknown",

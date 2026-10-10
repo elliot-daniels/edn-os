@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 
 from edn.operations.intake import IntakeError, IntakeRequest, _digest
-from edn.operations.intake_email import assess_email
+from edn.operations.intake_email import EmailKind, assess_email
 from edn.operations.intake_email_reconciliation import match_email_job
 from tests.operations.test_intake import fields
 from tests.operations.test_intake_email import email
@@ -143,6 +143,8 @@ def test_forged_assessment_live_source_and_malformed_snapshot_refuse():
     assessment = assess_email(source)
     with pytest.raises(IntakeError, match="stale"):
         match_email_job(source, replace(assessment, facts=()), [job()])
+    with pytest.raises(IntakeError, match="stale"):
+        match_email_job(source, replace(assessment, kind=EmailKind.INFORMATION), [job()])
     with pytest.raises(IntakeError, match="another source"):
         match_email_job(replace(source, external_id="other"), assessment, [job()])
     with pytest.raises(IntakeError, match="synthetic"):
