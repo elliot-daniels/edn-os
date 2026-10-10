@@ -81,6 +81,25 @@ def synthetic_forwarded_example() -> Event:
     )
 
 
+def synthetic_literal_example() -> Event:
+    """Fictional reported prose; never a representation of unread owner mail."""
+    return Event(
+        source="synthetic_email_pilot",
+        source_account="fixture@example.test",
+        external_id="fixture-literal-work",
+        occurred_at=datetime(2026, 10, 10, tzinfo=UTC),
+        direction="inbound",
+        event_type="email",
+        subject="Please help with a switch",
+        body=(
+            "Please replace the failed switch at Synthetic literal depot.\n"
+            "Customer: Synthetic Literal Co\nContact: Fictional Contact\n"
+            "Email: literal@example.test\nPhone: 0400000000\n"
+            "Duration: 90 minutes\nJob reference: SYNTH-LITERAL-01"
+        ),
+    )
+
+
 def render_email_pilot(root: Path) -> None:
     st.subheader("Email intake · synthetic pilot")
     st.caption(
@@ -105,6 +124,13 @@ def render_email_pilot(root: Path) -> None:
             store.initialise()
             store.ingest(synthetic_forwarded_example())
             st.success("Fictional forward saved; embedded sender remains unverified.")
+        if st.button(
+            "Load fictional literal work request", key="email-pilot-load-literal"
+        ):
+            store = EmailDraftStore(path)
+            store.initialise()
+            store.ingest(synthetic_literal_example())
+            st.success("Fictional prose request saved; no real mailbox was read.")
         if not path.is_file():
             st.info("Load examples to try job preparation. No real email is accessed.")
             return
