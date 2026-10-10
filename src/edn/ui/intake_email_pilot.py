@@ -303,6 +303,42 @@ def _render_draft(
             )
             if proposal.status == "proposal_only":
                 st.warning("Requirements need clarification before booking.")
+            if (
+                proposal.status == "provisional_eligible"
+                and current_job is not None
+                and st.button(
+                    "Reserve synthetic provisional hold", key=key + "-reserve"
+                )
+            ):
+                try:
+                    ledger = SyntheticReservationStore(path.parent / "reservations.db")
+                    ledger.initialise()
+                    # Use the external synthetic snapshot; the ledger adds all
+                    # retained local occupancy under its own mutation lock.
+                    base_calendar = replace(
+                        calendar,
+                        events=tuple(
+                            event
+                            for event in calendar.events
+                            if event.calendar_id != "synthetic-local-reservations"
+                        ),
+                    )
+                    EmailDraftStore(path).reserve_job(
+                        key,
+                        record["revision"],
+                        IntakeStore(path.parent / "requests.db"),
+                        ledger,
+                        base_calendar,
+                        expected_reservation_revision=0,
+                        now=now,
+                    )
+                    st.rerun()
+                except (ValueError, sqlite3.Error, OSError):
+                    st.error(
+                        "Reservation was not confirmed. Refresh and review "
+                        "current job and availability; no customer appointment "
+                        "exists."
+                    )
         else:
             st.warning("No suitable proposal: " + "; ".join(proposal.reasons))
         questions = record["outstanding_questions"]

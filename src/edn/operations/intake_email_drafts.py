@@ -11,7 +11,7 @@ import hashlib
 import json
 import sqlite3
 import unicodedata
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 from uuid import NAMESPACE_URL, uuid5
@@ -33,7 +33,14 @@ from edn.operations.intake_email import (
     EmailKind,
     assess_email,
 )
+from edn.operations.intake_email_preview import preview_email_schedule
 from edn.operations.intake_email_reconciliation import match_email_job
+from edn.operations.intake_reservations import SyntheticReservationStore
+from edn.operations.intake_scheduling import (
+    CalendarSnapshot,
+    DurationEstimate,
+    SchedulingRequest,
+)
 from edn.operations.models import Event
 
 _DDL = """CREATE TABLE email_drafts (
@@ -410,38 +417,113 @@ class EmailDraftStore:
             draft = self._get(source_connection, source_key)
             original = draft["original"]
             assert isinstance(original, dict)
-            if not original["source"].startswith("synthetic_"):
-                raise IntakeError("Only synthetic job associations are permitted")
-            identity = _record_identity(
-                {
-                    "source_system": "email",
-                    "event_source": original["source"],
-                    "source_account": original["source_account"],
-                    "native_item_id": original["external_id"],
-                },
-                original["external_id"],
+            return self._linked_job(original, requests)
+
+    @staticmethod
+    def _linked_job(
+        original: dict[str, Any], requests: IntakeStore
+    ) -> IntakeRequest | None:
+        if not original["source"].startswith("synthetic_"):
+            raise IntakeError("Only synthetic job associations are permitted")
+        identity = _record_identity(
+            {
+                "source_system": "email",
+                "event_source": original["source"],
+                "source_account": original["source_account"],
+                "native_item_id": original["external_id"],
+            },
+            original["external_id"],
+        )
+        bound_key = hashlib.sha256(_json(identity).encode()).hexdigest()
+        with requests._connect() as connection:
+            requests._source_schema(connection)
+            row = connection.execute(
+                "SELECT request_id FROM intake_sources WHERE source_key=?",
+                (bound_key,),
+            ).fetchone()
+            receipt = connection.execute(
+                "SELECT request_id FROM intake_submissions WHERE submission_id=?",
+                (str(uuid5(NAMESPACE_URL, "edn-intake-source:" + bound_key)),),
+            ).fetchone()
+            if row is None:
+                if receipt is not None:
+                    raise IntakeError("Retained source binding is missing; review")
+                return None
+            if receipt is None or receipt[0] != row[0]:
+                raise IntakeError("Retained source/job association is inconsistent")
+            job = requests._get(connection, row[0])
+            if requests._canonical(connection, job.request_id) != job.request_id:
+                raise IntakeError("Linked work requires current canonical review")
+            return job
+
+    def reserve_job(
+        self,
+        source_key: str,
+        expected_revision: int,
+        requests: IntakeStore,
+        reservations: SyntheticReservationStore,
+        calendar: CalendarSnapshot,
+        *,
+        expected_reservation_revision: int,
+        now: datetime,
+    ) -> dict[str, Any]:
+        """Bind reliable source scheduling evidence to a locked canonical hold.
+
+        Source remains locked through canonical verification and ledger publish.
+        No automatic job creation, estimates, live events or confirmations.
+        """
+        self._backend._write()
+        if type(expected_revision) is not int or expected_revision < 1:
+            raise IntakeError("Invalid email draft revision")
+        with self._backend._connect() as connection:
+            draft = self._get(connection, source_key)
+            if draft["revision"] != expected_revision or draft["assessment_stale"]:
+                raise IntakeError("Email draft changed; refresh before reservation")
+            original = draft["original"]
+            assert isinstance(original, dict)
+            job = self._linked_job(original, requests)
+            if job is None:
+                raise IntakeError("Prepare and review the canonical job first")
+            proposal = preview_email_schedule(draft, calendar, now=now, current_job=job)
+            if proposal.status != "provisional_eligible":
+                raise IntakeError(
+                    "Reliable current source scheduling evidence is required"
+                )
+            assert proposal.start is not None and proposal.end is not None
+            assessment, answers = draft["assessment"], draft["answers"]
+            assert isinstance(assessment, dict) and isinstance(answers, dict)
+            values = {fact["field"]: fact["value"] for fact in assessment["facts"]}
+            values.update({name: answer["value"] for name, answer in answers.items()})
+            minutes = int(
+                (
+                    proposal.end.astimezone(UTC) - proposal.start.astimezone(UTC)
+                ).total_seconds()
+                / 60
             )
-            bound_key = hashlib.sha256(_json(identity).encode()).hexdigest()
-            with requests._connect() as connection:
-                requests._source_schema(connection)
-                row = connection.execute(
-                    "SELECT request_id FROM intake_sources WHERE source_key=?",
-                    (bound_key,),
-                ).fetchone()
-                receipt = connection.execute(
-                    "SELECT request_id FROM intake_submissions WHERE submission_id=?",
-                    (str(uuid5(NAMESPACE_URL, "edn-intake-source:" + bound_key)),),
-                ).fetchone()
-                if row is None:
-                    if receipt is not None:
-                        raise IntakeError("Retained source binding is missing; review")
-                    return None
-                if receipt is None or receipt[0] != row[0]:
-                    raise IntakeError("Retained source/job association is inconsistent")
-                job = requests._get(connection, row[0])
-                if requests._canonical(connection, job.request_id) != job.request_id:
-                    raise IntakeError("Linked work requires current canonical review")
-                return job
+            request = SchedulingRequest(
+                job.request_id,
+                DurationEstimate(
+                    minutes,
+                    f"Synthetic email {source_key} hash {draft['source_hash']} "
+                    f"revision {expected_revision}",
+                    True,
+                ),
+                True,
+                date.fromisoformat(values["requested_date"])
+                if values.get("requested_date")
+                else None,
+                proposal.start if values.get("requested_time") else None,
+            )
+            return reservations.reserve_for_job(
+                request,
+                calendar,
+                requests,
+                job_revision=job.revision,
+                job_hash=_digest(job.fields, job.attachments),
+                expected_revision=expected_reservation_revision,
+                now=now,
+                actor="local-operator",
+            )
 
     def cancel_job(
         self, source_key: str, expected_revision: int, requests: IntakeStore
