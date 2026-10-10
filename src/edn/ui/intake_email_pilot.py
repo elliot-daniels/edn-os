@@ -50,6 +50,29 @@ def synthetic_examples() -> tuple[Event, ...]:
     )
 
 
+def synthetic_forwarded_example() -> Event:
+    """Complete fictional forward; embedded addresses are not verified contacts."""
+    return Event(
+        source="synthetic_email_pilot",
+        source_account="fixture@example.test",
+        external_id="fixture-explicit-forward",
+        occurred_at=datetime(2026, 10, 10, tzinfo=UTC),
+        direction="inbound",
+        event_type="email",
+        subject="Fwd: New work request",
+        body=(
+            "Please prepare the forwarded work request.\n\n"
+            "---------- Forwarded message ----------\n"
+            "From: Unverified sender <sender@example.test>\n"
+            "Subject: New work request\n\n"
+            "Customer: Synthetic Forward Co\nContact: Synthetic Contact\n"
+            "Email: contact@example.test\nPhone: 0400000000\n"
+            "Site: Synthetic forward depot\nScope: Replace failed switch\n"
+            "Duration: 90 minutes\nJob reference: SYNTH-FORWARD-01"
+        ),
+    )
+
+
 def render_email_pilot(root: Path) -> None:
     st.subheader("Email intake · synthetic pilot")
     st.caption(
@@ -66,6 +89,13 @@ def render_email_pilot(root: Path) -> None:
             st.success(
                 "Synthetic examples saved. Loading again preserves existing answers."
             )
+        if st.button(
+            "Load synthetic forwarded request", key="email-pilot-load-forward"
+        ):
+            store = EmailDraftStore(path)
+            store.initialise()
+            store.ingest(synthetic_forwarded_example())
+            st.success("Fictional forward saved; embedded sender remains unverified.")
         if not path.is_file():
             st.info("Load examples to try job preparation. No real email is accessed.")
             return
