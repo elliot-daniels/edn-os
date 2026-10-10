@@ -77,6 +77,7 @@ def test_ordinary_correspondence_never_selects_target(subject):
 def test_reference_alone_does_not_authorise_match_and_quote_history_is_ignored():
     source = email("Job update", "Job reference: PO-123")
     assert proposal(source, [job()]).status == "needs_information"
+    assert proposal(source, [job()]).missing_fields == ("company", "siteLocation")
     forwarded = email(
         "Job update",
         "Job reference: PO-123\n--- Original Message ---\n"
@@ -127,6 +128,7 @@ def test_unsafe_reported_text_needs_clarification_not_normalised_match():
         "Job update", "Customer: Example\nSite: Ade\u200blaide\nJob reference: PO-123"
     )
     assert proposal(source, [job()]).status == "needs_information"
+    assert proposal(source, [job()]).missing_fields == ("siteLocation",)
     assert (
         proposal(
             message(),

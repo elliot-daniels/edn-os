@@ -28,6 +28,7 @@ class JobMatchProposal:
     target_hash: str | None = None
     candidate_ids: tuple[str, ...] = ()
     reasons: tuple[str, ...] = ()
+    missing_fields: tuple[str, ...] = ()
 
 
 def _normalise(value: str) -> str:
@@ -91,17 +92,22 @@ def match_email_job(
         )
     evidence = {fact.field: fact.value for fact in assessment.facts}
     required = ("reference", "company", "siteLocation")
-    try:
-        key = tuple(_normalise(evidence[name]) for name in required)
-    except (KeyError, IntakeError):
+    normalized = {}
+    missing = []
+    for name in required:
+        try:
+            normalized[name] = _normalise(evidence[name])
+        except (KeyError, IntakeError):
+            missing.append(name)
+    if missing:
         return JobMatchProposal(
             "needs_information",
             action,
             event.identity_key,
-            reasons=(
-                "Reference, customer and site are required to match existing work",
-            ),
+            reasons=("Clarify only the missing or unsafe matching fields",),
+            missing_fields=tuple(missing),
         )
+    key = tuple(normalized[name] for name in required)
     candidates: list[tuple[IntakeRequest, str]] = []
     seen = set()
     try:
