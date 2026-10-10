@@ -6,6 +6,8 @@ source-to-job binding before planning. Cancelled/rejected work, unresolved sourc
 changes or changed site/scope/preferredDate suppress the old email's proposal.
 Unknown/corrupt binding/store and linked aliases fail closed for preview and
 require current canonical review. Reading never materialises or changes a job.
+The deterministic original submission receipt must agree with the source binding.
+A missing or rewired binding cannot impersonate an unmaterialised/current job.
 
 Unmaterialised partial drafts retain the existing conservative preview. A current
 matching job retains existing Adelaide 10–15 weekday rules, explicit dates/night

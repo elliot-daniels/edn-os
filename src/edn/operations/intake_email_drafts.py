@@ -14,6 +14,7 @@ import unicodedata
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from uuid import NAMESPACE_URL, uuid5
 
 from edn.operations.intake import (
     INPUT_FIELDS,
@@ -427,8 +428,16 @@ class EmailDraftStore:
                     "SELECT request_id FROM intake_sources WHERE source_key=?",
                     (bound_key,),
                 ).fetchone()
+                receipt = connection.execute(
+                    "SELECT request_id FROM intake_submissions WHERE submission_id=?",
+                    (str(uuid5(NAMESPACE_URL, "edn-intake-source:" + bound_key)),),
+                ).fetchone()
                 if row is None:
+                    if receipt is not None:
+                        raise IntakeError("Retained source binding is missing; review")
                     return None
+                if receipt is None or receipt[0] != row[0]:
+                    raise IntakeError("Retained source/job association is inconsistent")
                 job = requests._get(connection, row[0])
                 if requests._canonical(connection, job.request_id) != job.request_id:
                     raise IntakeError("Linked work requires current canonical review")

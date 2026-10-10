@@ -1,4 +1,5 @@
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from streamlit.testing.v1 import AppTest
@@ -8,7 +9,9 @@ from tests.operations.test_intake_email_materialisation import BODY, stores
 from tests.operations.test_intake_email_updates import UPDATE
 
 
-@pytest.mark.parametrize("kind", ["update", "cancel", "corrupt"])
+@pytest.mark.parametrize(
+    "kind", ["update", "cancel", "corrupt", "missing_binding", "rewired_binding"]
+)
 def test_mobile_preview_refuses_retained_email_after_job_action(
     tmp_path, monkeypatch, kind
 ):
@@ -26,12 +29,27 @@ def test_mobile_preview_refuses_retained_email_after_job_action(
     assert any(
         "Provisional — Awaiting Confirmation" in item.value for item in initial.markdown
     )
-    if kind == "corrupt":
+    if kind in {"corrupt", "missing_binding", "rewired_binding"}:
+        other = (
+            requests.create(job.fields, submission_id=str(uuid4()))
+            if kind == "rewired_binding"
+            else None
+        )
         with requests._connect() as connection:
-            connection.execute(
-                "UPDATE intake_revisions SET fields='{}' WHERE request_id=?",
-                (job.request_id,),
-            )
+            if kind == "corrupt":
+                connection.execute(
+                    "UPDATE intake_revisions SET fields='{}' WHERE request_id=?",
+                    (job.request_id,),
+                )
+            elif kind == "missing_binding":
+                connection.execute(
+                    "DELETE FROM intake_sources WHERE request_id=?", (job.request_id,)
+                )
+            else:
+                connection.execute(
+                    "UPDATE intake_sources SET request_id=? WHERE request_id=?",
+                    (other.request_id, job.request_id),
+                )
         before = requests.path.read_bytes()
         reopened = AppTest.from_file(str(script)).run()
         assert not reopened.exception
