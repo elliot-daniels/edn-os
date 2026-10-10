@@ -187,6 +187,14 @@ def _render_draft(
     # Source text must not become Markdown images/links or fetch remote resources.
     label = "Email " + key.rsplit(":", 1)[-1][:8] + " · " + assessment["kind"]
     with st.expander(label, expanded=True):
+        prepared = st.session_state.pop(key + "-prepared-job", None)
+        if prepared is not None:
+            st.success(
+                "Canonical job prepared. Review it in Intake queue; "
+                "approval and SharePoint delivery are separate."
+            )
+            if prepared[1]:
+                st.warning("Updated source requires review before approval or export.")
         result = st.session_state.pop(key + "-action-result", None)
         if result is not None:
             st.success(
@@ -474,14 +482,11 @@ def _render_draft(
                     job = EmailDraftStore(path).materialise(
                         key, expected_revision, IntakeStore(path.parent / "requests.db")
                     )
-                    st.success(
-                        "Canonical job prepared. Review it in Intake queue; "
-                        "approval and SharePoint delivery are separate."
+                    st.session_state[key + "-prepared-job"] = (
+                        job.request_id,
+                        job.source_pending,
                     )
-                    if job.source_pending:
-                        st.warning(
-                            "Updated source requires review before approval or export."
-                        )
+                    st.rerun()
                 except (ValueError, sqlite3.Error, OSError):
                     st.error(
                         "Job preparation was not confirmed. Check required fields and "
