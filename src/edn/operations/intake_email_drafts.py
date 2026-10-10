@@ -20,6 +20,7 @@ from edn.operations.intake import (
     IntakeError,
     IntakeRequest,
     IntakeStore,
+    _audit_row,
     _digest,
     validate_fields,
 )
@@ -472,6 +473,105 @@ class EmailDraftStore:
                 connection.execute(
                     "UPDATE intake_requests SET state='cancelled' WHERE request_id=?",
                     (job.request_id,),
+                )
+                return requests._get(connection, job.request_id)
+
+    def update_job(
+        self, source_key: str, expected_revision: int, requests: IntakeStore
+    ) -> IntakeRequest:
+        """Apply a bounded synthetic canonical update with durable source replay.
+
+        Scheduling-only facts are not silently omitted. Matching and mutation
+        use one request snapshot/lock, following the existing draft-first order.
+        """
+        self._backend._write()
+        requests._write()
+        if type(expected_revision) is not int or expected_revision < 1:
+            raise IntakeError("Invalid update draft revision")
+        with self._backend._connect() as source_connection:
+            draft = self._get(source_connection, source_key)
+            if draft["revision"] != expected_revision or draft["assessment_stale"]:
+                raise IntakeError("Email draft changed; refresh before update")
+            original = draft["original"]
+            assert isinstance(original, dict)
+            event = _event(original)
+            assessment = assess_email(event)
+            if (
+                not event.source.startswith("synthetic_")
+                or assessment.kind != EmailKind.JOB_UPDATE
+            ):
+                raise IntakeError("Only synthetic job-update drafts can update jobs")
+            facts = {fact.field: fact.value for fact in assessment.facts}
+            supported = {
+                "contactName",
+                "email",
+                "phone",
+                "jobDescription",
+                "requested_date",
+            }
+            if event.attachments or facts.keys() - supported - {
+                "company",
+                "siteLocation",
+                "reference",
+            }:
+                raise IntakeError("Update evidence or scheduling fields require review")
+            changes = {
+                "preferredDate" if field == "requested_date" else field: value
+                for field, value in facts.items()
+                if field in supported
+            }
+            if not changes:
+                raise IntakeError("Update has no supported canonical changes")
+            reason = f"Synthetic email update: {source_key} {draft['source_hash']}"
+            with requests._connect() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                requests._source_schema(connection)
+                receipts = connection.execute(
+                    "SELECT request_id,decision_id,revision,content_hash,actor,"
+                    "decided_at,decision,reason FROM intake_approvals "
+                    "WHERE decision IN ('edited','edited_approval_invalidated') "
+                    "AND reason=? LIMIT 2",
+                    (reason,),
+                ).fetchall()
+                if receipts:
+                    if len(receipts) != 1:
+                        raise IntakeError("Update replay audit is inconsistent")
+                    receipt = receipts[0]
+                    _audit_row(connection, receipt[0], receipt[1:])
+                    if requests._canonical(connection, receipt[0]) != receipt[0]:
+                        raise IntakeError("Update replay target was relinked; review")
+                    # Return current state: an old replay must not undo a later
+                    # manual correction, approval, source update or cancellation.
+                    return requests._get(connection, receipt[0])
+                rows = connection.execute(
+                    "SELECT request_id FROM intake_requests LIMIT 1001"
+                ).fetchall()
+                if len(rows) > 1000:
+                    raise IntakeError("Update snapshot exceeds its bound")
+                jobs = []
+                for (identifier,) in rows:
+                    job = requests._get(connection, identifier)
+                    if requests._canonical(connection, identifier) == identifier:
+                        jobs.append(job)
+                proposal = match_email_job(event, assessment, jobs, complete=True)
+                if proposal.status != "matched_proposal":
+                    raise IntakeError("Update requires review: " + proposal.status)
+                assert proposal.target_id is not None
+                job = requests._get(connection, proposal.target_id)
+                if (
+                    job.revision != proposal.target_revision
+                    or _digest(job.fields, job.attachments) != proposal.target_hash
+                ):
+                    raise IntakeError("Update target changed")
+                fields = validate_fields({**job.fields, **changes})
+                requests._record_revision(
+                    connection,
+                    job,
+                    fields,
+                    "edited_approval_invalidated"
+                    if job.state == "approved"
+                    else "edited",
+                    reason,
                 )
                 return requests._get(connection, job.request_id)
 
