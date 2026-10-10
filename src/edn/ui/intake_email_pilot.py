@@ -21,6 +21,7 @@ from edn.operations.intake_scheduling import (
     ScheduleProposal,
 )
 from edn.operations.models import Event
+from edn.ui.intake_hold_review import render_hold_review
 
 
 def synthetic_examples() -> tuple[Event, ...]:
@@ -87,6 +88,7 @@ def render_email_pilot(root: Path) -> None:
         "No mailbox read or appointment created."
     )
     path = root / "email-drafts.db"
+    render_hold_review(root)
     try:
         if st.button("Load synthetic email examples", key="email-pilot-load"):
             store = EmailDraftStore(path)
