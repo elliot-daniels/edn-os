@@ -37,7 +37,10 @@ def test_explicit_forward_facts_use_outer_event_provenance_and_original_quotes()
         for f in result.facts
     )
     assert all(f.basis == "email_reported" for f in result.facts)
-    assert all(f.value != "forged@example.test" for f in result.facts)
+    assert next(f.value for f in result.facts if f.field == "email") == (
+        "contact@example.test"
+    )
+    assert all("sender@example.test" not in f.value for f in result.facts)
     assert any("unverified" in reason for reason in result.reasons)
     assert event.to_dict() == original
     assert assess_email(event) == result
@@ -127,3 +130,19 @@ def test_forwarded_conflicting_fields_and_explicit_night_requirements():
         next(f.value for f in result.facts if f.field == "requested_time")
         == "22:00 Adelaide"
     )
+
+
+@pytest.mark.parametrize(
+    "marker", ["---------- Forwarded message ----------", "Begin forwarded message:"]
+)
+def test_supported_markers_with_large_blank_prefix_preserve_outer_identity(marker):
+    event = forward()
+    body = event.body.replace(
+        "---------- Forwarded message ----------\n",
+        marker + "\n" + " \n" * 20000,
+    )
+    source = email(subject=event.subject, body=body)
+    result = assess_email(source)
+    assert result.kind == EmailKind.NEW_JOB
+    assert next(f.value for f in result.facts if f.field == "siteLocation") == "Depot"
+    assert all(f.source_key == source.identity_key for f in result.facts)

@@ -145,8 +145,10 @@ def _requested_forward(body: str) -> tuple[str, str] | None:
         return None
     headers: dict[str, str] = {}
     tail = lines[index + 1 :]
-    while tail and not tail[0].strip():
-        tail = tail[1:]
+    first_header = 0
+    while first_header < len(tail) and not tail[first_header].strip():
+        first_header += 1
+    tail = tail[first_header:]
     for offset, line in enumerate(tail):
         if not line.strip():
             if "subject" not in headers:
