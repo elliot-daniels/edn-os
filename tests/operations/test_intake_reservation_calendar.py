@@ -21,6 +21,9 @@ def setup(tmp_path):
     source = email(body=BODY)
     drafts.ingest(source)
     job = drafts.materialise(source.identity_key, 1, requests)
+    # The full app creates this durable manual-entry intent on first render.
+    # Establish it before measuring the read-only reservation projection.
+    requests.begin_submission()
     ledger = SyntheticReservationStore(tmp_path / "reservations.db")
     ledger.initialise()
     receipt = ledger.reserve(
