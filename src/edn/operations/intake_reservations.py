@@ -359,6 +359,57 @@ class SyntheticReservationStore:
                 actor=actor,
             )
 
+    def release_stale_for_job(
+        self,
+        requests: IntakeStore,
+        job_id: str,
+        *,
+        job_revision: int,
+        job_hash: str,
+        expected_revision: int,
+        actor: str,
+        now: datetime,
+    ) -> dict[str, Any]:
+        """Release only a verified stale synthetic hold; retain its full audit.
+
+        Keep the current canonical job locked through ledger cancellation. An
+        unchanged active binding is not releasable through this recovery API.
+        Malformed/aliased jobs and concurrent ledger revisions require review.
+        """
+        _identity(job_id, job_revision, job_hash)
+        with requests._connect() as connection:
+            job = requests._get(connection, job_id)
+            if (
+                requests._canonical(connection, job_id) != job_id
+                or job.revision != job_revision
+                or _digest(job.fields, job.attachments) != job_hash
+            ):
+                raise IntakeError("Canonical job changed; refresh before release")
+            with self._backend._connect() as ledger:
+                item = self._rows(ledger).get(job_id)
+                if item is None or item["revision"] != expected_revision:
+                    raise IntakeError("Reservation changed; refresh before release")
+                last = item["history"][-1]
+                if item["state"] != "cancelled" and (
+                    job.state in {"draft", "approved"}
+                    and not job.source_pending
+                    and last["job_revision"] == job_revision
+                    and last["job_hash"] == job_hash
+                ):
+                    raise IntakeError("Current matching hold is not stale")
+            # cancel rechecks the displayed ledger revision under its mutation
+            # lock. The job lock remains held across the read/publish boundary.
+            return self.cancel(
+                job_id,
+                expected_revision,
+                actor=actor,
+                reason=(
+                    f"Synthetic stale hold release: job revision {job_revision} "
+                    f"hash {job_hash}; state {job.state}; pending {job.source_pending}"
+                ),
+                now=now,
+            )
+
     def cancel(
         self,
         job_id: str,
