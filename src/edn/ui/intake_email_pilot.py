@@ -132,6 +132,16 @@ def _render_draft(
     # Source text must not become Markdown images/links or fetch remote resources.
     label = "Email " + key.rsplit(":", 1)[-1][:8] + " · " + assessment["kind"]
     with st.expander(label, expanded=True):
+        result = st.session_state.pop(key + "-action-result", None)
+        if result is not None:
+            st.success(
+                f"Local job action verified: revision {result[0]}, "
+                f"state {result[1]}. Review the Intake queue."
+            )
+            st.warning(
+                "No calendar reservation was changed. Review scheduling "
+                "separately before relying on an appointment."
+            )
         st.text(original["subject"])
         st.caption(
             f"Revision {record['revision']} · unapproved draft · no SharePoint delivery"
@@ -256,6 +266,38 @@ def _render_draft(
         questions = record["outstanding_questions"]
         for question in questions:
             st.write(f"{question['category']}: {question['question']}")
+        if (
+            assessment["kind"] in {"job_update", "cancellation"}
+            and (path.parent / "requests.db").is_file()
+        ):
+            cancellation = assessment["kind"] == "cancellation"
+            st.caption(
+                "Synthetic local job action only. Calendar reservations are separate; "
+                "no customer message or Microsoft write will occur."
+            )
+            confirmed = not cancellation or st.checkbox(
+                "Confirm cancellation of the matching synthetic job",
+                key=key + "-confirm-cancel",
+            )
+            if st.button(
+                "Apply synthetic cancellation"
+                if cancellation
+                else "Apply synthetic update",
+                key=key + "-apply-action",
+                disabled=not confirmed,
+            ):
+                try:
+                    store = EmailDraftStore(path)
+                    requests = IntakeStore(path.parent / "requests.db")
+                    action = store.cancel_job if cancellation else store.update_job
+                    job = action(key, record["revision"], requests)
+                    st.session_state[key + "-action-result"] = (job.revision, job.state)
+                    st.rerun()
+                except (ValueError, sqlite3.Error, OSError):
+                    st.error(
+                        "Job action was not confirmed. Check source details and "
+                        "canonical matching; no scheduling or delivery is confirmed."
+                    )
         if assessment["kind"] == "new_job":
             editor_key = key + "-editor-revision"
             if editor_key not in st.session_state:
