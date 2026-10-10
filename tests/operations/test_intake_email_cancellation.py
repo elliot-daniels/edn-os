@@ -3,7 +3,9 @@ from uuid import uuid4
 
 import pytest
 
-from edn.operations.intake import IntakeError, _ProtectedConnection
+from edn.operations.intake import IntakeError, IntakeStore, _ProtectedConnection
+from edn.operations.intake_attachments import IntakeAttachmentStore
+from edn.operations.intake_security import AnchoredDirectory
 from tests.operations.test_intake_email import email
 from tests.operations.test_intake_email_materialisation import BODY, stores
 
@@ -68,6 +70,29 @@ def test_concurrent_cancellation_has_one_durable_audit(tmp_path):
     )
 
 
+def test_cancellation_retains_protected_supporting_file_bytes(tmp_path):
+    setup = prepared(tmp_path)
+    if setup is None:
+        return
+    drafts, requests, _, job, message, _ = setup
+    with AnchoredDirectory(tmp_path) as root, root.child("attachments", create=True):
+        pass
+    evidence = IntakeAttachmentStore(tmp_path / "attachments")
+    payload = b"Synthetic supporting evidence\n"
+    metadata = evidence.attach(job.request_id, "support.txt", payload)
+    requests = IntakeStore(requests.path, evidence_root=tmp_path / "attachments")
+    changed = requests.update(
+        job.request_id, job.revision, job.fields, attachments=[metadata.to_dict()]
+    )
+    approved = requests.approve(job.request_id, changed.revision)
+    cancelled = drafts.cancel_job(message.identity_key, 1, requests)
+    assert cancelled.revision == approved.revision + 1
+    assert cancelled.attachments == approved.attachments == (metadata.to_dict(),)
+    assert evidence.read(job.request_id, metadata.attachment_id) == payload
+    assert drafts.cancel_job(message.identity_key, 1, requests) == cancelled
+    assert evidence.read(job.request_id, metadata.attachment_id) == payload
+
+
 @pytest.mark.parametrize(
     "condition", ["ambiguous", "source_pending", "malformed", "missing", "stale"]
 )
@@ -82,7 +107,7 @@ def test_uncertain_targets_do_not_cancel_or_hide_corrupt_rows(tmp_path, conditio
         if condition == "malformed":
             with requests._connect() as connection:
                 connection.execute(
-                    "UPDATE intake_requests SET fields='{}' WHERE request_id=?",
+                    "UPDATE intake_revisions SET fields='{}' WHERE request_id=?",
                     (second.request_id,),
                 )
     elif condition == "source_pending":
