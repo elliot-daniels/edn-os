@@ -32,7 +32,7 @@ def test_composed_email_evidence_sync_hold_cancel_release_and_reopen(
     delivered = sync.get(payload)
     assert delivered["status"] == "synced"
     assert payload["not_synced"] is True and payload["dry_run"] is True
-    assert any("live SharePoint: not synced" in item.value for item in view.caption)
+    assert any("live SharePoint: not synced" in item.value for item in view.markdown)
     view.button(key=source.identity_key + "-reserve").click().run()
     assert not view.exception
     ledger = SyntheticReservationStore(tmp_path / "reservations.db")
