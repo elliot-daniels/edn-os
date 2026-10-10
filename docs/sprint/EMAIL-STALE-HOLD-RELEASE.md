@@ -1,0 +1,11 @@
+# Verified stale synthetic hold release
+
+`SyntheticReservationStore.release_stale_for_job` is a bounded recovery API. It verifies the exact current canonical job revision/hash and refuses aliases. It checks the displayed reservation revision, then retains the job lock through the existing audited ledger cancellation. Only a hold made stale by job revision/hash, terminal state or pending source review is releasable. A current matching active hold is refused. Cancelled receipt replay requires the displayed current ledger revision and does not add history.
+
+Release retains original plan, prior history, source/job data and existing audit contracts. The reason records current canonical revision/hash/state/review status. Malformed jobs or ledger and concurrent revision changes require review; intervals are not silently freed. Requests are never edited by this API. Existing job-then-ledger lock order is preserved.
+
+This is explicit synthetic recovery, not automatic email action coupling, rescheduling or a mobile release control. A later bounded UI/executor must call this guard with current displayed evidence. No real stores, external transports, schemas, frozen QA, CI/security/authority changes. Existing lower-level cancellation remains available for isolated ledger behaviour and does not attest canonical state.
+
+Eight regression cases cover edit/terminal/pending release, preservation of original intervals/full history/source/job bytes, restored availability and current-receipt replay, plus matching/current, stale job/ledger and alias refusal with unchanged bytes. Native Windows verifies refusal only; full hosted Linux required.
+
+Linux/WSL synthetic trial: use actual private0700 Linux storage outside Git, never Windows/DrvFs or real stores. Install development dependencies in a virtual environment, set umask077, run `python -m pytest -q tests/operations/test_intake_stale_hold_release.py`; existing UI launch is `python tools/run_work_intake_demo.py --data-dir <private-parent>/demo --initialise --email-pilot`, localhost http://127.0.0.1:8502, restart omitting --initialise. Release is demonstrated by synthetic API tests, not a new UI button. Accepted Android demo remains unchanged; candidate review pending.
