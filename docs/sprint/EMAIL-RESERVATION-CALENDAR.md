@@ -1,0 +1,9 @@
+# Verified local reservations in synthetic email planning
+
+The opt-in email pilot reads `reservations.db` when present, under existing protected-store contracts. A read-only projection locks canonical requests before the ledger, validates every retained ledger row and verifies every active hold against current canonical job identity, revision, content/attachment hash, nonterminal state and source review status. Cancelled holds remain audited but do not occupy availability. No store is modified.
+
+Verified travel/preparation intervals join the existing calendar snapshot. A job with a verified hold shows retained occupancy and does not receive a second proposal. Missing/stale/malformed/aliased job bindings or malformed ledger make scheduling unknown; the UI keeps drafts accessible and blocks proposals rather than falling back to an empty calendar. A dangling ledger symlink also enters protected verification and fails closed.
+
+This is read-only snapshot evidence, not atomic booking, job/reservation coordination, automatic release/rescheduling or a customer appointment. All holds are synthetic and provisional. A concurrent change after the snapshot requires future mutation-time revalidation; this change provides no booking authority. No Microsoft transport, schemas, security policies or CI changes.
+
+Linux/WSL only on actual private Linux storage outside Git, not Windows/DrvFs. Install `python -m pip install -e ".[dev]"` in a virtual environment, set umask077, create a0700 parent, then run `python tools/run_work_intake_demo.py --data-dir <private-parent>/demo --initialise --email-pilot`. Open http://127.0.0.1:8502; restarts omit --initialise. Synthetic regressions create retained reservations and verify projection, released holds, stale/corrupt/refused bindings, byte preservation and app behaviour. Native Windows validates refusal only. Review-only candidate; accepted Android demo remains unchanged.

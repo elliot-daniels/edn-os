@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,8 @@ import streamlit as st
 from edn.operations.intake import IntakeStore
 from edn.operations.intake_email_drafts import EmailDraftStore
 from edn.operations.intake_email_preview import preview_email_schedule
+from edn.operations.intake_reservation_calendar import include_local_reservations
+from edn.operations.intake_reservations import SyntheticReservationStore
 from edn.operations.intake_scheduling import (
     ADELAIDE,
     CalendarSnapshot,
@@ -114,6 +117,30 @@ def render_email_pilot(root: Path) -> None:
         calendar = CalendarSnapshot(
             now, now + timedelta(days=10), now, (), True, "synthetic-empty-calendar"
         )
+        if (root / "reservations.db").exists() or (
+            root / "reservations.db"
+        ).is_symlink():
+            try:
+                calendar = include_local_reservations(
+                    calendar,
+                    SyntheticReservationStore(root / "reservations.db", read_only=True),
+                    IntakeStore(root / "requests.db", read_only=True),
+                )
+                st.caption(
+                    f"{len(calendar.events)} verified synthetic local holds "
+                    "included in planning; none is a customer confirmation."
+                )
+                for hold in calendar.events:
+                    st.text(
+                        f"Synthetic hold {hold.event_id}: travel/preparation occupancy "
+                        f"{hold.start.isoformat()} → {hold.end.isoformat()}"
+                    )
+            except (ValueError, sqlite3.Error, OSError):
+                calendar = replace(calendar, complete=False)
+                st.error(
+                    "Local reservations could not be verified. Scheduling is "
+                    "blocked until review; no interval is treated as free."
+                )
         for record in records:
             _render_draft(path, record, calendar, now)
     except (ValueError, sqlite3.Error, OSError):
@@ -211,6 +238,15 @@ def _render_draft(
             proposal = preview_email_schedule(
                 record, calendar, now=now, current_job=current_job
             )
+            if current_job is not None and any(
+                hold.calendar_id == "synthetic-local-reservations"
+                and hold.event_id == current_job.request_id
+                for hold in calendar.events
+            ):
+                proposal = ScheduleProposal(
+                    "already_reserved",
+                    reasons=("Current job already has a synthetic provisional hold",),
+                )
         except (ValueError, sqlite3.Error, OSError):
             proposal = ScheduleProposal(
                 "job_unknown",
@@ -218,6 +254,12 @@ def _render_draft(
             )
         if proposal.status == "not_applicable":
             st.info("No schedule proposed for this correspondence.")
+        elif proposal.status == "already_reserved":
+            st.info(
+                "This job already has a verified synthetic provisional hold. "
+                "Review its occupancy above; no second proposal or confirmed "
+                "customer appointment is created."
+            )
         elif proposal.start is not None:
             st.write("Provisional — Awaiting Confirmation")
             assert proposal.end is not None
